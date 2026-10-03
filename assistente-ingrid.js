@@ -1107,6 +1107,19 @@ function ingNumeros(s) {
   return out;
 }
 function ingColheNumeros(s) { for (const v of ingNumeros(s)) ingNumerosTurno.add(v); }
+/* o que as ferramentas já devolveram nas mensagens ANTERIORES desta conversa também é número conhecido
+   (rodada 1 do teste "como a Ingrid": ela perguntou "quanto fica?" e a IA repetiu, certo, o total do
+   orçamento montado na mensagem anterior — sem ferramenta nova — e o vigia marcou como inventado).
+   Só o que veio de ferramenta ou dela: o texto do próprio assistente não ensina número. */
+function ingNumerosDoHistorico(h) {
+  const out = new Set();
+  for (const m of h || []) {
+    if (m.role !== 'user') continue;
+    if (typeof m.content === 'string') { for (const v of ingNumeros(m.content)) out.add(v); continue; }
+    for (const b of m.content || []) { if (b.type === 'tool_result' || b.type === 'text') for (const v of ingNumeros(typeof b.content === 'string' ? b.content : (b.text || JSON.stringify(b.content || '')))) out.add(v); }
+  }
+  return out;
+}
 /* os valores em € do texto que NÃO vieram de nenhuma ferramenta/fala/estado desta conversa */
 function ingDinheiroSuspeito(texto, conhecidos) {
   const K = conhecidos || ingNumerosTurno, out = [];
@@ -1151,7 +1164,7 @@ const _ingConversa = iaConversa;
 iaConversa = async function (texto, fotos) {
   if (iaOcupado) return;                         // o motor também recusa: sem isto o anexo entrava na lista e a numeração desencontrava
   /* o vigia de dinheiro começa a conversa sabendo o que ela disse, a situação do dia, a memória e o diário */
-  ingNumerosTurno = new Set(); try { ingColheNumeros(texto); ingColheNumeros(iaAgora()); ingColheNumeros((Mkt.get().memoria || []).map(x => x.texto).join(' ')); if (typeof ingDiarioTexto === 'function') ingColheNumeros(ingDiarioTexto(14)); } catch (e) {}
+  ingNumerosTurno = new Set(); try { for (const v of ingNumerosDoHistorico(iaLe(IA_HIST, []))) ingNumerosTurno.add(v); ingColheNumeros(texto); ingColheNumeros(iaAgora()); ingColheNumeros((Mkt.get().memoria || []).map(x => x.texto).join(' ')); if (typeof ingDiarioTexto === 'function') ingColheNumeros(ingDiarioTexto(14)); } catch (e) {}
   ingPararFala(); ingVozEspera = true;
   fotos = !fotos ? [] : Array.isArray(fotos) ? fotos : [fotos];
   const base = ingAnexos.length;
