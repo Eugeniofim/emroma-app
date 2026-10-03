@@ -141,7 +141,7 @@ const ING_FERRAMENTAS = [
   { name: 'ver_parceiros', description: 'Influencers, agências e parceiros com cupom: reservas trazidas, faturado, comissão devida, paga e a pagar.', input_schema: obj() },
   { name: 'abrir_aba', description: 'Leva ela até uma tela do app (e, se quiser, a um item).', input_schema: obj({ aba: { type: 'string', enum: ING_ABAS }, item: S_('id do orçamento, código da reserva ou chave do cliente (opcional)') }, ['aba']) },
   /* gravar */
-  { name: 'anotar_tarefa', description: 'Cria tarefa (com dia e hora se houver; entende "amanhã 9h" no texto). Mandar mensagem/cobrar/orçamento já vêm com o passo seguinte ("aguardar resposta").', input_schema: obj({ texto: S_(), dia: S_('AAAA-MM-DD'), hora: S_('HH:MM'), cliente: S_(), detalhe: S_() }, ['texto']) },
+  { name: 'anotar_tarefa', description: 'Cria tarefa (com dia e hora se houver; entende "amanhã 9h" no texto). Mandar mensagem/cobrar/orçamento já vêm com o passo seguinte ("aguardar resposta"). Tarefa que SE REPETE (rotina: "todo dia às 6h de 3/10 até 31/10", "toda segunda", "todo dia 01"): passe repete (e ate, se tiver fim) — ela aparece no dia e, quando marcada feita, volta no próximo. Várias tarefas na mesma fala: chame uma vez para cada.', input_schema: obj({ texto: S_(), dia: S_('AAAA-MM-DD (a 1ª vez; numa rotina sem dia = hoje)'), hora: S_('HH:MM'), cliente: S_(), detalhe: S_(), repete: { type: 'string', enum: ['diario', 'semanal', 'mensal'] }, ate: S_('AAAA-MM-DD — até quando a rotina repete (vazio = sem fim)') }, ['texto']) },
   { name: 'concluir_tarefa', description: 'Marca tarefa como feita. Em tarefa de espera diga o resultado: respondeu ou nao_respondeu (vira lembrete). Devolve o próximo passo que o app criou.', input_schema: obj({ tarefa: S_('id ou pedaço do texto'), resultado: { type: 'string', enum: ['feito', 'respondeu', 'nao_respondeu'] } }, ['tarefa']) },
   { name: 'anotar', description: 'Guarda uma anotação (ideia, fornecedor, detalhe), ligada a um cliente se houver.', input_schema: obj({ texto: S_(), cliente: S_(), fixar: { type: 'boolean' } }, ['texto']) },
   { name: 'anotar_cliente', description: 'Acrescenta um fato à ficha do cliente (o que vale para sempre: vegana, VIP, alergia, indicação de quem).', input_schema: obj({ cliente: S_(), texto: S_(), etiqueta: S_() }, ['cliente', 'texto']) },
@@ -877,7 +877,7 @@ Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. V
 - ⭐ Avaliações do site: ver_avaliacoes
 - Arquivos: ver_arquivos
 - NÃO SABE ONDE ESTÁ? procurar (acha em todas as abas). Pergunta geral sobre o negócio ("como estamos?", "o que tem pendente?") → ver_tudo. Você lê quase tudo do app — se para alguma coisa não houver ferramenta (ex.: as regiões do site, os textos de e-mail), diga isso em uma linha e abra a aba certa (abrir_aba) dizendo o que tocar. Nunca finja que fez.
-- Tarefas e anotações: ver_tarefas (inclui lembretes do app e clientes que devem), anotar_tarefa (entende "todo dia 01", "toda segunda"), mudar_tarefa (mudar dia/hora/texto, adiar, fixar, reabrir, apagar — NUNCA crie outra para mudar uma que existe), concluir_tarefa, lembrete_feito, ver_anotacoes, anotar
+- Tarefas e anotações: ver_tarefas (inclui lembretes do app e clientes que devem), anotar_tarefa (ROTINA: "todo dia às 6h de 3/10 até 31/10" → repete + ate + dia + hora — você CONSEGUE, nunca diga que não; várias rotinas = uma chamada para cada), mudar_tarefa (mudar dia/hora/texto, adiar, fixar, reabrir, apagar — NUNCA crie outra para mudar uma que existe), concluir_tarefa, lembrete_feito, ver_anotacoes, anotar
 - Guias e motoristas: ver_guias, quem_esta_livre, marcar_disponibilidade, cadastrar_guia, mudar_guia (inclui preferência), remover_guia, escalar
 - Agenda: ver_agenda, ver_hoje com a data; tarefas com dia aparecem na Agenda sozinhas
 - Reservas: ver_reservas, criar_reserva, alterar_reserva, cancelar_reserva, registrar_pagamento
@@ -1506,7 +1506,8 @@ IA_FERRAMENTAS.push(
     desconto_pct: { type: 'number', description: 'desconto da Transfer Roma 5% (ex.: 5)' } } } },
   { name: 'mudar_tarefa', description: 'MUDA uma tarefa que já existe (não cria outra): dia, hora, texto, detalhe, adiar N dias, fixar/desafixar, reabrir uma feita, ou apagar de vez. Ache pelo pedaço do texto ou pelo id.', input_schema: { type: 'object', properties: {
     tarefa: { type: 'string', description: 'pedaço do texto ou tarefa_id' }, dia: { type: 'string', description: 'AAAA-MM-DD ("sem" tira o dia)' }, hora: { type: 'string' },
-    texto: { type: 'string' }, detalhe: { type: 'string' }, adiar_dias: { type: 'integer' }, fixar: { type: 'boolean' }, reabrir: { type: 'boolean' }, apagar: { type: 'boolean' } }, required: ['tarefa'] } }
+    texto: { type: 'string' }, detalhe: { type: 'string' }, adiar_dias: { type: 'integer' }, fixar: { type: 'boolean' }, reabrir: { type: 'boolean' }, apagar: { type: 'boolean' },
+    repete: { type: 'string', enum: ['diario', 'semanal', 'mensal', 'nao'], description: 'transformar em rotina (ou "nao" para parar de repetir)' }, ate: { type: 'string', description: 'AAAA-MM-DD — até quando repete' } }, required: ['tarefa'] } }
 );
 ING_PLANO.editar_tabela_precos = function (i) {
   if (typeof Precos === 'undefined') return E_('a Tabela de preços não carregou');
@@ -1557,6 +1558,8 @@ ING_PLANO.mudar_tarefa = function (i) {
   if (i.texto) { d.texto = String(i.texto).trim(); linhas.push(['Texto', d.texto]); }
   if (i.detalhe !== undefined) { d.detalhe = String(i.detalhe || ''); linhas.push(['Detalhe', d.detalhe || '(vazio)']); }
   if (i.fixar !== undefined) { d.fixa = !!i.fixar; linhas.push(['Fixada', i.fixar ? 'sim' : 'não']); }
+  if (i.repete) { d.repete = ING_REP[i.repete] ? i.repete : ''; linhas.push(['Repete', d.repete ? ING_REP[d.repete] : 'não repete mais']); if (d.repete && !t.prazo && d.prazo === undefined) { d.prazo = hojeIso(); linhas.push(['Começa', ingData(d.prazo)]); } }
+  if (i.ate !== undefined) { d.repeteAte = isoOk(i.ate) ? i.ate : ''; linhas.push(['Repete até', d.repeteAte ? ingData(d.repeteAte) : 'sem fim']); }
   const reabre = !!i.reabrir && t.feita; if (reabre) linhas.push(['Reabrir', 'volta para as abertas']);
   if (linhas.length === 1) return E_('nada para mudar');
   return { titulo: 'Mudar tarefa', assumiu: [], linhas, fazer: () => { Tarefas.salva(t.id, d); if (reabre) Tarefas.marca(t.id, false); return { ok: true, tarefa: Tarefas.get(t.id) && { texto: Tarefas.get(t.id).texto, dia: Tarefas.get(t.id).prazo, hora: Tarefas.get(t.id).hora } }; } };
@@ -1571,14 +1574,29 @@ ING_LER.abrir_aba = function (i) {
   else if (i.aba === 'clients') { const r = ingAchaCliente(item); if (r.c && r.c.key) item = r.c.key; else if (r.opcoes || r.erro) return r; }
   return _ingAbrirAba({ aba: i.aba, item });
 };
-/* ---- 6. TAREFA QUE SE REPETE ("todo dia 01 pagar o contador") ---- */
+/* ---- 6. TAREFA QUE SE REPETE — rotina com dia, hora e "até" (pedido dela, 03/10: o assistente dizia
+   que não conseguia e depois criou 3 tarefas SEM DATA) ---- */
 const _ingAnotar = ING_PLANO.anotar_tarefa;
+const ING_REP = { diario: 'todo dia', semanal: 'toda semana', mensal: 'todo mês' };
 ING_PLANO.anotar_tarefa = function (i) {
-  const p = _ingAnotar(i); if (!p || !p.fazer) return p;
-  const rep = lerPrazo(String(i.texto || '')).repete; if (!rep) return p;
-  const f = p.fazer; p.linhas.push(['Repete', { diario: 'todo dia', semanal: 'toda semana', mensal: 'todo mês' }[rep] || rep]);
-  p.fazer = () => { const r = f(); const t = r && r.tarefa_id && Tarefas.get(r.tarefa_id); if (t) { t.repete = rep; _opSave(); } return r; };
-  return p;
+  const txt = String(i.texto || '').trim(); if (!txt) return E_('faltou o texto');
+  const lp = lerPrazo(txt), rep = ING_REP[i.repete] ? i.repete : lp.repete;
+  if (!rep) return _ingAnotar(i);
+  const dia = isoOk(i.dia) ? i.dia : (lp.data || hojeIso());
+  const hora = i.hora ? _horaDigitada(i.hora) : (lp.hora || '');
+  const ate = isoOk(i.ate) ? i.ate : '';
+  if (ate && ate < dia) return E_('a data final vem antes do começo');
+  let cli = { clienteKey: '', clienteNome: '', whats: '' };
+  if (i.cliente) { const r = ingAchaCliente(i.cliente); if (r.c) cli = { clienteKey: r.c.key, clienteNome: r.c.name, whats: r.c.whats }; else if (r.opcoes) return r; }
+  /* "altera": a tarefa parecida que já existe SEM DATA vira a rotina (não nasce outra igual) */
+  const sem = (x) => ingN(x).replace(/\b(de amanha|do dia anterior|de hoje)\b/g, '').replace(/\s+/g, ' ').trim();
+  const ja = Tarefas.all().find(t => !t.feita && t.tipo === 'tarefa' && !t.repete && !t.prazo && (sem(t.texto) === sem(txt) || sem(txt).startsWith(sem(t.texto)) || sem(t.texto).startsWith(sem(txt))));
+  if (ja) return { titulo: 'Tarefa vira rotina', assumiu: ['a tarefa que já existia sem data passa a repetir (não cria outra)'],
+    linhas: [['Era', ja.texto + ' (sem data)'], ['Fica', txt], ['Começa', ingData(dia) + (hora ? ' às ' + hora : '')], ['Repete', ING_REP[rep] + (ate ? ' até ' + ingData(ate) : ' (sem data para acabar)')]],
+    fazer: () => { Tarefas.salva(ja.id, { texto: txt, prazo: dia, hora, repete: rep, repeteAte: ate }); return { ok: true, tarefa_id: ja.id, virou_rotina: true }; } };
+  return { titulo: 'Tarefa que se repete', assumiu: ['aparece um dia de cada vez: quando você marca feita, nasce a do próximo'],
+    linhas: [['Tarefa', txt], ['Começa', ingData(dia) + (hora ? ' às ' + hora : '')], ['Repete', ING_REP[rep] + (ate ? ' até ' + ingData(ate) : ' (sem data para acabar)')], ...(cli.clienteNome ? [['Cliente', cli.clienteNome]] : []), ...(i.detalhe ? [['Detalhe', i.detalhe]] : [])],
+    fazer: () => { const t = Tarefas.cria({ texto: txt, prazo: dia, hora, detalhe: i.detalhe || '', ...cli, origem: 'assistente', repete: rep, repeteAte: ate }); return { ok: true, tarefa_id: t.id, repete: ING_REP[rep] + (ate ? ' até ' + ate : '') }; } };
 };
 /* ---- 7. A MEMÓRIA DELA VAI PARA A NUVEM (antes só no aparelho onde foi ensinada) ----
    Nada se perde: na 1ª vez em cada aparelho junta o que estava aqui com o que está no

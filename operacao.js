@@ -1329,6 +1329,8 @@ const Tarefas = {
       tentativa: +d.tentativa || 1, anterior: d.anterior || '', obsFim: '',
       /* "todo dia 01", "toda quinta": ao concluir, nasce a proxima */
       repete: ['diario', 'semanal', 'mensal'].includes(d.repete) ? d.repete : '',
+      /* "de 3/10 até 31/10": depois dessa data não nasce a próxima (pedido dela, 03/10) */
+      repeteAte: /^\d{4}-\d{2}-\d{2}$/.test(d.repeteAte || '') ? d.repeteAte : '',
     };
     DB.tarefas.push(t); _opSave(); return t;
   },
@@ -1361,7 +1363,8 @@ const Tarefas = {
       if (t.repete === 'mensal') d0.setMonth(d0.getMonth() + 1); else d0.setDate(d0.getDate() + (t.repete === 'semanal' ? 7 : 1));
       let pz = d0.toISOString().slice(0, 10);
       while (pz < isoToday()) { const dd = new Date(pz + 'T12:00:00'); if (t.repete === 'mensal') dd.setMonth(dd.getMonth() + 1); else dd.setDate(dd.getDate() + (t.repete === 'semanal' ? 7 : 1)); pz = dd.toISOString().slice(0, 10); }
-      Tarefas.cria({ texto: t.texto, detalhe: t.detalhe, prazo: pz, hora: t.hora, repete: t.repete, clienteKey: t.clienteKey, clienteNome: t.clienteNome, whats: t.whats, etapa: t.etapa === 'aguardar' ? '' : t.etapa });
+      if (!t.repeteAte || pz <= t.repeteAte)
+        Tarefas.cria({ texto: t.texto, detalhe: t.detalhe, prazo: pz, hora: t.hora, repete: t.repete, repeteAte: t.repeteAte || '', clienteKey: t.clienteKey, clienteNome: t.clienteNome, whats: t.whats, etapa: t.etapa === 'aguardar' ? '' : t.etapa });
     }
     const prox = t.repete ? null : proximoPasso(t, resultado);
     const nova = prox ? Tarefas.garante({ ...prox, anterior: t.id, clienteKey: prox.clienteKey ?? t.clienteKey,
@@ -1406,7 +1409,7 @@ const Tarefas = {
   },
   salva(id, d) {
     const t = Tarefas.get(id); if (!t) return null;
-    for (const k of ['texto', 'detalhe', 'prazo', 'hora', 'clienteKey', 'clienteNome', 'fixa']) if (d[k] !== undefined) t[k] = typeof d[k] === 'string' ? d[k].trim() : d[k];
+    for (const k of ['texto', 'detalhe', 'prazo', 'hora', 'clienteKey', 'clienteNome', 'fixa', 'repete', 'repeteAte']) if (d[k] !== undefined) t[k] = typeof d[k] === 'string' ? d[k].trim() : d[k];
     _opSave(); return t;
   },
   marca(id, feita) {

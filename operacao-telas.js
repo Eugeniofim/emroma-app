@@ -2434,7 +2434,8 @@ function tfLinha(t, hoje) {
         ${cli ? `<a href="${cli}">${esc(t.clienteNome || 'cliente')}</a>` : t.clienteNome ? `<span>${esc(t.clienteNome)}</span>` : ''}
         ${pes ? `<span>👤 ${esc(pes.nome)}</span>` : ''}
         ${t.tentativa > 1 ? `<span>${t.tentativa}ª tentativa</span>` : ''}
-        ${et && et.depois ? `<span class="tf-dep">depois: ${esc(et.depois)}</span>` : ''}
+        ${t.repete ? `<span class="tf-dep">🔁 ${{ diario: 'todo dia', semanal: 'toda semana', mensal: 'todo mês' }[t.repete] || t.repete}${t.repeteAte ? ' até ' + esc(t.repeteAte.slice(8, 10) + '/' + t.repeteAte.slice(5, 7)) : ''}</span>` : ''}
+        ${et && et.depois && !t.repete ? `<span class="tf-dep">depois: ${esc(et.depois)}</span>` : ''}
         ${t.fechaQuando ? `<span class="tf-dep">✨ fecha sozinha quando ${t.fechaQuando === 'pago' ? 'o cliente pagar' : t.fechaQuando === 'orc-decidido' ? 'o orçamento fechar' : 'a guia responder'}</span>` : ''}
       </span>
       ${t.detalhe ? `<small class="tf-det">${esc(t.detalhe)}</small>` : ''}
