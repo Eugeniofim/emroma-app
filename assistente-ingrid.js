@@ -1158,7 +1158,7 @@ iaDesenha = function () {
     const ta = f.querySelector('#iaTxt');
     ta.insertAdjacentHTML('beforebegin', `<button type="button" id="iaMic" aria-label="Falar" title="Falar — toque, fale, e vai sozinho quando você parar" ${ingTemMic() ? '' : 'hidden'}>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="mic-t">Falar</span></button>`);
-    ta.placeholder = ingTemMic() ? 'Fale ou escreva do jeito que você fala…' : ta.placeholder;
+    ta.placeholder = ingTemMic() ? 'Escreva ou fale…' : ta.placeholder;
     f.querySelector('#iaMic').onclick = ingOuvir;
     g.querySelector('#iaOuvManda').onclick = ingOuvManda;
     g.querySelector('#iaOuvDesc').onclick = ingOuvDescarta;
@@ -1255,6 +1255,7 @@ iaFecha = function () { ingPararFala(); if (ingOuvindo) ingOuvDescarta(); return
 const ING_DOCK_KEY = 'ingrid_ia_dock', ING_DOCK_MIN = 1280;
 /* o app DELA (dados reais, semExemplos): o "ao vivo" é o trabalho de verdade — nada de "protótipo"
    nem de "módulo extra" na boas-vindas (e a IA não pode achar que os dados são de exemplo) */
+IA_TXT.perguntar = { pt: 'Confirmar antes', en: 'Confirm first' };   // cabe numa linha no rodapé do painel
 if (ING_REAL) {
   IA_TXT.vivoTxt = { pt: 'Fale do jeito que você fala: orçamento, tarefa, follow-up, planilha, pagamento, guia… Eu leio a tabela e o app inteiro, e antes de gravar mostro um cartão para você confirmar.' };
 }
@@ -1396,6 +1397,22 @@ function ingAtalhos() {
 }
 @media print{ body.ia-dock #app{margin-right:0!important} }
 ${ING_REAL ? '.iaDemoExtra{display:none}' : ''}
+/* A BARRA DE DIGITAR (03/10): o campo inteiro na 1ª linha, os botões embaixo — na gaveta
+   (≤440px) e no painel fixo (392px) o "Falar" roubava o espaço do texto */
+#iaForm{flex-wrap:wrap;gap:8px;padding:8px 10px 8px;margin:4px 10px 4px}
+#iaForm #iaTxt{order:-1;flex:1 1 100%;min-height:40px;padding:9px 8px;font-size:15px}
+#iaForm #iaClip{width:36px;height:36px}
+#iaForm #iaMic{height:36px;padding:0 12px;font-size:13px;margin-left:auto}
+#iaForm #iaEnviar{width:36px;height:36px;font-size:17px}
+#iaForm.tem-txt #iaMic .mic-t{display:none}
+#iaForm.tem-txt #iaMic{padding:0 10px}
+.iaBarra{padding:4px 12px 6px}
+.iaBarraB{padding:5px 10px;font-size:12px}
+/* o rodapé: uma linha discreta */
+#iaPe{padding:2px 14px calc(8px + env(safe-area-inset-bottom));gap:4px 12px;font-size:11.5px;border-top:0}
+#iaPe label{gap:5px}
+#iaPe input[type=checkbox]{width:14px;height:14px}
+#iaPe button{font-size:11.5px;padding:4px 0}
 /* a bola: pequena e só com a conversa vazia (no TI ARTES o topo some no painel) */
 .ingPalco{flex-direction:row;justify-content:center;padding:0 14px 6px}
 .ingOrbe{width:34px;height:34px;box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 12%,transparent)}
