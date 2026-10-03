@@ -1,0 +1,414 @@
+/* =====================================================
+   TABELA DE PREÇOS — as planilhas de preço da Ingrid
+   (Transfer Roma · Transfer Roma 5% · Guia Roma · BV Roma)
+
+   A REGRA DE OURO (provada contra a planilha real dela — 1740 contas, 0 erro):
+   a Ingrid edita SÓ o preço e o custo. Todo o resto é fórmula, igual no Excel:
+
+     por pessoa       = preço ÷ nº de pessoas
+     sinal            = preço − custo            (o sinal é a margem dela)
+     Transfer:
+       cartão         = dinheiro × 1,10          (taxa do cartão)
+       noturno        = dinheiro + €30 por veículo
+       noturno cartão = noturno × 1,10
+     Guia: além disso tem a "GESTÃO EM COMPRA DE INGRESSOS" — valor do GRUPO
+       (€20 para 1 ou 2 pessoas na Roma Antiga). Não é o ingresso: no orçamento
+       vira a linha "Gestão e reserva antecipada de ingressos" (pedido dela, 02/10).
+       Os INGRESSOS (por pessoa e idade) vêm do catálogo de passeios — fonte única:
+       Roma Antiga €18 adulto, grátis até 17; Vaticano €24 adulto, €15 de 7 a 18,
+       grátis até 6. Sem idade informada = todos adultos.
+     Transfer Roma 5% = Transfer Roma com −5% no preço — deriva sozinha; se ela
+       mexer no Transfer Roma, o 5% acompanha na proporção.
+
+   Tudo é editável e amarra no ORÇAMENTO: no orçamento, "Acrescentar da sua
+   tabela" lista estas linhas; escolher uma preenche valor, custo e sinal.
+   ===================================================== */
+const PRECO_NOTURNO_VEIC = 30;   // adicional noturno por veículo, em euros
+/* GUIA: o que cada passeio INCLUI (vai no orçamento entre parênteses, pedido dela
+   de 02/10), e de que passeio do catálogo vêm os ingressos. Ela edita o "inclui"
+   na Tabela de preços; isto é só o ponto de partida. */
+const GUIA_PADRAO = [
+  { casa: /roma antiga/, nome: 'Roma Antiga', tours: { '3 horas': 'roma-antiga-3h', '4 horas': 'roma-antiga-4h' },
+    inclui: { '3 horas': 'Coliseu + Fórum Romano ou Palatino', '4 horas': 'Coliseu + Fórum Romano + Palatino' } },
+  { casa: /vaticano/, nome: 'Vaticano', tours: { '3 horas': 'vaticano-3h', '4 horas': 'vaticano-4h' },
+    inclui: { '3 horas': 'Museus do Vaticano + Capela Sistina, sem garantia de explicação da Basílica di San Pietro', '4 horas': 'Museus do Vaticano + Capela Sistina + Basílica di San Pietro' } },
+  { casa: /walking|barroca/, tours: { '3 horas': 'barroca-3h', '4 horas': 'barroca-4h' } },
+  { casa: /basilicas/, tours: { '3 horas': 'basilicas-3h', '4 horas': 'basilicas-4h' } },
+  { casa: /audiencia/, tours: { '': 'papal-convites' } },
+];
+const PRECOS_SEED = {"transfer":[{"titulo":"Aeroportos de Roma (CIA - Ciampino ou FCO - Fiumicino) x CENTRO","linhas":[{"pax":"1 ou 2 pessoas","paxN":2,"veic":"2 malas médias (65x45x28) e 2 bordo (carro)","veicN":1,"preco":90,"custo":60},{"pax":"1 ou 2 pessoas","paxN":2,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":100,"custo":70},{"pax":"3 pessoas","paxN":3,"veic":"2 malas médias (65x45x28) e 2 bordo (carro)","veicN":1,"preco":95,"custo":60},{"pax":"3 pessoas","paxN":3,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":105,"custo":70},{"pax":"4 pessoas","paxN":4,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":110,"custo":70},{"pax":"4 pessoas","paxN":4,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":120,"custo":80},{"pax":"5 pessoas","paxN":5,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":115,"custo":70},{"pax":"5 pessoas","paxN":5,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":125,"custo":80},{"pax":"6 pessoas","paxN":6,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":120,"custo":70},{"pax":"6 pessoas","paxN":6,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":130,"custo":80},{"pax":"7 pessoas","paxN":7,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":135,"custo":80},{"pax":"7 pessoas","paxN":7,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":195,"custo":140},{"pax":"8 pessoas","paxN":8,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":140,"custo":80},{"pax":"8 pessoas","paxN":8,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":200,"custo":140},{"pax":"9 pessoas","paxN":9,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":205,"custo":140},{"pax":"9 pessoas","paxN":9,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":215,"custo":150},{"pax":"10 pessoas","paxN":10,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":210,"custo":140},{"pax":"10 pessoas","paxN":10,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":220,"custo":150},{"pax":"11 pessoas","paxN":11,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":220,"custo":140},{"pax":"11 pessoas","paxN":11,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":230,"custo":150},{"pax":"12 pessoas","paxN":12,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":240,"custo":140},{"pax":"12 pessoas","paxN":12,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":250,"custo":150},{"pax":"13 pessoas","paxN":13,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":270,"custo":150},{"pax":"13 pessoas","paxN":13,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":280,"custo":160},{"pax":"14 pessoas","paxN":14,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":280,"custo":150},{"pax":"14 pessoas","paxN":14,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":290,"custo":160},{"pax":"15 pessoas","paxN":15,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":300,"custo":160},{"pax":"15 pessoas","paxN":15,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":350,"custo":210},{"pax":"16 pessoas","paxN":16,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":320,"custo":160},{"pax":"16 pessoas","paxN":16,"veic":"18 malas médias (65x45x28) e 14 bordo (3 minivan)","veicN":3,"preco":370,"custo":210},{"pax":"17 pessoas","paxN":17,"veic":"18 malas médias (65x45x28) e 14 bordo (3 minivan)","veicN":3,"preco":380,"custo":210},{"pax":"17 pessoas","paxN":17,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":410,"custo":240},{"pax":"18 pessoas","paxN":18,"veic":"18 malas médias (65x45x28) e 14 bordo (3 minivan)","veicN":3,"preco":390,"custo":210},{"pax":"18 pessoas","paxN":18,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":420,"custo":240},{"pax":"19 pessoas","paxN":19,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":430,"custo":240},{"pax":"19 pessoas","paxN":19,"veic":"32 malas médias (65x45x28) e 24 bordo (4 vans)","veicN":4,"preco":510,"custo":320},{"pax":"20 pessoas","paxN":20,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":440,"custo":240},{"pax":"20 pessoas","paxN":20,"veic":"32 malas médias (65x45x28) e 24 bordo (4 vans)","veicN":4,"preco":520,"custo":320}]},{"titulo":"PORTO DE CIVITAVECCHIA x CENTRO","linhas":[{"pax":"1 ou 2 pessoas","paxN":2,"veic":"2 malas médias (65x45x28) e 2 bordo (carro)","veicN":1,"preco":190,"custo":140},{"pax":"1 ou 2 pessoas","paxN":2,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":210,"custo":160},{"pax":"3 pessoas","paxN":3,"veic":"2 malas médias (65x45x28) e 2 bordo (carro)","veicN":1,"preco":195,"custo":140},{"pax":"3 pessoas","paxN":3,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":215,"custo":160},{"pax":"4 pessoas","paxN":4,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":220,"custo":160},{"pax":"4 pessoas","paxN":4,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":240,"custo":180},{"pax":"5 pessoas","paxN":5,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":225,"custo":160},{"pax":"5 pessoas","paxN":5,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":245,"custo":180},{"pax":"6 pessoas","paxN":6,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":230,"custo":160},{"pax":"6 pessoas","paxN":6,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":250,"custo":180},{"pax":"7 pessoas","paxN":7,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":260,"custo":180},{"pax":"7 pessoas","paxN":7,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":400,"custo":320},{"pax":"8 pessoas","paxN":8,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":270,"custo":180},{"pax":"8 pessoas","paxN":8,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":410,"custo":320},{"pax":"9 pessoas","paxN":9,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":420,"custo":320},{"pax":"9 pessoas","paxN":9,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":440,"custo":340},{"pax":"10 pessoas","paxN":10,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":440,"custo":320},{"pax":"10 pessoas","paxN":10,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":460,"custo":340},{"pax":"11 pessoas","paxN":11,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":450,"custo":320},{"pax":"11 pessoas","paxN":11,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":470,"custo":340},{"pax":"12 pessoas","paxN":12,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":460,"custo":320},{"pax":"12 pessoas","paxN":12,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":480,"custo":340},{"pax":"13 pessoas","paxN":13,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":500,"custo":340},{"pax":"13 pessoas","paxN":13,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":520,"custo":360},{"pax":"14 pessoas","paxN":14,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":510,"custo":340},{"pax":"14 pessoas","paxN":14,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":530,"custo":360},{"pax":"15 pessoas","paxN":15,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":540,"custo":360},{"pax":"15 pessoas","paxN":15,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":660,"custo":480},{"pax":"16 pessoas","paxN":16,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":550,"custo":360},{"pax":"16 pessoas","paxN":16,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":670,"custo":480},{"pax":"17 pessoas","paxN":17,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":680,"custo":480},{"pax":"17 pessoas","paxN":17,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":740,"custo":540},{"pax":"18 pessoas","paxN":18,"veic":"18 malas médias (65x45x28) e 14 bordo (3 minivan)","veicN":3,"preco":690,"custo":480},{"pax":"18 pessoas","paxN":18,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":750,"custo":540},{"pax":"19 pessoas","paxN":19,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":760,"custo":540},{"pax":"19 pessoas","paxN":19,"veic":"32 malas médias (65x45x28) e 24 bordo (4 vans)","veicN":3,"preco":940,"custo":720},{"pax":"20 pessoas","paxN":20,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":770,"custo":540},{"pax":"20 pessoas","paxN":20,"veic":"32 malas médias (65x45x28) e 24 bordo (4 vans)","veicN":3,"preco":950,"custo":720}]},{"titulo":"ROMA x ROMA ou ESTACOES DE TREM (TERMINI, TIBURTINA, ETC) x CENTRO DE ROMA  (caso o hotel não seja no centro ou tenha alguma parada até o destino final, por exemplo o grupo se divide em 2 hoteis, nao passar o valor. Iremos fazer o orçamento individualmente, avisar que logo iremos responder)","linhas":[{"pax":"1 ou 2 pessoas","paxN":2,"veic":"2 malas médias (65x45x28) e 2 bordo (carro)","veicN":1,"preco":70,"custo":40},{"pax":"1 ou 2 pessoas","paxN":2,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":80,"custo":50},{"pax":"3 pessoas","paxN":3,"veic":"2 malas médias (65x45x28) e 2 bordo (carro)","veicN":1,"preco":75,"custo":40},{"pax":"3 pessoas","paxN":3,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":85,"custo":50},{"pax":"4 pessoas","paxN":4,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":90,"custo":50},{"pax":"4 pessoas","paxN":4,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":100,"custo":60},{"pax":"5 pessoas","paxN":5,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":95,"custo":50},{"pax":"5 pessoas","paxN":5,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":105,"custo":60},{"pax":"6 pessoas","paxN":6,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":100,"custo":50},{"pax":"6 pessoas","paxN":6,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":110,"custo":60},{"pax":"7 pessoas","paxN":7,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":115,"custo":60},{"pax":"7 pessoas","paxN":7,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":155,"custo":100},{"pax":"8 pessoas","paxN":8,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":120,"custo":60},{"pax":"8 pessoas","paxN":8,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":160,"custo":100},{"pax":"9 pessoas","paxN":9,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":165,"custo":100},{"pax":"9 pessoas","paxN":9,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":175,"custo":110},{"pax":"10 pessoas","paxN":10,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":170,"custo":100},{"pax":"10 pessoas","paxN":10,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":180,"custo":110},{"pax":"11 pessoas","paxN":11,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":180,"custo":100},{"pax":"11 pessoas","paxN":11,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":190,"custo":110},{"pax":"12 pessoas","paxN":12,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":200,"custo":100},{"pax":"12 pessoas","paxN":12,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":210,"custo":110},{"pax":"13 pessoas","paxN":13,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":230,"custo":110},{"pax":"13 pessoas","paxN":13,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":240,"custo":120},{"pax":"14 pessoas","paxN":14,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":240,"custo":110},{"pax":"14 pessoas","paxN":14,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":250,"custo":120},{"pax":"15 pessoas","paxN":15,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":260,"custo":120},{"pax":"15 pessoas","paxN":15,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":290,"custo":150},{"pax":"16 pessoas","paxN":16,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":280,"custo":120},{"pax":"16 pessoas","paxN":16,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":310,"custo":150},{"pax":"17 pessoas","paxN":17,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":320,"custo":150},{"pax":"17 pessoas","paxN":17,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":350,"custo":180},{"pax":"18 pessoas","paxN":18,"veic":"18 malas médias (65x45x28) e 14 bordo (3 minivan)","veicN":3,"preco":330,"custo":150},{"pax":"18 pessoas","paxN":18,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":360,"custo":180},{"pax":"19 pessoas","paxN":19,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":370,"custo":180},{"pax":"19 pessoas","paxN":19,"veic":"32 malas médias (65x45x28) e 24 bordo (4 vans)","veicN":3,"preco":430,"custo":240},{"pax":"20 pessoas","paxN":20,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":380,"custo":180},{"pax":"20 pessoas","paxN":20,"veic":"32 malas médias (65x45x28) e 24 bordo (4 vans)","veicN":3,"preco":440,"custo":240}]},{"titulo":"ROMA x OUTLET CASTEL ROMANO x ROMA  (caso o hotel não seja no centro ou tenha alguma parada até o destino final, por exemplo o grupo se divide em 2 hoteis, nao passar o valor. Iremos fazer o orçamento individualmente, avisar que logo iremos responder)","linhas":[{"pax":"1 ou 2 pessoas","paxN":2,"veic":"2 malas médias (65x45x28) e 2 bordo (carro)","veicN":1,"preco":90,"custo":60},{"pax":"1 ou 2 pessoas","paxN":2,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":100,"custo":70},{"pax":"3 pessoas","paxN":3,"veic":"2 malas médias (65x45x28) e 2 bordo (carro)","veicN":1,"preco":95,"custo":60},{"pax":"3 pessoas","paxN":3,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":105,"custo":70},{"pax":"4 pessoas","paxN":4,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":110,"custo":70},{"pax":"4 pessoas","paxN":4,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":120,"custo":80},{"pax":"5 pessoas","paxN":5,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":115,"custo":70},{"pax":"5 pessoas","paxN":5,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":125,"custo":80},{"pax":"6 pessoas","paxN":6,"veic":"6 malas médias (65x45x28) e 4 bordo (minivan)","veicN":1,"preco":120,"custo":70},{"pax":"6 pessoas","paxN":6,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":130,"custo":80},{"pax":"7 pessoas","paxN":7,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":135,"custo":80},{"pax":"7 pessoas","paxN":7,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":195,"custo":140},{"pax":"8 pessoas","paxN":8,"veic":"8 malas médias (65x45x28) e 6 bordo (van)","veicN":1,"preco":140,"custo":80},{"pax":"8 pessoas","paxN":8,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":200,"custo":140},{"pax":"9 pessoas","paxN":9,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":205,"custo":140},{"pax":"9 pessoas","paxN":9,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":215,"custo":150},{"pax":"10 pessoas","paxN":10,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":210,"custo":140},{"pax":"10 pessoas","paxN":10,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":220,"custo":150},{"pax":"11 pessoas","paxN":11,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":220,"custo":140},{"pax":"11 pessoas","paxN":11,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":230,"custo":150},{"pax":"12 pessoas","paxN":12,"veic":"12 malas médias (65x45x28) e 8 bordo (2 minivans)","veicN":2,"preco":240,"custo":140},{"pax":"12 pessoas","paxN":12,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":250,"custo":150},{"pax":"13 pessoas","paxN":13,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":270,"custo":150},{"pax":"13 pessoas","paxN":13,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":280,"custo":160},{"pax":"14 pessoas","paxN":14,"veic":"14 malas médias (65x45x28) e 10 bordo (minivan + van)","veicN":2,"preco":280,"custo":150},{"pax":"14 pessoas","paxN":14,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":290,"custo":160},{"pax":"15 pessoas","paxN":15,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":300,"custo":160},{"pax":"15 pessoas","paxN":15,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":350,"custo":210},{"pax":"16 pessoas","paxN":16,"veic":"16 malas médias (65x45x28) e 12 bordo (2 vans)","veicN":2,"preco":320,"custo":160},{"pax":"16 pessoas","paxN":16,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":370,"custo":210},{"pax":"17 pessoas","paxN":17,"veic":"18 malas médias (65x45x28) e 12 bordo (3 minivan)","veicN":3,"preco":380,"custo":210},{"pax":"17 pessoas","paxN":17,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":410,"custo":240},{"pax":"18 pessoas","paxN":18,"veic":"18 malas médias (65x45x28) e 14 bordo (3 minivan)","veicN":3,"preco":390,"custo":210},{"pax":"18 pessoas","paxN":18,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":420,"custo":240},{"pax":"19 pessoas","paxN":19,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":430,"custo":240},{"pax":"19 pessoas","paxN":19,"veic":"32 malas médias (65x45x28) e 24 bordo (4 vans)","veicN":3,"preco":510,"custo":320},{"pax":"20 pessoas","paxN":20,"veic":"24 malas médias (65x45x28) e 18 bordo (3 vans)","veicN":3,"preco":440,"custo":240},{"pax":"20 pessoas","paxN":20,"veic":"32 malas médias (65x45x28) e 24 bordo (4 vans)","veicN":3,"preco":520,"custo":320}]}],"guia":[{"titulo":"ROMA ANTIGA","linhas":[{"pax":"1 ou 2 pessoas","paxN":2,"dur":"3 horas","preco":420,"custo":270,"ingressos":20},{"pax":"1 ou 2 pessoas","paxN":2,"dur":"4 horas","preco":510,"custo":360,"ingressos":20},{"pax":"3 pessoas","paxN":3,"dur":"3 horas","preco":440,"custo":270,"ingressos":25},{"pax":"3 pessoas","paxN":3,"dur":"4 horas","preco":530,"custo":360,"ingressos":25},{"pax":"4 pessoas","paxN":4,"dur":"3 horas","preco":450,"custo":270,"ingressos":30},{"pax":"4 pessoas","paxN":4,"dur":"4 horas","preco":540,"custo":360,"ingressos":30},{"pax":"5 pessoas","paxN":5,"dur":"3 horas","preco":460,"custo":270,"ingressos":30},{"pax":"5 pessoas","paxN":5,"dur":"4 horas","preco":550,"custo":360,"ingressos":30},{"pax":"6 pessoas","paxN":6,"dur":"3 horas","preco":470,"custo":270,"ingressos":30},{"pax":"6 pessoas","paxN":6,"dur":"4 horas","preco":560,"custo":360,"ingressos":30},{"pax":"7 pessoas","paxN":7,"dur":"3 horas","preco":480,"custo":270,"ingressos":35},{"pax":"7 pessoas","paxN":7,"dur":"4 horas","preco":570,"custo":360,"ingressos":35},{"pax":"8 pessoas","paxN":8,"dur":"3 horas","preco":510,"custo":270,"ingressos":40},{"pax":"8 pessoas","paxN":8,"dur":"4 horas","preco":600,"custo":360,"ingressos":40},{"pax":"9 pessoas","paxN":9,"dur":"3 horas","preco":550,"custo":270,"ingressos":45},{"pax":"9 pessoas","paxN":9,"dur":"4 horas","preco":640,"custo":360,"ingressos":45},{"pax":"10 pessoas","paxN":10,"dur":"3 horas","preco":560,"custo":270,"ingressos":50},{"pax":"10 pessoas","paxN":10,"dur":"4 horas","preco":650,"custo":360,"ingressos":50},{"pax":"11 pessoas","paxN":11,"dur":"3 horas","preco":630,"custo":300,"ingressos":55},{"pax":"11 pessoas","paxN":11,"dur":"4 horas","preco":730,"custo":400,"ingressos":55},{"pax":"12 pessoas","paxN":12,"dur":"3 horas","preco":680,"custo":300,"ingressos":60},{"pax":"12 pessoas","paxN":12,"dur":"4 horas","preco":780,"custo":400,"ingressos":60},{"pax":"13 pessoas","paxN":13,"dur":"3 horas","preco":730,"custo":300,"ingressos":65},{"pax":"13 pessoas","paxN":13,"dur":"4 horas","preco":830,"custo":400,"ingressos":65},{"pax":"14 pessoas","paxN":14,"dur":"3 horas","preco":780,"custo":300,"ingressos":70},{"pax":"14 pessoas","paxN":14,"dur":"4 horas","preco":880,"custo":400,"ingressos":70},{"pax":"15 pessoas","paxN":15,"dur":"3 horas","preco":830,"custo":300,"ingressos":75},{"pax":"15 pessoas","paxN":15,"dur":"4 horas","preco":930,"custo":400,"ingressos":75},{"pax":"16 pessoas","paxN":16,"dur":"3 horas","preco":880,"custo":300,"ingressos":80},{"pax":"16 pessoas","paxN":16,"dur":"4 horas","preco":980,"custo":400,"ingressos":80},{"pax":"17 pessoas","paxN":17,"dur":"3 horas","preco":930,"custo":300,"ingressos":85},{"pax":"17 pessoas","paxN":17,"dur":"4 horas","preco":1030,"custo":400,"ingressos":85},{"pax":"18 pessoas","paxN":18,"dur":"3 horas","preco":980,"custo":300,"ingressos":90},{"pax":"18 pessoas","paxN":18,"dur":"4 horas","preco":1080,"custo":400,"ingressos":90},{"pax":"19 pessoas","paxN":19,"dur":"3 horas","preco":1030,"custo":300,"ingressos":95},{"pax":"19 pessoas","paxN":19,"dur":"4 horas","preco":1130,"custo":400,"ingressos":95},{"pax":"20 pessoas","paxN":20,"dur":"3 horas","preco":1070,"custo":300,"ingressos":100},{"pax":"20 pessoas","paxN":20,"dur":"4 horas","preco":1170,"custo":400,"ingressos":100}]},{"titulo":"VATICANO","linhas":[{"pax":"1 ou 2 pessoas","paxN":2,"dur":"3 horas","preco":420,"custo":270,"ingressos":30},{"pax":"1 ou 2 pessoas","paxN":2,"dur":"4 horas","preco":510,"custo":360,"ingressos":30},{"pax":"3 pessoas","paxN":3,"dur":"3 horas","preco":440,"custo":270,"ingressos":35},{"pax":"3 pessoas","paxN":3,"dur":"4 horas","preco":530,"custo":360,"ingressos":35},{"pax":"4 pessoas","paxN":4,"dur":"3 horas","preco":450,"custo":270,"ingressos":40},{"pax":"4 pessoas","paxN":4,"dur":"4 horas","preco":540,"custo":360,"ingressos":40},{"pax":"5 pessoas","paxN":5,"dur":"3 horas","preco":460,"custo":270,"ingressos":50},{"pax":"5 pessoas","paxN":5,"dur":"4 horas","preco":550,"custo":360,"ingressos":50},{"pax":"6 pessoas","paxN":6,"dur":"3 horas","preco":470,"custo":270,"ingressos":60},{"pax":"6 pessoas","paxN":6,"dur":"4 horas","preco":560,"custo":360,"ingressos":60},{"pax":"7 pessoas","paxN":7,"dur":"3 horas","preco":480,"custo":270,"ingressos":80},{"pax":"7 pessoas","paxN":7,"dur":"4 horas","preco":570,"custo":360,"ingressos":80},{"pax":"8 pessoas","paxN":8,"dur":"3 horas","preco":510,"custo":270,"ingressos":80},{"pax":"8 pessoas","paxN":8,"dur":"4 horas","preco":600,"custo":360,"ingressos":80},{"pax":"9 pessoas","paxN":9,"dur":"3 horas","preco":550,"custo":270,"ingressos":90},{"pax":"9 pessoas","paxN":9,"dur":"4 horas","preco":640,"custo":360,"ingressos":90},{"pax":"10 pessoas","paxN":10,"dur":"3 horas","preco":560,"custo":270,"ingressos":90},{"pax":"10 pessoas","paxN":10,"dur":"4 horas","preco":650,"custo":360,"ingressos":90},{"pax":"11 pessoas","paxN":11,"dur":"3 horas","preco":630,"custo":300,"ingressos":90},{"pax":"11 pessoas","paxN":11,"dur":"4 horas","preco":730,"custo":400,"ingressos":90},{"pax":"12 pessoas","paxN":12,"dur":"3 horas","preco":680,"custo":300,"ingressos":120},{"pax":"12 pessoas","paxN":12,"dur":"4 horas","preco":780,"custo":400,"ingressos":120},{"pax":"13 pessoas","paxN":13,"dur":"3 horas","preco":730,"custo":300,"ingressos":120},{"pax":"13 pessoas","paxN":13,"dur":"4 horas","preco":830,"custo":400,"ingressos":120},{"pax":"14 pessoas","paxN":14,"dur":"3 horas","preco":780,"custo":300,"ingressos":120},{"pax":"14 pessoas","paxN":14,"dur":"4 horas","preco":880,"custo":400,"ingressos":120},{"pax":"15 pessoas","paxN":15,"dur":"3 horas","preco":830,"custo":300,"ingressos":120},{"pax":"15 pessoas","paxN":15,"dur":"4 horas","preco":930,"custo":400,"ingressos":120},{"pax":"16 pessoas","paxN":16,"dur":"3 horas","preco":880,"custo":300,"ingressos":120},{"pax":"16 pessoas","paxN":16,"dur":"4 horas","preco":980,"custo":400,"ingressos":120},{"pax":"17 pessoas","paxN":17,"dur":"3 horas","preco":930,"custo":300,"ingressos":120},{"pax":"17 pessoas","paxN":17,"dur":"4 horas","preco":1030,"custo":400,"ingressos":120},{"pax":"18 pessoas","paxN":18,"dur":"3 horas","preco":980,"custo":300,"ingressos":120},{"pax":"18 pessoas","paxN":18,"dur":"4 horas","preco":1080,"custo":400,"ingressos":120},{"pax":"19 pessoas","paxN":19,"dur":"3 horas","preco":1030,"custo":300,"ingressos":150},{"pax":"19 pessoas","paxN":19,"dur":"4 horas","preco":1130,"custo":400,"ingressos":150},{"pax":"20 pessoas","paxN":20,"dur":"3 horas","preco":1070,"custo":300,"ingressos":150},{"pax":"20 pessoas","paxN":20,"dur":"4 horas","preco":1170,"custo":400,"ingressos":150}]},{"titulo":"WALKING TOUR  (ROMA BARROCA)","linhas":[{"pax":"1 ou 2 pessoas","paxN":2,"dur":"3 horas","preco":360,"custo":160,"ingressos":0},{"pax":"1 ou 2 pessoas","paxN":2,"dur":"4 horas","preco":400,"custo":200,"ingressos":0},{"pax":"3 pessoas","paxN":3,"dur":"3 horas","preco":370,"custo":160,"ingressos":0},{"pax":"3 pessoas","paxN":3,"dur":"4 horas","preco":410,"custo":200,"ingressos":0},{"pax":"4 pessoas","paxN":4,"dur":"3 horas","preco":380,"custo":160,"ingressos":0},{"pax":"4 pessoas","paxN":4,"dur":"4 horas","preco":420,"custo":200,"ingressos":0},{"pax":"5 pessoas","paxN":5,"dur":"3 horas","preco":410,"custo":180,"ingressos":0},{"pax":"5 pessoas","paxN":5,"dur":"4 horas","preco":450,"custo":220,"ingressos":0},{"pax":"6 pessoas","paxN":6,"dur":"3 horas","preco":420,"custo":180,"ingressos":0},{"pax":"6 pessoas","paxN":6,"dur":"4 horas","preco":460,"custo":220,"ingressos":0},{"pax":"7 pessoas","paxN":7,"dur":"3 horas","preco":450,"custo":200,"ingressos":0},{"pax":"7 pessoas","paxN":7,"dur":"4 horas","preco":500,"custo":250,"ingressos":0},{"pax":"8 pessoas","paxN":8,"dur":"3 horas","preco":460,"custo":200,"ingressos":0},{"pax":"8 pessoas","paxN":8,"dur":"4 horas","preco":510,"custo":250,"ingressos":0},{"pax":"9 pessoas","paxN":9,"dur":"3 horas","preco":520,"custo":250,"ingressos":0},{"pax":"9 pessoas","paxN":9,"dur":"4 horas","preco":550,"custo":280,"ingressos":0},{"pax":"10 pessoas","paxN":10,"dur":"3 horas","preco":540,"custo":250,"ingressos":0},{"pax":"10 pessoas","paxN":10,"dur":"4 horas","preco":570,"custo":280,"ingressos":0},{"pax":"11 pessoas","paxN":11,"dur":"3 horas","preco":630,"custo":300,"ingressos":0},{"pax":"11 pessoas","paxN":11,"dur":"4 horas","preco":730,"custo":400,"ingressos":0},{"pax":"12 pessoas","paxN":12,"dur":"3 horas","preco":680,"custo":300,"ingressos":0},{"pax":"12 pessoas","paxN":12,"dur":"4 horas","preco":780,"custo":400,"ingressos":0},{"pax":"13 pessoas","paxN":13,"dur":"3 horas","preco":730,"custo":300,"ingressos":0},{"pax":"13 pessoas","paxN":13,"dur":"4 horas","preco":830,"custo":400,"ingressos":0},{"pax":"14 pessoas","paxN":14,"dur":"3 horas","preco":780,"custo":300,"ingressos":0},{"pax":"14 pessoas","paxN":14,"dur":"4 horas","preco":880,"custo":400,"ingressos":0},{"pax":"15 pessoas","paxN":15,"dur":"3 horas","preco":830,"custo":300,"ingressos":0},{"pax":"15 pessoas","paxN":15,"dur":"4 horas","preco":930,"custo":400,"ingressos":0},{"pax":"16 pessoas","paxN":16,"dur":"3 horas","preco":880,"custo":300,"ingressos":0},{"pax":"16 pessoas","paxN":16,"dur":"4 horas","preco":980,"custo":400,"ingressos":0},{"pax":"17 pessoas","paxN":17,"dur":"3 horas","preco":930,"custo":300,"ingressos":0},{"pax":"17 pessoas","paxN":17,"dur":"4 horas","preco":1030,"custo":400,"ingressos":0},{"pax":"18 pessoas","paxN":18,"dur":"3 horas","preco":980,"custo":300,"ingressos":0},{"pax":"18 pessoas","paxN":18,"dur":"4 horas","preco":1080,"custo":400,"ingressos":0},{"pax":"19 pessoas","paxN":19,"dur":"3 horas","preco":1030,"custo":300,"ingressos":0},{"pax":"19 pessoas","paxN":19,"dur":"4 horas","preco":1130,"custo":400,"ingressos":0},{"pax":"20 pessoas","paxN":20,"dur":"3 horas","preco":1070,"custo":300,"ingressos":0},{"pax":"20 pessoas","paxN":20,"dur":"4 horas","preco":1170,"custo":400,"ingressos":0}]},{"titulo":"TOUR DAS BASILICAS PAPAIS ou PANORAMAS DE ROMA","linhas":[{"pax":"1 ou 2 pessoas","paxN":2,"dur":"3 horas","preco":490,"custo":310,"ingressos":10},{"pax":"1 ou 2 pessoas","paxN":2,"dur":"4 horas","preco":580,"custo":400,"ingressos":10},{"pax":"3 pessoas","paxN":3,"dur":"3 horas","preco":500,"custo":310,"ingressos":15},{"pax":"3 pessoas","paxN":3,"dur":"4 horas","preco":590,"custo":400,"ingressos":15},{"pax":"4 pessoas","paxN":4,"dur":"3 horas","preco":510,"custo":310,"ingressos":20},{"pax":"4 pessoas","paxN":4,"dur":"4 horas","preco":600,"custo":400,"ingressos":20},{"pax":"5 pessoas","paxN":5,"dur":"3 horas","preco":540,"custo":330,"ingressos":25},{"pax":"5 pessoas","paxN":5,"dur":"4 horas","preco":630,"custo":420,"ingressos":25},{"pax":"6 pessoas","paxN":6,"dur":"3 horas","preco":580,"custo":360,"ingressos":30},{"pax":"6 pessoas","paxN":6,"dur":"4 horas","preco":680,"custo":460,"ingressos":30},{"pax":"7 pessoas","paxN":7,"dur":"3 horas","preco":630,"custo":380,"ingressos":30},{"pax":"7 pessoas","paxN":7,"dur":"4 horas","preco":740,"custo":490,"ingressos":30},{"pax":"8 pessoas","paxN":8,"dur":"3 horas","preco":760,"custo":500,"ingressos":30},{"pax":"8 pessoas","paxN":8,"dur":"4 horas","preco":910,"custo":650,"ingressos":30},{"pax":"9 pessoas","paxN":9,"dur":"3 horas","preco":880,"custo":550,"ingressos":35},{"pax":"9 pessoas","paxN":9,"dur":"4 horas","preco":1010,"custo":680,"ingressos":35},{"pax":"10 pessoas","paxN":10,"dur":"3 horas","preco":930,"custo":550,"ingressos":40},{"pax":"10 pessoas","paxN":10,"dur":"4 horas","preco":1060,"custo":680,"ingressos":40},{"pax":"11 pessoas","paxN":11,"dur":"3 horas","preco":1050,"custo":600,"ingressos":45},{"pax":"11 pessoas","paxN":11,"dur":"4 horas","preco":1250,"custo":800,"ingressos":45},{"pax":"12 pessoas","paxN":12,"dur":"3 horas","preco":1140,"custo":660,"ingressos":50},{"pax":"12 pessoas","paxN":12,"dur":"4 horas","preco":1360,"custo":880,"ingressos":50},{"pax":"13 pessoas","paxN":13,"dur":"3 horas","preco":1230,"custo":660,"ingressos":55},{"pax":"13 pessoas","paxN":13,"dur":"4 horas","preco":1450,"custo":880,"ingressos":55},{"pax":"14 pessoas","paxN":14,"dur":"3 horas","preco":1310,"custo":660,"ingressos":60},{"pax":"14 pessoas","paxN":14,"dur":"4 horas","preco":1530,"custo":880,"ingressos":60},{"pax":"15 pessoas","paxN":15,"dur":"3 horas","preco":1350,"custo":660,"ingressos":65},{"pax":"15 pessoas","paxN":15,"dur":"4 horas","preco":1560,"custo":880,"ingressos":65},{"pax":"16 pessoas","paxN":16,"dur":"3 horas","preco":1530,"custo":840,"ingressos":70},{"pax":"16 pessoas","paxN":16,"dur":"4 horas","preco":1810,"custo":1120,"ingressos":70},{"pax":"17 pessoas","paxN":17,"dur":"3 horas","preco":1570,"custo":840,"ingressos":75},{"pax":"17 pessoas","paxN":17,"dur":"4 horas","preco":1850,"custo":1120,"ingressos":75},{"pax":"18 pessoas","paxN":18,"dur":"3 horas","preco":1610,"custo":840,"ingressos":80},{"pax":"18 pessoas","paxN":18,"dur":"4 horas","preco":1890,"custo":1120,"ingressos":80},{"pax":"19 pessoas","paxN":19,"dur":"3 horas","preco":1640,"custo":840,"ingressos":85},{"pax":"19 pessoas","paxN":19,"dur":"4 horas","preco":1920,"custo":1120,"ingressos":85},{"pax":"20 pessoas","paxN":20,"dur":"3 horas","preco":1690,"custo":840,"ingressos":90},{"pax":"20 pessoas","paxN":20,"dur":"4 horas","preco":1970,"custo":1120,"ingressos":90}]},{"titulo":"AUDIENCIA PAPAL","linhas":[{"pax":"1 ou 2 pessoas","paxN":2,"dur":"","preco":440,"custo":260,"ingressos":100},{"pax":"1 ou 2 pessoas com transfer","paxN":2,"dur":"","preco":510,"custo":300,"ingressos":0},{"pax":"3 pessoas","paxN":3,"dur":"","preco":450,"custo":260,"ingressos":100},{"pax":"3 pessoas com transfer","paxN":3,"dur":"","preco":520,"custo":300,"ingressos":0},{"pax":"4 pessoas","paxN":4,"dur":"","preco":460,"custo":260,"ingressos":120},{"pax":"4 pessoas com transfer","paxN":4,"dur":"","preco":540,"custo":310,"ingressos":0},{"pax":"5 pessoas","paxN":5,"dur":"","preco":470,"custo":260,"ingressos":120},{"pax":"5 pessoas com transfer","paxN":5,"dur":"","preco":550,"custo":310,"ingressos":0},{"pax":"6 pessoas","paxN":6,"dur":"","preco":480,"custo":260,"ingressos":130},{"pax":"6 pessoas com transfer","paxN":6,"dur":"","preco":570,"custo":320,"ingressos":0},{"pax":"7 pessoas","paxN":7,"dur":"","preco":510,"custo":260,"ingressos":130},{"pax":"7 pessoas com transfer","paxN":7,"dur":"","preco":600,"custo":320,"ingressos":0},{"pax":"8 pessoas","paxN":8,"dur":"","preco":520,"custo":260,"ingressos":140},{"pax":"8 pessoas com transfer","paxN":8,"dur":"","preco":610,"custo":320,"ingressos":0},{"pax":"9 pessoas","paxN":9,"dur":"","preco":590,"custo":260,"ingressos":140},{"pax":"9 pessoas com transfer","paxN":9,"dur":"","preco":720,"custo":360,"ingressos":0},{"pax":"10 pessoas","paxN":10,"dur":"","preco":640,"custo":260,"ingressos":150},{"pax":"10 pessoas com transfer","paxN":10,"dur":"","preco":770,"custo":360,"ingressos":0},{"pax":"11 pessoas","paxN":11,"dur":"","preco":750,"custo":300,"ingressos":150},{"pax":"11 pessoas com transfer","paxN":11,"dur":"","preco":880,"custo":400,"ingressos":0},{"pax":"12 pessoas","paxN":12,"dur":"","preco":780,"custo":300,"ingressos":160},{"pax":"12 pessoas com transfer","paxN":12,"dur":"","preco":990,"custo":480,"ingressos":0},{"pax":"13 pessoas","paxN":13,"dur":"","preco":870,"custo":300,"ingressos":160},{"pax":"13 pessoas com transfer","paxN":13,"dur":"","preco":1080,"custo":480,"ingressos":0},{"pax":"14 pessoas","paxN":14,"dur":"","preco":950,"custo":300,"ingressos":170},{"pax":"14 pessoas com transfer","paxN":14,"dur":"","preco":1160,"custo":480,"ingressos":0},{"pax":"15 pessoas","paxN":15,"dur":"","preco":990,"custo":300,"ingressos":170},{"pax":"15 pessoas com transfer","paxN":15,"dur":"","preco":1200,"custo":480,"ingressos":0},{"pax":"16 pessoas","paxN":16,"dur":"","preco":1000,"custo":300,"ingressos":180},{"pax":"16 pessoas com transfer","paxN":16,"dur":"","preco":1210,"custo":480,"ingressos":0},{"pax":"17 pessoas","paxN":17,"dur":"","preco":1030,"custo":300,"ingressos":180},{"pax":"17 pessoas com transfer","paxN":17,"dur":"","preco":1240,"custo":480,"ingressos":0},{"pax":"18 pessoas","paxN":18,"dur":"","preco":1070,"custo":300,"ingressos":190},{"pax":"18 pessoas com transfer","paxN":18,"dur":"","preco":1280,"custo":480,"ingressos":0},{"pax":"19 pessoas","paxN":19,"dur":"","preco":1100,"custo":300,"ingressos":190},{"pax":"19 pessoas com transfer","paxN":19,"dur":"","preco":1310,"custo":480,"ingressos":0},{"pax":"20 pessoas","paxN":20,"dur":"","preco":1150,"custo":300,"ingressos":200},{"pax":"20 pessoas com transfer","paxN":20,"dur":"","preco":1360,"custo":480,"ingressos":0}]}],"bv":[{"titulo":"BATE E VOLTA ASSIS E ORVIETO OU ASSIS E CASSIA / Toscana Sul / POMPEIA E NAPOLES OU POMPEIA E VESUVIO / ROTEIRO COM MOTORISTA PERSONALIZADO - 10 horas","linhas":[{"pax":"Até 3 pessoas","paxN":3,"preco":950,"custo":800},{"pax":"4 pessoas","paxN":4,"preco":1060,"custo":900},{"pax":"5 pessoas","paxN":5,"preco":1070,"custo":900},{"pax":"6 pessoas","paxN":6,"preco":1080,"custo":900},{"pax":"7 pessoas","paxN":7,"preco":1090,"custo":900},{"pax":"8 pessoas","paxN":8,"preco":2100,"custo":1800},{"pax":"9 pessoas","paxN":9,"preco":2120,"custo":1800},{"pax":"10 pessoas","paxN":10,"preco":2140,"custo":1800},{"pax":"11 pessoas","paxN":11,"preco":2160,"custo":1800},{"pax":"12 pessoas","paxN":12,"preco":2180,"custo":1800},{"pax":"13 pessoas","paxN":13,"preco":2190,"custo":1800},{"pax":"14 pessoas","paxN":14,"preco":2200,"custo":1800},{"pax":"15 pessoas","paxN":15,"preco":3150,"custo":2700},{"pax":"16 pessoas","paxN":16,"preco":3180,"custo":2700},{"pax":"17 pessoas","paxN":17,"preco":3210,"custo":2700},{"pax":"18 pessoas","paxN":18,"preco":3240,"custo":2700},{"pax":"19 pessoas","paxN":19,"preco":3270,"custo":2700},{"pax":"20 pessoas","paxN":20,"preco":3290,"custo":2700}]},{"titulo":"BATE E VOLTA TIVOLI / Castelli Romani / BRACCIANO E NECROPOLE ETRUSCA DE CERVETERI - 8 horas","linhas":[{"pax":"Até 3 pessoas","paxN":3,"preco":850,"custo":700},{"pax":"4 pessoas","paxN":4,"preco":860,"custo":700},{"pax":"5 pessoas","paxN":5,"preco":870,"custo":700},{"pax":"6 pessoas","paxN":6,"preco":880,"custo":700},{"pax":"7 pessoas","paxN":7,"preco":890,"custo":700},{"pax":"8 pessoas","paxN":8,"preco":1700,"custo":1400},{"pax":"9 pessoas","paxN":9,"preco":1720,"custo":1400},{"pax":"10 pessoas","paxN":10,"preco":1740,"custo":1400},{"pax":"11 pessoas","paxN":11,"preco":1760,"custo":1400},{"pax":"12 pessoas","paxN":12,"preco":1780,"custo":1400},{"pax":"13 pessoas","paxN":13,"preco":1790,"custo":1400},{"pax":"14 pessoas","paxN":14,"preco":1800,"custo":1400},{"pax":"15 pessoas","paxN":15,"preco":2550,"custo":2100},{"pax":"16 pessoas","paxN":16,"preco":2580,"custo":2100},{"pax":"17 pessoas","paxN":17,"preco":2610,"custo":2100},{"pax":"18 pessoas","paxN":18,"preco":2640,"custo":2100},{"pax":"19 pessoas","paxN":19,"preco":2670,"custo":2100},{"pax":"20 pessoas","paxN":20,"preco":2690,"custo":2100}]},{"titulo":"BATE E VOLTA CIVITA DI BAGNOREGIO E Orvieto ou CIVITA DI BAGNOREGIO E LAGO DI BOLSENA - 8 horas","linhas":[{"pax":"Até 3 pessoas","paxN":3,"preco":900,"custo":750},{"pax":"4 pessoas","paxN":4,"preco":910,"custo":750},{"pax":"5 pessoas","paxN":5,"preco":920,"custo":750},{"pax":"6 pessoas","paxN":6,"preco":930,"custo":750},{"pax":"7 pessoas","paxN":7,"preco":940,"custo":750},{"pax":"8 pessoas","paxN":8,"preco":1800,"custo":1500},{"pax":"9 pessoas","paxN":9,"preco":1820,"custo":1500},{"pax":"10 pessoas","paxN":10,"preco":1840,"custo":1500},{"pax":"11 pessoas","paxN":11,"preco":1860,"custo":1500},{"pax":"12 pessoas","paxN":12,"preco":1880,"custo":1500},{"pax":"13 pessoas","paxN":13,"preco":1890,"custo":1500},{"pax":"14 pessoas","paxN":14,"preco":1900,"custo":1500},{"pax":"15 pessoas","paxN":15,"preco":2700,"custo":2250},{"pax":"16 pessoas","paxN":16,"preco":2730,"custo":2250},{"pax":"17 pessoas","paxN":17,"preco":2760,"custo":2250},{"pax":"18 pessoas","paxN":18,"preco":2790,"custo":2250},{"pax":"19 pessoas","paxN":19,"preco":2820,"custo":2250},{"pax":"20 pessoas","paxN":20,"preco":2840,"custo":2250}]},{"titulo":"BATE E VOLTA COSTIERA AMALFITANA / TOSCANA NORTE - 10 horas","linhas":[{"pax":"Até 3 pessoas","paxN":3,"preco":1000,"custo":850},{"pax":"4 pessoas","paxN":4,"preco":1110,"custo":950},{"pax":"5 pessoas","paxN":5,"preco":1120,"custo":950},{"pax":"6 pessoas","paxN":6,"preco":1130,"custo":950},{"pax":"7 pessoas","paxN":7,"preco":1140,"custo":950},{"pax":"8 pessoas","paxN":8,"preco":2200,"custo":1900},{"pax":"9 pessoas","paxN":9,"preco":2220,"custo":1900},{"pax":"10 pessoas","paxN":10,"preco":2240,"custo":1900},{"pax":"11 pessoas","paxN":11,"preco":2260,"custo":1900},{"pax":"12 pessoas","paxN":12,"preco":2280,"custo":1900},{"pax":"13 pessoas","paxN":13,"preco":2290,"custo":1900},{"pax":"14 pessoas","paxN":14,"preco":2300,"custo":1900},{"pax":"15 pessoas","paxN":15,"preco":3300,"custo":2850},{"pax":"16 pessoas","paxN":16,"preco":3330,"custo":2850},{"pax":"17 pessoas","paxN":17,"preco":3360,"custo":2850},{"pax":"18 pessoas","paxN":18,"preco":3390,"custo":2850},{"pax":"19 pessoas","paxN":19,"preco":3420,"custo":2850},{"pax":"20 pessoas","paxN":20,"preco":3440,"custo":2850}]}]};
+
+function _prR2(n) { return Math.round((+n || 0) * 100) / 100; }
+/* lê o que a Ingrid digitou numa célula: "€90,00", "90,5", "90.5", "90" */
+function _precoNum(v) {
+  let s = String(v == null ? '' : v).replace(/[€R$\s]/g, '').trim(); if (!s) return 0;
+  if (/,\d{1,2}$/.test(s)) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(/,/g, '');
+  const n = parseFloat(s); return isNaN(n) ? 0 : n;
+}
+function _prEur(n) { return (typeof eur === 'function') ? eur(n) : '€' + (+n || 0).toFixed(2); }
+
+const Precos = {
+  /* instala a planilha dela uma vez. NUNCA apaga o que ela já editou. */
+  seeda() {
+    if (Array.isArray(DB.precos) && DB.precos.length) return DB.precos;
+    const S = (PRECOS_SEED && typeof PRECOS_SEED === 'object') ? PRECOS_SEED : {};
+    const secoes = (arr) => (arr || []).map((s, si) => ({ id: 's' + si, titulo: s.titulo,
+      linhas: (s.linhas || []).map((l, li) => Object.assign({ id: 'l' + si + '_' + li }, l)) }));
+    DB.precos = [
+      { id: 'transfer-roma', nome: 'Transfer Roma', tipo: 'transfer', secoes: secoes(S.transfer) },
+      { id: 'transfer-roma-5', nome: 'Transfer Roma 5%', tipo: 'transfer', derivaDe: 'transfer-roma', fator: 0.95 },
+      { id: 'guia-roma', nome: 'Guia Roma', tipo: 'guia', secoes: secoes(S.guia) },
+      { id: 'bv-roma', nome: 'BV Roma', tipo: 'bv', secoes: secoes(S.bv) },
+    ];
+    Precos._save(); return DB.precos;
+  },
+  _save() { if (typeof _opSave === 'function') _opSave(); else if (typeof save === 'function') save(); },
+  all() { if (!Array.isArray(DB.precos) || !DB.precos.length) Precos.seeda(); Precos.migra(); return DB.precos; },
+  /* acertos de 02/10 nas tabelas que já estão no aparelho/nuvem dela (roda uma vez por tabela):
+     - Guia: cada seção ganha o "inclui" (3 h / 4 h) e o passeio do catálogo de onde vêm os ingressos;
+     - Walking Tour: a coluna da gestão tinha vindo do Excel com preço × 1,10 (não tem ingresso) → 0;
+     - Vaticano: ingresso €24 o adulto (ela, 02/10) — só se ainda estiver nos €25 de fábrica. */
+  _n: (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''),
+  migra() {
+    let mudou = false;
+    for (const t of DB.precos || []) {
+      if (t.tipo !== 'guia' || (+t.v || 1) >= 2) continue;
+      for (const s of t.secoes || []) {
+        const p = GUIA_PADRAO.find(g => g.casa.test(Precos._n(s.titulo))) || {};
+        if (!s.inclui) s.inclui = Object.assign({}, p.inclui || {});
+        if (!s.tours) s.tours = Object.assign({}, p.tours || {});
+        if (/walking|barroca/.test(Precos._n(s.titulo))) for (const l of s.linhas || []) if (+l.ingressos && Math.abs(+l.ingressos - _prR2(l.preco * 1.1)) < 0.02) l.ingressos = 0;
+      }
+      t.v = 2; mudou = true;
+    }
+    if (typeof DB.settings === 'object' && DB.settings && !DB.settings.ingVat24 && typeof Tours !== 'undefined') {
+      for (const id of ['vaticano-3h', 'vaticano-4h']) { const x = Tours.get(id); const g = x && (x.ingressos || []).find(y => /museus do vaticano/i.test((y.nome && y.nome.pt) || ''));
+        if (g && +g.inteiro === 25) g.inteiro = 24; }
+      DB.settings.ingVat24 = true; mudou = true;
+    }
+    if (mudou) Precos._save();
+  },
+  /* o "inclui" de uma duração (vai no orçamento entre parênteses) */
+  editaInclui(tabelaId, secId, dur, texto) {
+    const t = Precos.base(Precos.get(tabelaId)); const s = t && (t.secoes || []).find(x => x.id === secId); if (!s) return null;
+    s.inclui = s.inclui || {}; s.inclui[dur || ''] = String(texto || '').trim(); Precos._save(); return s.inclui;
+  },
+  /* o passeio do catálogo que traz os ingressos (por pessoa e idade) desta seção/duração */
+  tourDe(s, dur) { const id = s && s.tours && (s.tours[dur || ''] || s.tours['']); return (id && typeof Tours !== 'undefined' && Tours.get(id)) || null; },
+  /* os ingressos de uma seção (3 h e 4 h juntos, por nome): pra ela editar UMA vez na Tabela */
+  ingressosDaSecao(s) {
+    const out = [];
+    for (const [dur, id] of Object.entries((s && s.tours) || {})) {
+      const x = typeof Tours !== 'undefined' && Tours.get(id); if (!x) continue;
+      for (const g of x.ingressos || []) { const nome = (g.nome && g.nome.pt) || 'Ingresso';
+        let e = out.find(y => y.nome === nome); if (!e) out.push(e = { nome, g, durs: [] }); if (!e.durs.includes(dur)) e.durs.push(dur); }
+    }
+    return out;
+  },
+  /* muda o valor de um ingresso em TODOS os passeios da seção (3 h e 4 h) — e o site acompanha */
+  editaIngresso(tabelaId, secId, nome, campo, valor) {
+    if (!['inteiro', 'reduzido', 'reduzidoAte', 'gratisAte'].includes(campo)) return 0;
+    const t = Precos.base(Precos.get(tabelaId)); const s = t && (t.secoes || []).find(x => x.id === secId); if (!s) return 0;
+    const v = String(valor ?? '').trim() === '' ? '' : (campo === 'inteiro' || campo === 'reduzido' ? _precoNum(valor) : Math.max(0, parseInt(valor, 10) || 0));
+    let n = 0;
+    for (const id of Object.values(s.tours || {})) { const x = typeof Tours !== 'undefined' && Tours.get(id);
+      for (const g of (x && x.ingressos) || []) if (((g.nome && g.nome.pt) || 'Ingresso') === nome) { g[campo] = v; n++; } }
+    if (n) { if (typeof save === 'function') save(); else Precos._save(); }
+    return n;
+  },
+  /* "Coliseu, Fórum e Palatino: €18 adulto · grátis até 17 anos" — pra ela e pra IA lerem */
+  ingressosTexto(s, dur) {
+    const x = Precos.tourDe(s, dur); if (!x || !(x.ingressos || []).length) return '';
+    return x.ingressos.map(g => { const p = [];
+      p.push(`${_prEur(+g.inteiro || 0)} ${g.noDia ? 'por pessoa, pago no dia' : 'adulto'}`);
+      if (+g.reduzido > 0 && g.reduzidoAte != null && g.reduzidoAte !== '') p.push(`${_prEur(g.reduzido)} de ${(+g.gratisAte || 0) + 1} a ${g.reduzidoAte} anos`);
+      if (g.gratisAte != null && g.gratisAte !== '') p.push(`grátis até ${g.gratisAte} anos`);
+      if (+g.guia > 0) p.push(`+ ${_prEur(g.guia)} do grupo`);
+      return `${(g.nome && g.nome.pt) || 'Ingresso'}: ${p.join(' · ')}`; }).join(' | ');
+  },
+  get(id) { return Precos.all().find(t => t.id === id) || null; },
+  /* a tabela onde as linhas MORAM (a derivada aponta pra base) */
+  base(t) { return t && t.derivaDe ? Precos.get(t.derivaDe) : t; },
+  fator(t) { return t && t.derivaDe ? (+t.fator || 1) : 1; },
+  descontoPct(t) { return Math.round((1 - Precos.fator(t)) * 1000) / 10; },
+
+  /* o CORAÇÃO: calcula todos os campos de uma linha (preço × fator) */
+  calc(tipo, l, f) {
+    f = f || 1;
+    const preco = _prR2((+l.preco || 0) * f), custo = +l.custo || 0, paxN = +l.paxN || 1;
+    const o = { ref: l.id, pax: l.pax, paxN, veic: l.veic || '', dur: l.dur || '', preco, custo,
+      porPessoa: _prR2(preco / paxN), sinal: _prR2(preco - custo) };
+    if (tipo === 'transfer') {
+      const veicN = +l.veicN || 1, noturno = _prR2(preco + PRECO_NOTURNO_VEIC * veicN);
+      return Object.assign(o, { veicN, cartao: _prR2(preco * 1.1), noturno, noturnoCartao: _prR2(noturno * 1.1) });
+    }
+    /* "ingressos" (nome antigo do campo) = a GESTÃO em compra de ingressos, valor do grupo */
+    if (tipo === 'guia') return Object.assign(o, { ingressos: +l.ingressos || 0, gestao: +l.ingressos || 0 });
+    return o;
+  },
+  /* as seções já calculadas pra MOSTRAR na tela (aplica o fator da derivada) */
+  secoesView(t) {
+    const b = Precos.base(t), f = Precos.fator(t);
+    return (b && b.secoes || []).map(s => ({ id: s.id, titulo: s.titulo, inclui: s.inclui || {}, tours: s.tours || {}, linhas: s.linhas.map(l => Precos.calc(b.tipo, l, f)) }));
+  },
+
+  /* edita UM valor-base (preço, custo ou ingressos). Sempre na tabela base. */
+  editaValor(tabelaId, secId, linId, campo, valor) {
+    if (!['preco', 'custo', 'ingressos'].includes(campo)) return null;
+    const t = Precos.base(Precos.get(tabelaId)); if (!t) return null;
+    const s = (t.secoes || []).find(x => x.id === secId), l = s && s.linhas.find(x => x.id === linId);
+    if (!l) return null;
+    l[campo] = _precoNum(valor); Precos._save();
+    if (t.id === 'transfer-roma' && campo !== 'ingressos') Precos.paraCatalogo();   // o site acompanha
+    return l;
+  },
+  /* muda o desconto da tabela derivada (5 -> 0,95) */
+  setDesconto(tabelaId, pct) {
+    const t = Precos.get(tabelaId); if (!t || !t.derivaDe) return null;
+    t.fator = Math.max(0, Math.min(1, 1 - (+pct || 0) / 100)); Precos._save(); return t.fator;
+  },
+
+  /* ---------- a ponte com os ORÇAMENTOS ---------- */
+  /* ---------- a DESCRIÇÃO que o cliente lê (pedido da Ingrid, 02/10) ----------
+     Como no orçamento dela: "rota - veículo (até X malas + Y de bordo) - Horário
+     diurno". Sem "Transfer Roma" (do aeroporto pra cidade já é transfer), sem o
+     número de pessoas (está no cabeçalho) e SEM as notas internas da tabela
+     ("(caso o hotel não seja no centro…)" é recado dela, não do cliente). */
+  rotaBonita(titulo) {
+    const ACENTO = { ESTACOES: 'Estações', BASILICAS: 'Basílicas', AUDIENCIA: 'Audiência', NAPOLES: 'Nápoles', VESUVIO: 'Vesúvio', NECROPOLE: 'Necrópole', CASSIA: 'Cássia' };
+    const SIGLA = /^(FCO|CIA|LIN|MXP|BGY|VCE|TSF|NAP|FLR|PSA|BRI|BDS|BLQ|VRN)$/, MINUSC = /^(DE|DA|DO|DAS|DOS|E|OU|EM|COM|A|O|AO|NA|NO|DI|DEL|DELLA)$/;
+    let t = String(titulo || '').replace(/\s*\((?:caso|obs|n[aã]o passar|avisar)[^)]*\)/gi, '').trim();
+    let primeira = true;
+    t = t.split(/([\s\/,()\-]+)/).map(w => {
+      /* "BATE E VOLTA" → "Bate e Volta": o "e"/"o"/"a" sozinho no meio fica minúsculo */
+      if (/^[EOA]$/.test(w) && !primeira) return w.toLowerCase();
+      if (!/[A-ZÀ-Ú]{2,}/.test(w) || w !== w.toUpperCase()) { if (/\w/.test(w)) primeira = false; return w; }
+      let r = SIGLA.test(w) ? w : ACENTO[w] ? ACENTO[w] : w === 'ETC' ? 'etc.' : (MINUSC.test(w) && !primeira) ? w.toLowerCase() : w.charAt(0) + w.slice(1).toLowerCase();
+      primeira = false; return r;
+    }).join('');
+    return t.replace(/\s+x\s+/gi, ' ↔ ').replace(/\s+/g, ' ').trim();
+  },
+  /* "2 malas médias (65x45x28) e 2 bordo (carro)" → { veiculo: 'carro', malas: '2 malas médias 65x45x28 + 2 de bordo' } */
+  malasDe(veic) {
+    const v = String(veic || ''), m = v.match(/\(([^)]*)\)\s*$/);
+    const malas = v.replace(/\s*\([^)]*\)\s*$/, '').replace(/\((\d+x\d+x\d+)\)/i, '$1').replace(/\s+e\s+(\d+)\s+bordo/i, ' + $1 de bordo').trim();
+    return { veiculo: m ? m[1].trim() : '', malas };
+  },
+  /* tarifa noturna dos termos dela: 21h às 6h */
+  ehNoturno(hora) { const m = String(hora || '').match(/^(\d{1,2})[:h.]?(\d{2})?/); if (!m) return false; const h = +m[1]; return h >= 21 || h < 6; },
+  descLinha(t, s, c, noturno) {
+    const rota = Precos.rotaBonita(s.titulo), tipo = Precos.base(t).tipo;
+    if (tipo === 'transfer') { const { veiculo, malas } = Precos.malasDe(c.veic);
+      return `${rota}${veiculo ? ' - ' + veiculo : ''}${malas ? ' (até ' + malas + ')' : ''} - Horário ${noturno ? 'noturno' : 'diurno'}`; }
+    /* "Roma Antiga (Coliseu + Fórum Romano ou Palatino) - guia privativo 3 horas" — o
+       formato do orçamento dela; o que inclui vem da Tabela (ela edita); sem "4 pessoas" */
+    if (tipo === 'guia') { const inc = s.inclui && String(s.inclui[c.dur || ''] || '').trim();
+      return `${rota}${inc ? ' (' + inc + ')' : ''} - guia privativo${c.dur ? ' ' + c.dur : ''}`; }
+    return rota;
+  },
+  rotuloCurto(t, c) {
+    const comp = c.veic ? c.veic.replace(/.*\(([^)]*)\).*/, '$1') : c.dur ? c.dur : '';
+    return `${c.pax}${comp ? ' · ' + comp : ''} — ${_prEur(c.preco)}`;
+  },
+  /* um item de orçamento a partir de "tabId|secId|linId" */
+  itemOrc(ref, extra) {
+    const p = String(ref || '').split('|'); const t = Precos.get(p[0]); if (!t) return null;
+    const b = Precos.base(t), f = Precos.fator(t);
+    const s = (b.secoes || []).find(x => x.id === p[1]), l = s && s.linhas.find(x => x.id === p[2]); if (!l) return null;
+    const c = Precos.calc(b.tipo, l, f);
+    /* noturno (21h–6h, termos dela): +€30 por veículo. O acréscimo vai pro motorista
+       (entra no custo), então o sinal — a margem dela — continua o mesmo da tabela. */
+    const not = b.tipo === 'transfer' && Precos.ehNoturno(extra && extra.hora);
+    const extraNot = not ? PRECO_NOTURNO_VEIC * (c.veicN || 1) : 0;
+    const valor = _prR2(c.preco + extraNot), custo = _prR2(c.custo + extraNot);
+    /* tabela com desconto (Transfer Roma 5%): guarda o valor cheio pra mostrar a economia */
+    const cheio = t.derivaDe ? _prR2(Precos.calc(b.tipo, l, 1).preco + extraNot) : 0;
+    return Object.assign({ desc: Precos.descLinha(t, s, c, not), pax: c.paxN, valor, custo, sinal: _prR2(valor - custo),
+      obs: '', precoRef: ref,
+      turno: b.tipo === 'transfer' ? (not ? 'noturno' : 'diurno') : '', valorCheio: cheio > valor ? cheio : 0, descontoPct: cheio > valor ? Precos.descontoPct(t) : 0 }, extra || {});
+  },
+  /* ---------- O QUE ACOMPANHA UM PASSEIO COM GUIA (o orçamento dela, 02/10) ----------
+     Como no Excel dela, cada passeio leva as linhas próprias:
+       Ingressos <atração> - comprar antecipado (valores para 2 adultos)  → sinal = total (ela compra antes)
+       Fones de ouvido - pago no dia                                     → pago no dia
+       Gestão e reserva antecipada de ingressos <passeio>                → sinal = total (é dela)
+     Os ingressos vêm do catálogo de passeios (por pessoa e idade); sem idade = todos
+     adultos. A gestão vem da Tabela (valor do grupo). ingKey diz "qual linha é" pra
+     que a opção 3 h e a opção 4 h do mesmo dia COMPARTILHEM a linha igual. */
+  extrasGuia(ref, x) {
+    x = x || {};
+    const p = String(ref || '').split('|'); const t = Precos.get(p[0]); if (!t) return [];
+    const b = Precos.base(t); if (b.tipo !== 'guia') return [];
+    const s = (b.secoes || []).find(y => y.id === p[1]), l = s && s.linhas.find(y => y.id === p[2]); if (!l) return [];
+    const c = Precos.calc('guia', l, 1), pad = GUIA_PADRAO.find(g => g.casa.test(Precos._n(s.titulo))) || {};
+    const nomePasseio = pad.nome || Precos.rotaBonita(s.titulo).replace(/\s*\(.*$/, '');
+    const pax = Math.max(1, +x.pax || c.paxN || 1);
+    /* as pessoas: idades conhecidas (criança, jovem) + o resto adulto. Sem idade = adulto */
+    const idades = (Array.isArray(x.idades) ? x.idades : []).filter(v => v !== '' && v != null && !isNaN(+v)).map(Number);
+    const adultos = x.adultos != null && x.adultos !== '' ? Math.max(0, +x.adultos) : Math.max(0, pax - idades.length);
+    const pessoas = Array(adultos).fill(null).concat(idades);
+    const base = { data: x.data || '', hora: x.hora || '', pax: pessoas.length || pax, cidade: '' };
+    const out = [], tour = Precos.tourDe(s, l.dur);
+    const quem = (precos, noDia) => {
+      const n = pessoas.length;
+      if (!idades.length) return `valores para ${n} ${noDia ? (n > 1 ? 'pessoas' : 'pessoa') : (n > 1 ? 'adultos' : 'adulto')}`;
+      const cont = {}; for (const v of precos) cont[v] = (cont[v] || 0) + 1;
+      return 'valores para ' + Object.keys(cont).map(Number).sort((a, b2) => b2 - a).map(v => v ? `${cont[v]} × ${_prEur(v)}` : `${cont[v]} grátis`).join(' + ');
+    };
+    for (const g of (tour && tour.ingressos) || []) {
+      const nome = (g.nome && g.nome.pt) || 'Ingresso';
+      const precos = pessoas.map(idade => (typeof precoIngresso === 'function' ? precoIngresso(g, idade) : +g.inteiro || 0));
+      const valor = _prR2(precos.reduce((a, v) => a + v, 0) + (+g.guia || 0)); if (!(valor > 0)) continue;
+      out.push(g.noDia
+        ? Object.assign({}, base, { desc: `${nome} - obrigatório, pago no dia (${quem(precos, true)})`, valor, custo: valor, sinal: 0, auto: 'nodia', ingKey: 'dia:' + Precos._n(nome) })
+        : Object.assign({}, base, { desc: `Ingressos ${nome} - comprar antecipado (${quem(precos)})`, valor, custo: valor, sinal: valor, auto: 'ingresso', ingKey: 'ing:' + Precos._n(nome) }));
+    }
+    if (c.gestao > 0) out.push(Object.assign({}, base, { desc: `Gestão e reserva antecipada de ingressos ${nomePasseio}`, valor: c.gestao, custo: 0, sinal: c.gestao, auto: 'gestao', ingKey: 'gestao' }));
+    return out;
+  },
+  /* ---------- FONTE ÚNICA DE PREÇO: Tabela de preços ↔ catálogo do site (02/10) ----------
+     O transfer do site público (transfer-aeroporto, -civitavecchia, -termini, -outlet)
+     tem a MESMA tabela dela (pessoas, veículo, diurno, noturno, sinal). Ela edita em
+     qualquer um dos dois lugares e o outro acompanha — nunca dois preços diferentes. */
+  _tourDaSecao(s) {
+    const n = String(s && s.titulo || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return n.includes('aeroporto') ? 'transfer-aeroporto' : n.includes('civitavecchia') ? 'transfer-civitavecchia' : n.includes('outlet') ? 'transfer-outlet' : /esta[cç]|termini/.test(n) ? 'transfer-termini' : '';
+  },
+  /* linha da tabela ↔ linha do catálogo: mesmo nº de pessoas, mesma ordem de veículo */
+  _pares(s, tour) {
+    const out = [], porPax = {};
+    for (const l of s.linhas || []) (porPax[l.paxN] = porPax[l.paxN] || []).push(l);
+    for (const [px, arr] of Object.entries(porPax)) { const cat = tour.transfer.linhas.filter(c => +c.pax === +px); arr.forEach((l, k) => { if (cat[k]) out.push([l, cat[k]]); }); }
+    return out;
+  },
+  /* tabela → site: diurno = preço, noturno = preço + €30 por veículo, sinal = preço − custo */
+  paraCatalogo() {
+    const T = Precos.get('transfer-roma'); if (!T || typeof Tours === 'undefined') return 0;
+    let n = 0;
+    for (const s of T.secoes || []) {
+      const tour = Tours.get(Precos._tourDaSecao(s)); if (!tour || !tour.transfer || !Array.isArray(tour.transfer.linhas)) continue;
+      for (const [l, c] of Precos._pares(s, tour)) {
+        const dia = _prR2(l.preco), noite = _prR2(l.preco + PRECO_NOTURNO_VEIC * (l.veicN || 1)), sinal = _prR2(l.preco - l.custo);
+        if (+c.dia !== dia || +c.noite !== noite || +c.sinal !== sinal) { c.dia = dia; c.noite = noite; c.sinal = sinal; n++; }
+      }
+      const menor = Math.min(...tour.transfer.linhas.map(c => +c.dia || Infinity)); if (isFinite(menor)) tour.price = menor;   // o "a partir de" do site
+    }
+    if (n && typeof save === 'function') save();
+    return n;
+  },
+  /* site → tabela: ela mudou o transfer em "Meus passeios" (preço = diurno, custo = diurno − sinal) */
+  doCatalogo(tourId) {
+    const T = Precos.get('transfer-roma'), tour = typeof Tours !== 'undefined' && Tours.get(tourId);
+    if (!T || !tour || !tour.transfer || !Array.isArray(tour.transfer.linhas)) return 0;
+    let n = 0;
+    for (const s of T.secoes || []) if (Precos._tourDaSecao(s) === tourId) for (const [l, c] of Precos._pares(s, tour)) {
+      const preco = _prR2(+c.dia || 0), custo = _prR2(preco - (+c.sinal || 0));
+      if (l.preco !== preco || l.custo !== custo) { l.preco = preco; l.custo = custo; n++; }
+    }
+    if (n) Precos._save();
+    return n;
+  },
+  /* o grupo da linha (tabela + seção): duas linhas do mesmo grupo no mesmo dia = OPÇÕES (carro OU minivan) */
+  grupoDe(ref) { const p = String(ref || '').split('|'); return p.length === 3 ? p[0].replace(/-5$/, '') + '|' + p[1] : ''; },
+
+  /* ---------- TEXTO ANTIGO → NOVO (orçamentos e reservas de antes da v1.94) ----------
+     v1.82–v1.88: "Guia Roma — ROMA ANTIGA · 4 pessoas · 3 horas" / "Transfer Roma — … · 3 pessoas · minivan"
+     v1.89–v1.93: "Roma Antiga - visita guiada - 3 horas"
+     → a descrição de hoje (o que inclui entre parênteses, malas no transfer, sem nº de
+     pessoas). Só troca o que o APP escreveu — texto que ela digitou fica como está.
+     x = { precoRef, hora, valor, turno } (o que se souber). Devolve o texto novo ou null. */
+  _velho: /^(Transfer Roma|Guia Roma|BV Roma)(?: 5%)? — (.+?) · ([^·]+?)(?: · ([^·]+))?$/,
+  descNova(desc, x) {
+    x = x || {};
+    const d = String(desc || '').trim(), A = d.match(Precos._velho), B = !A && d.match(/^(.+?) - visita guiada(?: - (.+))?$/);
+    if (!A && !B) return null;
+    let t = null, s = null, l = null;
+    const p = String(x.precoRef || '').split('|');
+    if (p.length === 3) { t = Precos.get(p[0]); const b = t && Precos.base(t); s = b && (b.secoes || []).find(y => y.id === p[1]); l = s && s.linhas.find(y => y.id === p[2]); }
+    if (!l && A) {
+      t = Precos.all().find(y => !y.derivaDe && y.nome === A[1]); const b = t && Precos.base(t);
+      s = b && (b.secoes || []).find(y => y.titulo.trim() === A[2].trim());
+      const comp = String(A[4] || '').trim();
+      l = s && s.linhas.find(y => y.pax.trim() === A[3].trim() && (!comp || (y.veic ? new RegExp('\\(' + comp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\)\\s*$', 'i').test(y.veic) : (y.dur || '') === comp)));
+    }
+    if (!l && B) {
+      t = Precos.get('guia-roma'); const b = t && Precos.base(t);
+      s = b && (b.secoes || []).find(y => Precos.rotaBonita(y.titulo) === B[1].trim());
+      l = s && s.linhas.find(y => (y.dur || '') === String(B[2] || '').trim());
+    }
+    if (!t || !s || !l) return null;
+    const b = Precos.base(t);
+    let noturno = false;
+    if (b.tipo === 'transfer') {
+      if (x.turno) noturno = x.turno === 'noturno';
+      else { const c = Precos.calc('transfer', l, Precos.fator(t)); noturno = Precos.ehNoturno(x.hora) && +x.valor > c.preco + 0.01; }
+    }
+    return Precos.descLinha(t, s, Precos.calc(b.tipo, l, 1), noturno);
+  },
+  /* a obs antiga "ingressos à parte: €30/pessoa" era a GESTÃO com nome errado */
+  _obsVelha: /^ingressos à parte: .*\/pessoa$/i,
+  /* roda ao abrir e depois de receber da nuvem; idempotente (texto novo não casa).
+     reservas: true só logo depois de a nuvem entregar as reservas (ou sem nuvem) — mandar
+     uma reserva velha do aparelho por cima da nuvem apagaria pagamento feito em outro lugar */
+  migraTextos(op) {
+    if (typeof DB !== 'object' || !DB) return 0;
+    op = op || {};
+    let n = 0;
+    for (const o of DB.orcamentos || []) for (const i of o.itens || []) {
+      const nd = Precos.descNova(i.desc, { precoRef: i.precoRef, hora: i.hora, valor: i.valor, turno: i.turno });
+      if (nd && nd !== i.desc) { i.desc = nd; n++; }
+      if (Precos._obsVelha.test(String(i.obs || '').trim())) { i.obs = ''; n++; }
+    }
+    if (n) Precos._save();
+    for (const b of op.reservas ? (DB.bookings || []) : []) {
+      let m = false;
+      const nd = b.servicoTxt && Precos.descNova(b.servicoTxt, { hora: b.time, valor: b.total });
+      if (nd && nd !== b.servicoTxt) { b.servicoTxt = nd; m = true; }
+      if (Precos._obsVelha.test(String(b.obsOp || '').trim())) { b.obsOp = ''; m = true; }
+      if (m) { n++; if (typeof _opSaveBooking === 'function') _opSaveBooking(b); }
+    }
+    return n;
+  },
+  /* passeio da Tabela que ainda não tem as linhas de ingresso/gestão (orçamento antigo) */
+  semExtras(o, i) {
+    return !!(i && i.precoRef && !i.perdido && !(o.itens || []).some(x => (x.vinculo || []).includes(i.id)) && Precos.extrasGuia(i.precoRef, { pax: i.pax }).length);
+  },
+  /* ---------- pro ASSISTENTE ler a tabela ---------- */
+  /* o que existe (nomes das tabelas e seções) */
+  resumo() {
+    return Precos.all().map(t => ({ tabela: t.id, nome: t.nome, tipo: Precos.base(t).tipo, desconto_pct: Precos.descontoPct(t) || undefined, secoes: Precos.secoesView(t).map(s => s.titulo) }));
+  },
+  /* acha as linhas certas: tabela (transfer | guia | bv | transfer-roma-5), pessoas, e um
+     texto pra filtrar seção/veículo/duração ("aeroporto", "civitavecchia", "vaticano", "van", "4 horas") */
+  acha(q) {
+    q = q || {};
+    const n = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const qt = n(q.tabela), qs = n(q.secao), qx = n(q.texto), px = +q.pessoas || 0;
+    const out = [];
+    for (const t of Precos.all()) {
+      /* "transfer" = só a Transfer Roma; a 5% (derivada) só entra se pedida (id ou "5") */
+      const casa = !qt || t.id === q.tabela || (t.derivaDe ? /5/.test(qt) : (n(t.nome).includes(qt) || Precos.base(t).tipo === qt));
+      if (!casa) continue;
+      for (const s of Precos.secoesView(t)) {
+        if (qs && !n(s.titulo).includes(qs)) continue;
+        for (const c of s.linhas) {
+          const cabe = !px || c.paxN === px || (px === 1 && c.paxN === 2 && /1 ou 2/i.test(c.pax)) || (/^at[eé]\s/i.test(c.pax) && px <= c.paxN);
+          if (!cabe) continue;
+          if (qx && !n([s.titulo, c.pax, c.veic, c.dur].join(' ')).includes(qx)) continue;
+          out.push({ ref: `${t.id}|${s.id}|${c.ref}`, tabela: t.nome, secao: s.titulo, pessoas: c.pax, veiculo: c.veic || undefined, duracao: c.dur || undefined,
+            preco: c.preco, por_pessoa: c.porPessoa, sinal: c.sinal, custo: c.custo, cartao: c.cartao, noturno: c.noturno, noturno_cartao: c.noturnoCartao,
+            inclui: (s.inclui && s.inclui[c.dur || '']) || undefined, gestao_ingressos_do_grupo: c.gestao || undefined,
+            ingressos_por_pessoa_catalogo: c.dur != null && Precos.base(t).tipo === 'guia' ? (Precos.ingressosTexto(s, c.dur) || undefined) : undefined });
+        }
+      }
+    }
+    return out;
+  },
+};
+/* ao abrir: o texto antigo dos orçamentos vira o de hoje (v1.94). Com a nuvem logada
+   espera o "ritual de abrir" (nuvem-itens.js) ler o banco primeiro — senão subiria a cópia
+   velha do aparelho por cima do que foi mudado em outro aparelho. */
+try {
+  const comNuvem = typeof temNuvem === 'function' && temNuvem();
+  if (typeof DB === 'object' && DB && !(typeof itPronto === 'function' && itPronto())) Precos.migraTextos({ reservas: !comNuvem });
+} catch (e) {}

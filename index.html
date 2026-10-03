@@ -1,0 +1,1334 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EmRoma</title>
+<meta name="description" content="Passeios guiados em português. Reserva online em três toques.">
+<meta name="theme-color" content="#064c3f">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Reservas de passeios">
+<meta property="og:description" content="Reserve seu passeio em três toques.">
+<meta property="og:image" content="og.jpg">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Karla:wght@400;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script>
+/* Antes de qualquer pintura: se ela escolheu um tema, aplica agora.
+   Sem isto o app abre claro e pisca para escuro depois do JS carregar. */
+(function(){try{var t=localStorage.getItem('vi_tema'),r=document.documentElement;
+if(t==='dark'||t==='light')r.setAttribute('data-theme',t);
+/* o painel tem o visual dele (Ajustes > Visual do painel): claro por padrao */
+if(location.hash.indexOf('#/adm')===0){var v=JSON.parse(localStorage.getItem('emroma_visual')||'{}');
+if(v.tema!=='auto')r.setAttribute('data-theme',v.tema==='escuro'?'dark':'light');
+r.setAttribute('data-skin',v.cor||'vinho');r.setAttribute('data-conforto',v.conforto===false?'0':'1');r.setAttribute('data-painel','1');}}catch(e){}})();
+</script>
+<link rel="stylesheet" href="tokens.css?v=1.95.0">
+<link rel="stylesheet" href="operacao.css?v=1.95.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%23064c3f'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='%23FFD23F' stroke-width='8'/%3E%3Ccircle cx='50' cy='50' r='9' fill='%23FFD23F'/%3E%3C/svg%3E">
+<style>
+/* ============ base ============ */
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-ui);font-size:var(--fs-4);line-height:var(--lh-4);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+textarea{min-height:84px;resize:vertical}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+h1,h2,h3{font-family:var(--f-display);font-weight:var(--t-display);letter-spacing:var(--track-display)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.center{text-align:center}.right{text-align:right}.hide{display:none}
+small{color:var(--ink-3)}
+
+/* ============ toast / coach ============ */
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,14px);opacity:0;z-index:300;background:var(--ink);color:var(--paper);padding:11px 18px;border-radius:var(--r-pill);font-size:var(--fs-3);box-shadow:var(--sh-2);transition:all var(--d-base) var(--ease);pointer-events:none;max-width:min(480px,92vw);text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.coach{position:fixed;z-index:400;width:290px;background:var(--brand-assinatura);color:#1a1405;
+  border-radius:var(--r-lg);box-shadow:0 18px 44px -12px rgba(0,0,0,.55),0 0 0 3px rgba(255,255,255,.9);
+  padding:12px 16px 14px;animation:pop .35s var(--spring)}
+.coach-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;
+  font-size:var(--fs-1);font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.coach-ouvir{background:#1a1405;color:var(--brand-assinatura);border-radius:var(--r-pill);padding:5px 11px;
+  font-size:var(--fs-2);font-weight:700;letter-spacing:0;text-transform:none}
+.coach-ouvir.tocando{animation:tocando 1s ease-in-out infinite}
+@keyframes tocando{50%{opacity:.55}}
+.coach-txt{font-size:var(--fs-4);line-height:1.45;font-weight:600;color:#1a1405}
+.coach-row{display:flex;align-items:center;gap:8px;margin-top:12px}
+.coach-n{font-family:var(--f-mono);font-size:var(--fs-1);color:#4a3a10;margin-left:auto}
+.coach-next{background:var(--brand-primaria);color:#fff;padding:7px 16px;border-radius:var(--r-pill);font-weight:var(--t-strong);font-size:var(--fs-3)}
+.coach-skip{color:#4a3a10;font-size:var(--fs-2);text-decoration:underline}
+.coach-seta{position:absolute;width:16px;height:16px;background:var(--brand-assinatura);transform:rotate(45deg)}
+.coach.seta-cima .coach-seta{top:-8px}
+.coach.seta-baixo .coach-seta{bottom:-8px}
+.coach-hi{outline:3px solid var(--brand-assinatura);outline-offset:4px;border-radius:var(--r);
+  animation:anelDica 1.6s ease-out infinite}
+@keyframes anelDica{0%{box-shadow:0 0 0 0 rgba(227,178,60,.7)}70%{box-shadow:0 0 0 14px rgba(227,178,60,0)}100%{box-shadow:0 0 0 0 rgba(227,178,60,0)}}
+
+/* ============ hub ============ */
+.hub{position:relative;min-height:100vh;display:grid;place-items:center;
+  padding:max(24px,env(safe-area-inset-top)) 16px calc(60px + env(safe-area-inset-bottom));overflow:hidden}
+.hub-bg{position:absolute;inset:-4%;background-size:cover;background-position:center 40%}
+.hub-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(165deg,rgba(46,24,34,.78),rgba(91,49,69,.66))}
+.hub-in{position:relative;width:min(420px,100%);display:flex;flex-direction:column;gap:10px}
+.vcard{background:var(--surface);border-radius:var(--r-xl);padding:26px 22px 20px;text-align:center;box-shadow:var(--sh-3)}
+.logo-mark{width:64px;height:64px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;background:var(--brand-primaria);color:var(--brand-assinatura);font-family:var(--f-display);font-weight:700;font-size:28px}
+.logo-mark.sm{width:34px;height:34px;font-size:16px;margin:0}
+.hub-logo{display:block;width:min(190px,52%);height:auto;margin:2px auto 4px}
+/* Um logotipo por tema. Padrao: claro. */
+.p-escuro{display:none}
+:root[data-theme="dark"] .p-claro{display:none}
+:root[data-theme="dark"] .p-escuro{display:block}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .p-claro{display:none}
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .p-escuro{display:block}
+}
+.vcard h1{font-size:var(--fs-7)}
+.role{font-family:var(--f-mono);font-size:var(--fs-1);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--highlight-text);margin-top:6px}
+.tagline{font-size:var(--fs-3);color:var(--ink-2);margin-top:10px}
+/* PT | EN — a mesma assinatura do logotipo dela. Sem bandeira:
+   idioma não é país (o inglês dela atende alemão, holandês, americano). */
+.langs{display:flex;gap:2px;align-items:center}
+.langs.center{justify-content:center;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.langs.right{margin-left:auto}
+.langs button{padding:5px 12px;border-radius:var(--r-pill);background:transparent;
+  font-family:var(--f-display);font-weight:700;font-size:var(--fs-2);letter-spacing:.1em;
+  color:var(--ink-3);transition:color var(--d-fast),background var(--d-fast)}
+.langs button:hover{color:var(--ink)}
+/* o amarelo é a assinatura da marca; texto escuro em cima dá 8,7:1 */
+.langs button.on{background:var(--highlight);color:var(--highlight-ink)}
+.langsep{color:var(--line-2);font-weight:400;user-select:none}
+.lk{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);text-align:left;transition:transform var(--d-fast) var(--spring),box-shadow var(--d-base)}
+.lk:hover{transform:translateY(-2px);box-shadow:var(--sh-2)}
+.lk .ic{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--surface-2);flex:none;font-size:16px}
+.lk .ic svg{width:20px;height:20px;display:block}
+.lk .ic.ig{background:radial-gradient(circle at 30% 107%,#fdf497 0%,#fdf497 5%,#fd5949 45%,#d6249f 60%,#285AEB 90%);color:#fff}
+.lk .ic.wa{background:#25D366;color:#fff}
+.lk b{display:block;font-size:var(--fs-4)}
+.lk small{display:block;font-size:var(--fs-2)}
+.lk .go{margin-left:auto;color:var(--ink-3)}
+.lk.main{background:var(--brand-primaria);color:#fff}
+.lk.main small{color:rgba(255,255,255,.75)}
+.lk.main .ic{background:rgba(255,255,255,.16)}
+.lk.main .go{color:var(--brand-assinatura)}
+.adm-entry{margin:6px auto 0;padding:8px 15px;border-radius:var(--r-pill);font-size:var(--fs-2);color:rgba(255,255,255,.85);background:rgba(255,255,255,.12);backdrop-filter:blur(8px)}
+.adm-entry:hover{background:rgba(255,255,255,.22)}
+
+/* ============ cliente ============ */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;padding:max(12px,env(safe-area-inset-top)) 18px 12px;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.topbar b{font-family:var(--f-display);font-size:var(--fs-4)}
+/* 44px e o minimo que um dedo acerta. Com 34 e sem area segura, a seta
+   ficava atras da barra de status do iPhone e nao dava para voltar. */
+.backbtn{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;
+  background:var(--surface);box-shadow:var(--sh-1);flex:none;font-size:18px}
+.backbtn:active{transform:scale(.94)}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 18px 80px}
+.pageh{font-size:var(--fs-7);margin-bottom:14px}
+.pagehead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.pagehead .pageh{margin:0;flex:1}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.chip{padding:7px 15px;border-radius:var(--r-pill);font-size:var(--fs-3);font-weight:var(--t-strong);background:var(--surface);box-shadow:var(--sh-1);color:var(--ink-2)}
+.chip.on{background:var(--ink);color:var(--paper)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.tourcard{border-radius:var(--r-lg);overflow:hidden;background:var(--surface);box-shadow:var(--sh-1);text-align:left;transition:transform var(--d-base) var(--spring),box-shadow var(--d-base)}
+.tourcard:hover{transform:translateY(-4px);box-shadow:var(--sh-2)}
+.tourcard .ph{display:block;height:150px;background-size:cover;background-position:center}
+.tourcard .bd{display:block;padding:13px 15px 15px}
+.tourcard b{display:block;font-family:var(--f-display);font-size:var(--fs-5)}
+.tourcard small{display:block;margin-top:3px}
+/* Sobra de um desenho antigo: fundo + pilula de 999px num elemento que hoje
+   tem DUAS linhas ("a partir de € 195" / "por pessoa"). Virava um lozango
+   cinza vazando atras do preco. A regra que vale e a de baixo, tipografica. */
+.tourcard .pr{display:inline-block;margin-top:9px}
+.empty{color:var(--ink-3);padding:22px 0}
+.emptybox{background:var(--surface);border:1px dashed var(--line-2);border-radius:var(--r-lg);padding:34px 22px;text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center;color:var(--ink-2)}
+
+.hero-sm{height:min(34vh,300px);background-size:cover;background-position:center 42%}
+.two-col{display:grid;grid-template-columns:1fr 360px;gap:34px;align-items:start}
+@media(max-width:900px){.two-col{grid-template-columns:1fr;gap:20px}}
+.badge{display:inline-block;background:var(--ok-wash);color:var(--ok);font-size:var(--fs-2);font-weight:var(--t-strong);padding:4px 11px;border-radius:var(--r-pill);margin:14px 0 10px}
+.desc{color:var(--ink-2);max-width:56ch;margin-bottom:12px}
+.h3{font-size:var(--fs-5);margin:16px 0 5px}
+
+/* reserva */
+.book{position:sticky;top:74px;background:var(--surface);border-radius:var(--r-xl);box-shadow:var(--sh-2);padding:18px 20px 20px;margin-top:14px}
+.bhead{padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.bprice{font-family:var(--f-display);font-size:var(--fs-6);font-weight:700}
+.bprice small{font-family:var(--f-ui);font-weight:400;font-size:var(--fs-3)}
+.bstep{font-family:var(--f-mono);font-size:var(--fs-1);letter-spacing:var(--track-label);text-transform:uppercase;color:var(--ink-3);margin-bottom:12px}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
+.dcell{border-radius:var(--r);background:var(--surface-2);padding:8px 4px;text-align:center;transition:all var(--d-fast)}
+.dcell b{display:block;font-size:var(--fs-3)}
+.dcell small{font-size:var(--fs-1);text-transform:uppercase}
+.dcell.on{background:var(--accent);color:var(--accent-ink)}
+.dcell.on small{color:rgba(255,255,255,.75)}
+.hint{font-size:var(--fs-3);color:var(--ink-3);margin:12px 0 8px}
+.times{display:flex;gap:8px;flex-wrap:wrap}
+.slot{border-radius:var(--r);background:var(--surface-2);padding:9px 14px;font-weight:var(--t-strong)}
+.slot small{display:block;font-weight:400;font-size:var(--fs-1)}
+.slot.on{background:var(--accent);color:var(--accent-ink)}
+.slot.on small{color:rgba(255,255,255,.75)}
+.slot.off{opacity:.4;cursor:default}
+.cta{display:block;width:100%;margin-top:16px;padding:14px;border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-weight:var(--t-strong);font-size:var(--fs-4);transition:filter var(--d-fast),transform var(--d-fast) var(--spring)}
+.cta:hover{filter:brightness(1.12);transform:translateY(-1px)}
+.cta:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.cta.soft{background:var(--surface-2);color:var(--ink)}
+.cta.sm{width:auto;margin:0;padding:9px 16px;font-size:var(--fs-3)}
+.linkbtn{display:block;margin:10px auto 0;color:var(--ink-3);font-size:var(--fs-3)}
+.linkbtn:hover{color:var(--ink)}
+.paxrow{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}
+.pm{display:flex;align-items:center;gap:12px}
+.pm button{width:32px;height:32px;border-radius:50%;background:var(--surface-2);font-size:17px}
+.pm span{min-width:22px;text-align:center;font-weight:var(--t-strong)}
+.sums{margin-top:10px;font-size:var(--fs-3);color:var(--ink-2)}
+.sums>div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line)}
+.sums .tot{font-size:var(--fs-4);color:var(--ink);border-bottom:0}
+.sums .tot b{font-family:var(--f-display);font-size:var(--fs-5)}
+.coupon{margin-top:8px;font-size:var(--fs-3)}
+.coupon summary{cursor:pointer;color:var(--ink-3)}
+.crow{display:flex;gap:8px;margin-top:8px}
+.cbad{color:var(--danger);font-size:var(--fs-2);margin-top:5px}
+.fld{display:block;font-size:var(--fs-3);font-weight:var(--t-strong);margin-top:11px}
+.fld input,.fld select,.fld textarea{margin-top:5px;font-weight:400}
+.fld.chk{display:flex;align-items:center;gap:8px}
+.fld.chk input{width:auto;margin:0}
+.why{display:block;font-weight:400;margin-top:4px}
+.payopts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.popt{text-align:left;border:1.5px solid var(--line);border-radius:var(--r);padding:11px 13px}
+.popt small{display:block;font-weight:400;margin-top:3px;line-height:1.4}
+.popt.on{border-color:var(--accent);background:var(--accent-wash)}
+.fine{font-size:var(--fs-2);color:var(--ink-3);text-align:center;margin-top:9px}
+.fine.demo{color:var(--highlight-text);background:var(--highlight-wash);border-radius:var(--r);padding:6px}
+.okc{width:60px;height:60px;margin:6px auto 12px;border-radius:50%;background:var(--ok-wash);color:var(--ok);display:grid;place-items:center;font-size:26px;font-weight:700}
+.okh{text-align:center;font-size:var(--fs-6)}
+/* ---- como pagar (fim do checkout) ---- */
+.paybox{margin-top:var(--s-8);padding:var(--s-9) var(--s-8);border-radius:var(--r-lg);
+  background:var(--surface-2);border:1px solid var(--line)}
+.paybox h3{font-family:var(--f-display);font-weight:700;font-size:var(--fs-5);color:var(--ink)}
+.paynow{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-6);
+  margin-top:var(--s-6);padding-bottom:var(--s-6);border-bottom:1px solid var(--line)}
+.paynow small{font-size:var(--fs-2);color:var(--ink-3);
+  letter-spacing:var(--track-label);text-transform:uppercase}
+.paynow b{font-family:var(--f-display);font-weight:700;font-size:var(--fs-7);color:var(--ink)}
+.payline{margin-top:var(--s-7)}
+.payline>small{display:block;font-size:var(--fs-2);color:var(--ink-3);
+  letter-spacing:var(--track-label);text-transform:uppercase}
+.payline input{width:100%;min-width:0;font-family:var(--f-mono,ui-monospace,monospace);font-size:var(--fs-3)}
+.payline .who{display:block;margin-top:5px;font-size:var(--fs-2);color:var(--ink-2)}
+.paybox .why{margin-top:var(--s-7)}
+.embrl{display:block;margin-top:4px;font-size:var(--fs-2);color:var(--ink-3)}
+.voucher{margin-top:14px;background:var(--surface-2);border:1px dashed var(--line-2);border-radius:var(--r-lg);padding:14px 16px;font-size:var(--fs-3)}
+.voucher small{font-family:var(--f-mono);font-size:var(--fs-1);letter-spacing:var(--track-label);text-transform:uppercase}
+.voucher .code{font-family:var(--f-mono);font-size:var(--fs-5);color:var(--accent);letter-spacing:.08em;margin:2px 0 8px}
+.voucher .due{margin-top:8px;color:var(--highlight-text);background:var(--highlight-wash);border-radius:var(--r-sm);padding:6px 9px}
+.okrow{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;justify-content:center}
+.mini{padding:7px 13px;border-radius:var(--r-pill);background:var(--surface-2);font-size:var(--fs-2);font-weight:var(--t-strong)}
+.mini:hover{background:var(--surface-3)}
+.mini.danger{color:var(--danger);background:var(--danger-wash)}
+.mini.ghost{background:transparent;border:1px solid var(--line)}
+.photopick{display:flex;gap:12px;align-items:flex-start;margin-top:6px}
+.pprev{width:104px;height:66px;flex:none;border-radius:10px;background-size:cover;background-position:center;
+  background-color:var(--surface-2);display:grid;place-items:center;border:1px dashed var(--line-2)}
+.pprev i{font-style:normal;font-size:22px;color:var(--ink-3)}
+.ppinfo{flex:1;min-width:0}
+.ppinfo input[type=file]{font-size:12px;max-width:100%}
+/* ---------- opt-in ---------- */
+.optin{display:flex;gap:11px;align-items:flex-start;margin-top:14px;padding:12px 13px;
+  border-radius:var(--r);background:var(--surface-2);cursor:pointer}
+.optin input{width:19px;height:19px;flex:none;margin-top:1px;accent-color:var(--accent);cursor:pointer}
+.optin b{display:block;font-size:13px;font-weight:600;line-height:1.35}
+.optin small{display:block;font-size:11.5px;color:var(--ink-3);margin-top:3px;line-height:1.45}
+.optin:has(input:checked){background:var(--accent-wash)}
+/* ---------- login ---------- */
+.loginwrap{min-height:100vh;display:grid;place-items:center;
+  padding:max(24px,env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+  background:linear-gradient(160deg,var(--accent) 0%,#03352b 100%)}
+.logincard{width:min(400px,100%);background:var(--surface);border-radius:var(--r-lg,18px);
+  padding:30px 26px 22px;box-shadow:var(--sh-3);text-align:left}
+.loginlogo{display:flex;justify-content:center;margin-bottom:14px}
+.logincard h1{font-family:var(--f-display);font-size:22px;font-weight:700;text-align:center;
+  letter-spacing:-.02em;margin-bottom:6px}
+.logincard .center{text-align:center}
+.logincard .fld{margin-top:14px;display:block}
+.logincard .cta{margin-top:18px;width:100%}
+.logincard .linkbtn{display:block;width:100%;margin-top:12px;background:none;border:0;
+  color:var(--accent);font:inherit;font-size:13.5px;cursor:pointer;padding:6px}
+.logincard .fine{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+  font-size:11.5px;color:var(--ink-3)}
+@media (max-width:420px){.logincard{padding:24px 18px 18px}}
+/* ---------- validação ---------- */
+.fld input.invalid,.fld textarea.invalid{border-color:var(--danger);
+  box-shadow:0 0 0 3px color-mix(in oklab,var(--danger) 18%,transparent)}
+.fld .err{display:block;color:var(--danger);font-size:12px;margin-top:5px;font-weight:500}
+
+/* ---------- impressão do extrato (ela leva ao contador) ---------- */
+@media print{
+  @page{size:A4;margin:14mm}
+  .rail,.mobar,.chips,.coach,.toast,.demobar,.railfoot,.pagehead .mini,.pagehead button{display:none!important}
+  body{background:#fff!important}
+  .adm{display:block!important}
+  .stage{padding:0!important}
+  .card{box-shadow:none!important;border:1px solid #ddd!important;break-inside:avoid}
+  /* na tela a tabela larga rola dentro do cartao; no papel isso CORTA o
+     conteudo, que era parte do "PDF veio zerado". Na impressao tudo aparece. */
+  .stage,.two-col,.formgrid,.card,.card:has(> .tbl){overflow:visible!important;max-width:none!important}
+  .tbl{font-size:10pt!important;width:100%!important;min-width:0!important}
+  .tbl thead{display:table-header-group}
+  .tbl tr{break-inside:avoid}
+  .pageh{font-size:18pt!important;margin:0 0 4mm!important}
+  .pageh::after{content:var(--marca-print, "");font-size:10pt;font-weight:400;color:#666}
+}
+/* ---------- foco e acessibilidade ---------- */
+input:focus-visible,select:focus-visible,textarea:focus-visible,
+.fld input:focus,.fld select:focus,.fld textarea:focus{
+  outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px color-mix(in oklab,var(--accent) 22%,transparent)}
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.tourcard:focus-visible,.lk:focus-visible,.agc:focus-visible{outline-offset:3px}
+/* =====================================================
+   CAMADA DE MOVIMENTO
+   Regras que valem para o app inteiro, sem mexer na estrutura.
+   Tudo dentro de no-preference: quem pediu menos movimento no aparelho
+   nao recebe nada disto — a regra de reduzir movimento ja existe abaixo.
+   ===================================================== */
+@media (prefers-reduced-motion:no-preference){
+  .tourcard,.lk,.cta,.mini,.chip,.agc{transition-property:transform,box-shadow,background,color,border-color}
+
+  /* 1. Entrada em cascata: os cartoes sobem em sequencia quando a tela troca.
+        O atraso e por posicao, entao a leitura acompanha o movimento. */
+  .cards>*,.tlist>*,.stage>.card,.stopgrid>*{animation:entra 420ms var(--ease) both}
+  .cards>*:nth-child(2),.tlist>*:nth-child(2),.stage>.card:nth-child(2),.stopgrid>*:nth-child(2){animation-delay:55ms}
+  .cards>*:nth-child(3),.tlist>*:nth-child(3),.stage>.card:nth-child(3),.stopgrid>*:nth-child(3){animation-delay:110ms}
+  .cards>*:nth-child(4),.tlist>*:nth-child(4),.stage>.card:nth-child(4),.stopgrid>*:nth-child(4){animation-delay:165ms}
+  .cards>*:nth-child(n+5),.tlist>*:nth-child(n+5),.stage>.card:nth-child(n+5){animation-delay:210ms}
+
+  /* 2. Profundidade real no toque: o cartao inclina na direcao do cursor.
+        perspective no pai + translateZ no filho = volume de verdade,
+        nao sombra fingindo. */
+  .cards,.hub-in{perspective:1100px}
+  .tourcard{transform-style:preserve-3d}
+  .tourcard:hover{transform:translateY(-6px) rotateX(2.5deg) scale(1.012)}
+  .tourcard:active{transform:translateY(-2px) scale(.995);transition-duration:.09s}
+  .lk{transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
+  .lk:hover{transform:translateX(3px)}
+  .lk:active{transform:scale(.985);transition-duration:.09s}
+
+  /* 3. Botao que responde ao dedo. Sem isto o toque no celular parece morto. */
+  .cta:active,.mini:active,.chip:active{transform:scale(.96);transition-duration:.08s}
+
+  /* 4. A tela nova entra deslizando, em vez de aparecer seca. */
+  #app>.stage,#app>.wrap,#app>.hub{animation:trocaTela 320ms var(--ease) both}
+}
+@keyframes entra{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes trocaTela{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* ---------- vitrine: cards alinhados e com hierarquia ---------- */
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px 64px}
+.tbrand{display:inline-flex;align-items:center;gap:9px;min-width:0}
+.tbrand b{font-family:var(--f-display);font-weight:700;font-size:15px;letter-spacing:-.01em;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(288px,1fr));gap:18px;align-items:stretch}
+.tourcard{display:flex;flex-direction:column;text-align:left;padding:0;border:0;cursor:pointer;
+  background:var(--surface);border-radius:var(--r-lg,18px);overflow:hidden;box-shadow:var(--sh-1);
+  font:inherit;color:var(--ink);height:100%;
+  transition:transform .22s var(--ease,cubic-bezier(.22,1,.36,1)),box-shadow .22s}
+.tourcard:hover{transform:translateY(-4px);box-shadow:var(--sh-2)}
+.tourcard:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.tourcard .ph{display:block;position:relative;width:100%;aspect-ratio:16/10;background-size:cover;
+  background-position:center;flex:none}
+.tourcard .ph::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(6,32,26,.34),transparent 46%)}
+.tbadge{position:absolute;left:10px;top:10px;z-index:2;font-family:var(--f-mono);font-size:9px;
+  letter-spacing:.12em;text-transform:uppercase;background:rgba(255,255,255,.94);color:var(--accent);
+  padding:5px 9px;border-radius:100px;font-weight:600}
+.tourcard .bd{display:flex;flex-direction:column;gap:5px;padding:14px 16px 15px;flex:1}
+.tourcard .bd b{font-family:var(--f-display);font-weight:700;font-size:16px;line-height:1.25;
+  letter-spacing:-.015em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  min-height:2.5em}
+.tourcard .meta{font-size:12px;color:var(--ink-3)}
+.cardfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:10px}
+.tourcard .pr{font-family:var(--f-display);font-weight:700;font-size:18px;letter-spacing:-.02em;color:var(--accent)}
+.tourcard .pr i{font-style:normal;font-family:var(--f-ui);font-weight:400;font-size:11.5px;color:var(--ink-3);
+  display:block;margin-top:1px;letter-spacing:0}
+.cgo{width:30px;height:30px;flex:none;border-radius:50%;background:var(--accent-wash);color:var(--accent);
+  display:grid;place-items:center;font-size:14px;transition:.2s}
+.tourcard:hover .cgo{background:var(--accent);color:#fff;transform:translateX(2px)}
+.pageh{margin:22px 0 14px}
+@media (max-width:640px){
+  .wrap{padding:0 14px 72px}
+  .cards{grid-template-columns:1fr;gap:14px}
+  .tourcard .ph{aspect-ratio:16/9}
+  .pageh{font-size:24px;margin:16px 0 12px}
+}
+/* agenda */
+.agrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:10px;min-width:0}
+.agrid.head{margin-bottom:2px;gap:5px}
+.agwd{font-family:var(--f-mono);font-size:9px;letter-spacing:.1em;color:var(--ink-3);text-align:center;text-transform:uppercase}
+.agc{aspect-ratio:1;border:0;border-radius:10px;background:var(--surface-2);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;cursor:pointer;font:inherit;color:var(--ink);transition:.15s}
+.agc.empty{background:transparent;cursor:default}
+.agc b{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.agc.has{background:var(--accent-wash)}
+.agc.today b{color:var(--accent)}
+.agc.on{background:var(--accent);color:#fff}
+.agc.on b{color:#fff}
+.agc:hover:not(.empty){transform:translateY(-1px)}
+.agdots{display:flex;gap:2px}
+.agdots i{width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.6}
+.agc.on .agdots i{background:#fff;opacity:.9}
+.agdots i.full{background:var(--brand-assinatura);opacity:1}
+.agdots i.low{background:var(--danger);opacity:1}
+.paxlist{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+/* relatórios */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--surface);border-radius:var(--r);padding:14px 15px;box-shadow:var(--sh-1)}
+.kpi small{font-family:var(--f-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);display:block}
+.kpi b{font-family:var(--f-display);font-size:24px;font-weight:700;letter-spacing:-.02em;display:block;margin-top:6px;font-variant-numeric:tabular-nums}
+.kpi.warn b{color:var(--warn)}
+.chartbox{height:210px;margin-top:10px}
+.chartbox canvas{width:100%;height:100%;display:block}
+.occ{display:inline-block;width:52px;height:6px;border-radius:20px;background:var(--surface-3);overflow:hidden;vertical-align:middle;margin-right:6px}
+.occ i{display:block;height:100%;background:var(--accent);border-radius:20px}
+.orow{display:flex;align-items:center;gap:10px;padding:7px 0}
+.onm{font-size:12.5px;width:88px;flex:none;color:var(--ink-2)}
+.obar{flex:1;height:7px;border-radius:20px;background:var(--surface-3);overflow:hidden}
+.obar i{display:block;height:100%;background:var(--accent);border-radius:20px}
+/* demonstração */
+.demobar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 15px;border-radius:var(--r);
+  background:var(--highlight-wash);margin-bottom:14px}
+.demobar b{font-size:13px}
+.demobar p{font-size:12px;color:var(--ink-2);margin:2px 0 0;flex:1;min-width:200px}
+.vi-logo{display:inline-flex;align-items:center;gap:10px}
+.vi-mark{display:block;flex:none;line-height:0}
+.vi-word b{font-family:var(--f-display);font-weight:800;font-size:13px;line-height:1.02;letter-spacing:.02em;display:block;color:var(--ink)}
+.vi-word small{font-family:var(--f-mono);font-size:8px;letter-spacing:.16em;color:var(--ink-3);display:block;margin-top:3px}
+.vcard .vi-logo{flex-direction:column;gap:12px}
+.vcard .vi-word b{font-size:19px;letter-spacing:.03em;text-align:center}
+.vcard .vi-word small{text-align:center;font-size:9px;margin-top:5px}
+.hub .vi-word b{color:#fff}
+.hub .vi-word small{color:rgba(255,255,255,.72)}
+/* ...menos dentro do cartao, que e claro. O branco acima e para a marca
+   sobre a foto de fundo; no cartao ele sumia no tema claro. */
+.hub .vcard .vi-word b{color:var(--ink)}
+.hub .vcard .vi-word small{color:var(--ink-3)}
+.qrbox{display:flex;gap:16px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.qrbox img{border:1px solid var(--line);border-radius:var(--r);background:#fff;padding:6px}
+.qrbox b{font-family:var(--f-display)}
+.qrbox .mini{display:inline-block;margin-top:8px}
+
+/* ============ ADM ============ */
+.adm{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.rail{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:4px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  padding:max(18px,env(safe-area-inset-top)) 12px 18px;background:var(--rail);border-right:1px solid var(--line-2)}
+.rail::-webkit-scrollbar{width:8px}.rail::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:8px}
+.brand{display:flex;gap:10px;align-items:center;padding:4px 8px 16px}
+.brand b{font-family:var(--f-display);font-size:var(--fs-3);display:block;line-height:1.2}
+.brand small{font-family:var(--f-mono);font-size:var(--fs-1);letter-spacing:var(--track-label)}
+.rail nav{display:flex;flex-direction:column;gap:2px}
+.nb{padding:10px 12px;border-radius:var(--r);text-align:left;font-size:var(--fs-3);font-weight:var(--t-strong);color:var(--ink-2);white-space:nowrap}
+.nb:hover{background:var(--surface-2);color:var(--ink)}
+.nb.on{background:var(--accent-wash);color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.railfoot{margin-top:auto;display:flex;flex-direction:column;gap:2px}
+.nb.ghost{color:var(--ink-3);font-weight:400}
+@media(max-width:820px){
+.adm{grid-template-columns:1fr}
+.rail{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;flex-direction:row;align-items:center;overflow-x:auto;padding:8px 8px calc(8px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line);z-index:60}
+.rail .brand,.railfoot{display:none}
+.rail nav{display:flex;flex-direction:row;gap:4px}
+  .rail .nb.on{box-shadow:inset 0 -3px 0 var(--accent)}
+.stage{padding-bottom:96px}
+}
+.stage{padding:26px 28px 60px;max-width:1040px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-1);padding:18px 20px;margin-bottom:14px}
+.card h3{font-size:var(--fs-5);margin-bottom:10px}
+.alert{display:flex;align-items:center;gap:10px;border-radius:var(--r);padding:11px 15px;font-size:var(--fs-3);font-weight:var(--t-strong);margin-bottom:12px}
+.alert.bad{background:var(--danger-wash);color:var(--danger)}
+.alert.warn{background:var(--warn-wash);color:var(--warn)}
+.alert .mini{margin-left:auto}
+.deprow{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:var(--fs-3)}
+.deprow:first-of-type{border-top:0}
+.deprow .pill{margin-left:auto}
+/* Campos em ingles escondidos: o guia escreve so em portugues e o
+   ingles e traduzido ao salvar. Continuam no DOM porque o salvamento le
+   deles — e ela pode abrir para corrigir. */
+.formgrid:not(.mostra-en) .campo-en{display:none}
+.enswitch{margin-bottom:var(--s-7)}
+
+/* ---- caixa de datas do editor ---- */
+.dtbloco{margin-top:var(--s-9);padding-top:var(--s-8);border-top:1px solid var(--line)}
+.dtbloco:first-of-type{border-top:0;padding-top:0}
+.dtbloco.destaque{padding:var(--s-8);border:1px solid var(--line-2);border-radius:var(--r-lg);
+  background:var(--surface-2)}
+.dtbloco.destaque .cta.sm{margin-top:var(--s-7)}
+.dtbloco>summary{cursor:pointer;list-style:none;display:grid;
+  grid-template-columns:14px 1fr;column-gap:7px;row-gap:3px;align-items:baseline}
+.dtbloco>summary::-webkit-details-marker{display:none}
+.dtbloco>summary::before{content:"▸";color:var(--ink-3);grid-column:1;grid-row:1}
+.dtbloco[open]>summary::before{content:"▾"}
+.dtbloco>summary>b{grid-column:2;grid-row:1}
+.dtbloco>summary>small{grid-column:2;grid-row:2}
+.fld.nolabel{font-size:var(--fs-2);color:var(--ink-3);letter-spacing:var(--track-label);
+  text-transform:uppercase;margin-top:var(--s-7)}
+/* ---- escolha de aparencia ----
+   Cada opcao mostra uma previa real das cores, para ela ver o resultado
+   antes de aplicar em vez de escolher por adivinhacao. */
+.pixqr{display:flex;justify-content:center;margin-top:var(--s-7)}
+.pixqr svg{border-radius:var(--r-sm);max-width:100%;height:auto}
+.pixbox{margin-top:var(--s-8);padding:var(--s-8);border-radius:var(--r-lg);
+  background:var(--accent-wash);border:1px solid var(--accent-line)}
+.pixtit{font-family:var(--f-display);font-size:var(--fs-4);color:var(--accent)}
+.pixvalor{margin-top:3px;font-family:var(--f-display);font-weight:700;font-size:var(--fs-5);color:var(--ink)}
+.pixcod{width:100%;margin-top:var(--s-7);font-family:var(--f-mono,ui-monospace,monospace);
+  font-size:11px;line-height:1.45;word-break:break-all;resize:none;background:var(--surface)}
+.pixbox .cta.sm{margin-top:var(--s-6);width:100%}
+.lgerro{background:var(--danger-wash);color:var(--danger);border-radius:var(--r-md);
+  padding:10px 13px;font-size:var(--fs-3);line-height:1.5;margin-bottom:var(--s-7)}
+.lookgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s-8)}
+.lookcard{display:flex;flex-direction:column;align-items:flex-start;gap:var(--s-5);
+  padding:var(--s-8);border:2px solid var(--line);border-radius:var(--r-lg);
+  background:var(--surface);cursor:pointer;font:inherit;color:var(--ink);text-align:left;
+  transition:border-color .18s var(--ease),transform .18s var(--ease)}
+.lookcard:hover{transform:translateY(-2px)}
+.lookcard.on{border-color:var(--accent)}
+.lookcard b{font-family:var(--f-display);font-size:var(--fs-4)}
+.lookcard small{color:var(--ink-3);font-size:var(--fs-2)}
+.lookprev{display:flex;gap:4px;width:100%;height:44px;padding:7px;border-radius:var(--r-md);
+  align-items:flex-end;border:1px solid var(--line)}
+.lookprev i{display:block;flex:1;border-radius:3px}
+.lookprev.light{background:#FBF8F3}
+.lookprev.light i:nth-child(1){height:100%;background:#064c3f}
+.lookprev.light i:nth-child(2){height:64%;background:#FFD23F}
+.lookprev.light i:nth-child(3){height:40%;background:#E8E0D3}
+.lookprev.dark{background:#0E1512}
+.lookprev.dark i:nth-child(1){height:100%;background:#4FB89B}
+.lookprev.dark i:nth-child(2){height:64%;background:#FFD23F}
+.lookprev.dark i:nth-child(3){height:40%;background:#25332D}
+/* automatico: metade clara, metade escura */
+.lookprev.auto{background:linear-gradient(105deg,#FBF8F3 0 50%,#0E1512 50% 100%)}
+.lookprev.auto i:nth-child(1){height:100%;background:#064c3f}
+.lookprev.auto i:nth-child(2){height:64%;background:#FFD23F}
+.lookprev.auto i:nth-child(3){height:40%;background:#25332D}
+.totalgeral{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-6)}
+.totalgeral b{font-family:var(--f-display);font-size:var(--fs-6)}
+.card>.seclabel{display:block;margin-bottom:var(--s-7)}
+/* A seta precisa ficar AO LADO do titulo. Com flex-direction:column ela
+   virava um item de flex e caia numa linha propria, solta acima do texto.
+   Grade de duas colunas: seta na 1, titulo e explicacao na 2. */
+.novares>summary{cursor:pointer;list-style:none;display:grid;
+  grid-template-columns:14px 1fr;column-gap:7px;row-gap:3px;align-items:baseline}
+.novares>summary::-webkit-details-marker{display:none}
+.novares>summary::before{content:"▸";color:var(--ink-3);grid-column:1;grid-row:1}
+.novares[open]>summary::before{content:"▾"}
+.novares>summary>b{grid-column:2;grid-row:1}
+.novares>summary>small{grid-column:2;grid-row:2}
+.novares[open]>summary{margin-bottom:var(--s-8);padding-bottom:var(--s-7);border-bottom:1px solid var(--line)}
+.quebra{display:flex;justify-content:space-between;gap:var(--s-6);
+  font-size:var(--fs-2);color:var(--ink-2);padding:2px 0}
+.pill{font-size:var(--fs-2);font-weight:var(--t-strong);padding:3px 10px;border-radius:var(--r-pill);white-space:nowrap}
+/* Variante de duas linhas: o estado em cima, a conta embaixo. Classe propria
+   em vez de :has() — e o elemento que o guia mais olha, nao quero depender
+   de suporte de seletor no celular dela. */
+.pill.conta{display:inline-flex;flex-direction:column;gap:2px;align-items:flex-start;
+  padding:5px 11px;border-radius:var(--r-md);line-height:1.3;text-align:left;white-space:normal;min-width:0}
+.pill.conta b{font-weight:var(--t-strong)}
+.pill.conta small{font-size:var(--fs-1);font-weight:400;opacity:.85}
+.pill.ok{background:var(--ok-wash);color:var(--ok)}
+.pill.warn{background:var(--warn-wash);color:var(--warn)}
+.pill.bad{background:var(--danger-wash);color:var(--danger)}
+.pill.n{background:var(--neutral-wash);color:var(--neutral)}
+.tlist{display:flex;flex-direction:column;gap:8px}
+/* Antes era flex com wrap: como a etiqueta de situacao passou a ter duas
+   linhas, cada reserva ficava com uma altura e os botoes pulavam de lugar.
+   Em grade, as quatro colunas se alinham entre todas as linhas da lista. */
+.trow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,auto) auto;
+  align-items:center;gap:10px 16px;background:var(--surface);border-radius:var(--r-lg);
+  box-shadow:var(--sh-1);padding:13px 16px}
+.trow>.mono{font-family:var(--f-display);font-weight:700;font-size:var(--fs-5);
+  text-align:right;white-space:nowrap}
+@media(max-width:860px){
+  /* no celular a linha vira bloco: dados, depois valor e situacao lado a
+     lado, e os botoes ocupando a largura toda embaixo */
+  .trow{grid-template-columns:1fr auto}
+  .trow>.tinfo{grid-column:1/-1}
+  .trow>.pill{grid-column:2;justify-self:end}
+  .trow>.tacts{grid-column:1/-1;justify-content:flex-start;flex-wrap:wrap}
+}
+.trow .ph.sm{width:52px;height:40px;border-radius:var(--r-sm);background-size:cover;background-position:center;flex:none}
+/* min-width:150px vinha do layout antigo em flex. Dentro da grade ele impede
+   a coluna de encolher, e o texto longo do passeio invadia a coluna do valor.
+   min-width:0 e o que deixa o texto quebrar dentro da propria coluna. */
+.tinfo{min-width:0}
+.tinfo small{overflow-wrap:anywhere}
+.tinfo b{display:block;font-size:var(--fs-4)}
+.tinfo small{display:block;margin-top:2px}
+.tacts{display:flex;gap:6px;align-items:center}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:900px){.formgrid{grid-template-columns:1fr}}
+.formgrid .span2{grid-column:1/-1}
+.frow{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.frow .fld{flex:1;min-width:110px}
+.btnrow{display:flex;gap:8px;margin-top:16px;align-items:center}
+.wdrow{display:flex;gap:5px;margin:8px 0}
+.wd{width:40px;height:34px;border-radius:var(--r-sm);background:var(--surface-2);font-size:var(--fs-2);font-weight:var(--t-strong)}
+.wd.on{background:var(--accent);color:var(--accent-ink)}
+.ruleform{margin-top:8px;padding-top:10px;border-top:1px solid var(--line);font-size:var(--fs-3)}
+.rulesep{border-top:1px solid var(--line);margin:14px 0 10px}
+/* ---------- dedo não é seta ----------
+   No celular os alvos estavam entre 18 e 38 pixels. A ponta do dedo cobre
+   cerca de 44 — abaixo disso ela toca e o app não responde, ou responde no
+   botão errado. 44px é a regra da Apple e do Google, e vale para TODOS,
+   não só para quem tem dedo grande.
+
+   `pointer: coarse` pega quem usa o dedo (celular, tablet) sem inchar a
+   tela de quem usa mouse. */
+@media (pointer: coarse){
+  .langs button, .novax, .icobtn{
+    min-height:44px; min-width:44px;
+    display:inline-flex; align-items:center; justify-content:center }
+  .chip, .cta, .cta.sm, .mini, .coach-next, .coach-skip, .adm-entry, .wd{
+    min-height:44px; display:inline-flex; align-items:center; justify-content:center }
+  /* links que agem como botão precisam virar caixa para a altura valer */
+  .linkmap, a.mini, a.cta-ish{
+    min-height:44px; display:inline-flex; align-items:center }
+  /* o campo também: teclado de celular precisa de alvo grande */
+  input, select, textarea, button{ font-size:16px }   /* <16px o iOS dá zoom sozinho */
+  .fld input, .fld select{ min-height:44px }
+  /* espaço entre alvos vizinhos, senão 44px encostado em 44px ainda erra */
+  .chips, .langs, .btnrow, .tacts, .okrow{ gap:10px }
+}
+/* barra de versao nova — fixa embaixo, acima de tudo, some por padrao */
+.novabar{position:fixed;left:12px;right:12px;bottom:12px;z-index:9999;display:none;
+  align-items:center;gap:12px;padding:12px 14px;border-radius:12px;
+  background:var(--card);border:1px solid var(--line);
+  box-shadow:0 10px 30px rgba(0,0,0,.28)}
+.novabar.on{display:flex}
+.novatxt{flex:1;min-width:0}
+.novatxt b{display:block;font-size:var(--fs-3)}
+.novatxt small{display:block;opacity:.7;font-size:var(--fs-4, 12px)}
+.novabar .cta{flex:0 0 auto}
+.novax{flex:0 0 auto;background:none;border:0;color:inherit;opacity:.5;
+  font-size:20px;line-height:1;cursor:pointer;padding:4px 6px}
+@media (min-width:640px){ .novabar{left:auto;right:20px;max-width:420px} }
+.cardbox{margin:0 0 14px}
+.cardbox .cta{width:100%}
+.cardbox .why{margin-top:6px;text-align:center}
+/* O e-mail que o cliente recebe, montado na tela dela. O miolo cinza e o que
+   NAO se edita; o que tem caixa de texto e a voz dela. A diferenca visual e
+   o que faz ela entender de relance o que pode mexer. */
+.emcard{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:10px}
+.emtit{display:block;font-size:var(--fs-3);font-weight:var(--t-strong)}
+.emfixo{margin:10px 0;padding-left:11px;border-left:2px solid var(--line);
+        color:var(--ink-3);font-size:var(--fs-3);font-style:italic}
+.emtrava{margin:10px 0;padding:9px 11px;border-radius:7px;font-size:var(--fs-3);
+         background:color-mix(in srgb,var(--accent) 12%,transparent);
+         border-left:3px solid var(--accent)}
+/* tabela larga rola dentro do cartão — a página nunca anda de lado.
+   min-width:0 é o que impede o cartão de crescer junto com a tabela. */
+.stage,.two-col,.formgrid,.card{min-width:0}
+.card:has(> .tbl){overflow-x:auto;-webkit-overflow-scrolling:touch}
+.two-col>*,.formgrid>*{min-width:0}
+.tbl{width:100%;min-width:560px;border-collapse:collapse;font-size:var(--fs-3)}
+@media (max-width:640px){
+  .tbl{font-size:12px}
+  .tbl th,.tbl td{padding-left:8px;padding-right:8px}
+}
+.tbl th{text-align:left;font-family:var(--f-mono);font-size:var(--fs-1);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:400;padding:0 10px 8px;border-bottom:1px solid var(--line)}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--line)}
+.tbl tfoot td{border-bottom:0;padding-top:12px}
+@media(max-width:700px){.tbl{display:block;overflow-x:auto}}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
+
+/* =========================================================
+   ABERTURA (splash)
+   O colombage se desenha traço a traço enquanto gira em 3D.
+   Ordem: as duas diagonais → as vigas → a travessa → a palavra.
+   Dura 2,1s no total e sai sozinha. Quem já viu na sessão não vê de novo.
+   ========================================================= */
+.splash{position:fixed;inset:0;z-index:999;display:grid;place-items:center;
+  background:var(--brand-primaria);
+  /* leve profundidade: um halo quente atrás da marca */
+  background-image:radial-gradient(120% 80% at 50% 38%, #0a6957 0%, #064c3f 46%, #043a30 100%);
+  perspective:1200px;perspective-origin:50% 42%;
+  animation:spOut 760ms var(--ease) 3950ms forwards}
+.splash.gone{display:none}
+
+.sp-stage{text-align:center;transform-style:preserve-3d;
+  animation:spTilt 3600ms var(--ease) both}
+
+/* --- símbolo: gira em 3D e se desenha --- */
+.sp-mark{position:relative;transform-style:preserve-3d;animation:spMark 2300ms var(--ease) both}
+/* halo atras da marca — profundidade sem custo */
+.sp-mark::before{content:"";position:absolute;left:50%;top:52%;width:280px;height:280px;
+  margin:-140px 0 0 -140px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(217,170,14,.30) 0%,rgba(217,170,14,.10) 42%,transparent 70%);
+  animation:spGlow 2600ms var(--ease) both;z-index:-1}
+/* faixa de brilho cruzando o simbolo */
+.sp-mark::after{content:"";position:absolute;inset:-6% -30%;pointer-events:none;
+  background:linear-gradient(100deg,transparent 38%,rgba(255,255,255,.5) 50%,transparent 62%);
+  mix-blend-mode:overlay;animation:spSheen 2600ms var(--ease) both}
+.sp-mark svg{filter:drop-shadow(0 18px 40px rgba(0,0,0,.45))}
+.s-p{stroke-dasharray:var(--len,600);stroke-dashoffset:var(--len,600);
+  animation:spDraw 950ms var(--ease) both}
+.s-x1{--len:340;animation-delay:340ms}
+.s-x2{--len:340;animation-delay:620ms}
+.s-v1{--len:500;animation-delay:1040ms}
+.s-v2{--len:500;animation-delay:1240ms}
+.s-h {--len:260;animation-delay:1640ms}
+
+/* --- palavra e assinatura --- */
+.sp-logo{display:block;width:min(232px,58vw);height:auto;margin:26px auto 0;
+  animation:spUp 950ms var(--ease) both;animation-delay:2150ms}
+.sp-word,.sp-role,.sp-region,.sp-lang{color:#fff;animation:spUp 950ms var(--ease) both}
+.sp-word{margin-top:26px;font-family:var(--f-display);font-weight:800;
+  font-size:clamp(26px,7.4vw,40px);line-height:1.03;letter-spacing:-.01em;animation-delay:2150ms}
+.sp-role{margin-top:14px;font-family:var(--f-display);font-weight:700;
+  font-size:clamp(10px,2.7vw,12px);letter-spacing:.2em;color:rgba(255,255,255,.94);animation-delay:2520ms}
+.sp-region{margin-top:5px;font-family:var(--f-ui);font-size:clamp(9.5px,2.5vw,11px);
+  letter-spacing:.19em;color:rgba(255,255,255,.7);animation-delay:2780ms}
+.sp-region i,.sp-lang i{font-style:normal;color:var(--brand-assinatura);margin:0 5px}
+.sp-lang{margin-top:20px;font-family:var(--f-display);font-weight:700;
+  font-size:11px;letter-spacing:.22em;color:rgba(255,255,255,.6);animation-delay:3120ms}
+
+@keyframes spDraw{from{stroke-dashoffset:var(--len,600)}to{stroke-dashoffset:0}}
+/* a marca chega de perfil e assenta de frente */
+@keyframes spMark{
+  0%  {transform:perspective(1200px) rotateY(-96deg) rotateX(16deg) translateZ(-260px) scale(.72);opacity:0}
+  30% {opacity:1}
+  /* passa um pouco do ponto e volta — e o que faz parecer peso, nao slide */
+  72% {transform:perspective(1200px) rotateY(7deg) rotateX(-2deg) translateZ(40px) scale(1.04)}
+  100%{transform:perspective(1200px) rotateY(0) rotateX(0) translateZ(0) scale(1);opacity:1}}
+/* o conjunto todo respira um grau para trás — dá o volume sem enjoar */
+@keyframes spTilt{
+  0%  {transform:rotateX(14deg) rotateZ(-1.2deg) translateY(26px)}
+  55% {transform:rotateX(3deg) rotateZ(.3deg) translateY(4px)}
+  100%{transform:rotateX(0) rotateZ(0) translateY(0)}}
+
+/* o fundo respira junto: a luz atras da marca abre quando ela assenta */
+@keyframes spGlow{
+  0%  {opacity:.15;transform:scale(.7)}
+  60% {opacity:1;transform:scale(1.05)}
+  100%{opacity:.75;transform:scale(1)}}
+/* brilho que atravessa o simbolo quando a travessa fecha */
+@keyframes spSheen{
+  0%,55%{opacity:0;transform:translateX(-140%) skewX(-18deg)}
+  70%   {opacity:.55}
+  100%  {opacity:0;transform:translateX(140%) skewX(-18deg)}}
+@keyframes spUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+@keyframes spOut{to{opacity:0;visibility:hidden}}
+
+/* "Reduzir movimento" pede para evitar giro, zoom e parallax — o que causa
+   enjoo. NAO pede para abolir animacao.
+   Ha uma regra global no topo deste arquivo que zera TODA animacao do app
+   com !important quando essa preferencia esta ligada. Para a abertura isso
+   significava nao ver absolutamente nada: a marca aparecia pronta e sumia.
+   Aqui devolvemos o que e INFORMACAO — o traco se desenhando e os textos
+   entrando — e deixamos de fora so o que gira, escala e brilha.
+   Precisa de !important para vencer a regra global; e de propriedade
+   completa porque a global mexe em animation-duration. */
+@media (prefers-reduced-motion:reduce){
+  .splash{animation:spOut 700ms var(--ease) 3950ms forwards!important}
+  .sp-stage{animation:spFadeIn 700ms var(--ease) both!important}
+  .sp-mark{animation:spFadeIn 900ms var(--ease) both!important}
+  .sp-mark::before{animation:spGlow 2600ms var(--ease) both!important}
+  .sp-mark::after{animation:none!important;opacity:0!important}
+
+  .s-p{animation:spDraw 950ms var(--ease) both!important}
+  .s-x1{animation-delay:340ms!important}
+  .s-x2{animation-delay:620ms!important}
+  .s-v1{animation-delay:1040ms!important}
+  .s-v2{animation-delay:1240ms!important}
+  .s-h {animation-delay:1640ms!important}
+
+  .sp-logo{animation:spUp 950ms var(--ease) both!important;animation-delay:2150ms!important}
+  .sp-word,.sp-role,.sp-region,.sp-lang{animation:spUp 950ms var(--ease) both!important}
+  .sp-word  {animation-delay:2150ms!important}
+  .sp-role  {animation-delay:2520ms!important}
+  .sp-region{animation-delay:2780ms!important}
+  .sp-lang  {animation-delay:3120ms!important}
+}
+@keyframes spFadeIn{from{opacity:0}to{opacity:1}}
+
+/* =========================================================
+   QUEM SOU EU
+   Escala real deste projeto: s-4=10 s-7=16 s-8=20 s-9=24 s-10=32 s-11=40 s-14=64
+   ========================================================= */
+.about{max-width:620px;margin:0 auto;padding:0 var(--s-8) var(--s-14)}
+.ab-hero{position:relative;margin:0 calc(var(--s-8) * -1) var(--s-9);
+  border-radius:0 0 var(--r-xl) var(--r-xl);overflow:hidden}
+.ab-photo{width:100%;aspect-ratio:4/5;max-height:60vh;object-fit:cover;object-position:center 20%;
+  display:block;background:var(--surface-2)}
+.ab-photo.none{display:grid;place-items:center;aspect-ratio:4/3;color:var(--ink-3);
+  font-size:var(--fs-3);text-align:center;padding:var(--s-10) var(--s-8);line-height:1.6}
+/* o véu precisa segurar QUALQUER foto que ela suba, não só esta.
+   Por isso escurece mais cedo e o selo ganha anel próprio. */
+.ab-cap{position:absolute;left:0;right:0;bottom:0;padding:var(--s-14) var(--s-9) var(--s-9);
+  background:linear-gradient(to top,rgba(4,26,21,.96) 0%,rgba(4,26,21,.88) 34%,
+    rgba(4,26,21,.62) 62%,transparent 100%);color:#fff}
+.ab-cap h1{font-family:var(--f-display);font-weight:800;font-size:var(--fs-7);
+  line-height:1.08;letter-spacing:var(--track-display);color:#fff}
+.ab-badge{display:inline-block;margin-bottom:var(--s-5);padding:6px 12px;
+  border-radius:var(--r-pill);background:var(--brand-assinatura);color:#111;
+  font-family:var(--f-display);font-weight:700;font-size:var(--fs-1);letter-spacing:.1em;text-transform:uppercase;
+  box-shadow:0 0 0 2px rgba(4,26,21,.85), 0 6px 18px rgba(0,0,0,.45)}
+.ab-meta{margin-top:var(--s-4);font-size:var(--fs-3);color:rgba(255,255,255,.82);line-height:1.55}
+
+.ab-body p{font-size:var(--fs-4);line-height:1.7;color:var(--ink-2);margin-bottom:var(--s-7)}
+.ab-body p:first-child{font-size:var(--fs-5);line-height:1.55;color:var(--ink)}
+.ab-body p:last-child{margin-bottom:0}
+
+.ab-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s-5);
+  margin-top:var(--s-10);padding:var(--s-8);border-radius:var(--r-lg);background:var(--surface-2)}
+.ab-facts div{min-width:0}
+.ab-facts small{display:block;font-size:var(--fs-1);color:var(--ink-3);
+  letter-spacing:var(--track-label);text-transform:uppercase;margin-bottom:5px}
+.ab-facts b{display:block;font-family:var(--f-display);font-weight:600;font-size:var(--fs-3);
+  color:var(--ink);line-height:1.35}
+@media (max-width:420px){ .ab-facts{grid-template-columns:1fr 1fr} .ab-facts div:last-child{grid-column:1/-1} }
+
+.ab-cta{margin-top:var(--s-10);padding:var(--s-9) var(--s-8);border-radius:var(--r-lg);
+  background:var(--accent-wash);border:1px solid var(--accent-line);text-align:center}
+.ab-cta h3{font-family:var(--f-display);font-weight:700;font-size:var(--fs-6);margin-bottom:var(--s-4)}
+.ab-cta p{font-size:var(--fs-4);color:var(--ink-2);margin-bottom:var(--s-8);line-height:1.55}
+.ab-btns{display:flex;flex-wrap:wrap;gap:var(--s-5);justify-content:center}
+.ab-btns .cta{width:100%}
+
+/* =========================================================
+   PÁGINA DO PASSEIO — o que convence antes do preço
+   ========================================================= */
+
+/* fatos rápidos: as 4 perguntas que todo mundo faz */
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:var(--s-5);
+  margin:var(--s-8) 0 var(--s-9);padding:var(--s-7) var(--s-8);
+  border-radius:var(--r-lg);background:var(--surface-2)}
+.facts div{min-width:0}
+.facts small{display:block;font-size:var(--fs-1);color:var(--ink-3);
+  letter-spacing:var(--track-label);text-transform:uppercase;margin-bottom:4px}
+.facts b{font-family:var(--f-display);font-weight:700;font-size:var(--fs-4);color:var(--ink)}
+
+.desc.lead{font-size:var(--fs-5);line-height:1.62;color:var(--ink)}
+
+/* roteiro — a linha do tempo é o coração da página */
+.route{list-style:none;margin:var(--s-7) 0 var(--s-10);padding:0;position:relative}
+.route::before{content:"";position:absolute;left:13px;top:10px;bottom:10px;
+  width:2px;background:var(--accent-line)}
+.route li{position:relative;display:grid;grid-template-columns:36px 1fr auto;
+  gap:var(--s-5);align-items:start;padding:var(--s-5) 0}
+.rnum{grid-column:1;z-index:1;width:28px;height:28px;border-radius:50%;
+  background:var(--brand-primaria);color:#fff;display:grid;place-items:center;
+  font-family:var(--f-display);font-weight:700;font-size:var(--fs-2)}
+.rbody{grid-column:2;min-width:0}
+.rtime{display:inline-block;margin-bottom:5px;padding:2px 8px;border-radius:var(--r-pill);
+  background:var(--highlight-wash);color:var(--highlight-text);
+  font-family:var(--f-mono);font-size:var(--fs-1);letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.rbody b{display:block;font-family:var(--f-display);font-weight:700;
+  font-size:var(--fs-4);line-height:1.3;color:var(--ink)}
+.rbody p{margin-top:5px;font-size:var(--fs-3);line-height:1.62;color:var(--ink-2)}
+.rph{grid-column:3;width:104px;height:70px;flex:none;border-radius:var(--r);
+  background:var(--surface-2) center/cover no-repeat;box-shadow:var(--sh-1)}
+@media (max-width:560px){
+  .route li{grid-template-columns:36px 1fr}
+  .rph{grid-column:2;grid-row:2;width:100%;height:150px;margin-top:var(--s-5)}
+}
+
+/* mapa das paradas */
+.mapbox{margin:var(--s-7) 0 var(--s-10);padding:var(--s-8);border-radius:var(--r-lg);
+  background:var(--surface-2)}
+.trail{list-style:none;margin:0 0 var(--s-8);padding:0;display:flex;flex-wrap:wrap;
+  gap:var(--s-4) var(--s-5);align-items:center}
+.trail li{display:flex;align-items:center;gap:7px;min-width:0}
+.trail li+li::before{content:"→";color:var(--ink-3);margin-right:var(--s-4)}
+.tnum{width:20px;height:20px;flex:none;border-radius:50%;background:var(--brand-primaria);color:#fff;
+  display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:var(--fs-1)}
+.trail b{font-size:var(--fs-3);font-weight:600;color:var(--ink)}
+.cta.wide{width:100%;text-align:center}
+.mapbox .why{margin-top:var(--s-5);text-align:center}
+
+/* incluído / não incluído */
+.incbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--s-8);
+  margin:var(--s-9) 0;padding:var(--s-8);border-radius:var(--r-lg);
+  background:var(--surface);border:1px solid var(--line)}
+.incbox>div{min-width:0}
+.incbox h4{font-family:var(--f-display);font-weight:700;font-size:var(--fs-3);
+  margin-bottom:var(--s-5);color:var(--ink)}
+.inc{list-style:none;margin:0;padding:0}
+.inc li{position:relative;padding-left:22px;margin-bottom:var(--s-4);
+  font-size:var(--fs-3);line-height:1.55;color:var(--ink-2)}
+.inc li::before{position:absolute;left:0;top:0;font-weight:700}
+.inc.yes li::before{content:"✓";color:var(--ok)}
+.inc.no li::before{content:"−";color:var(--ink-3)}
+.inc.no li{color:var(--ink-3)}
+
+/* editor de roteiro no painel */
+.stopcard{position:relative;margin-bottom:var(--s-8);padding:var(--s-8);
+  border-radius:var(--r-lg);background:var(--surface-2);border:1px solid var(--line)}
+.sctop{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s-6)}
+.scnum{width:26px;height:26px;border-radius:50%;background:var(--brand-primaria);color:#fff;
+  display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:var(--fs-2)}
+.scmove{display:flex;gap:var(--s-3)}
+.mini.ico{min-width:34px;padding:5px 9px;line-height:1}
+.mini.ico:disabled{opacity:.35;cursor:default}
+.mini.danger{color:var(--danger)}
+.pprev.sm{width:70px;height:47px}
+/* No celular, duas colunas viram campos de 130px — inutilizáveis.
+   O editor de roteiro empilha; no laptop continua lado a lado. */
+@media (max-width:600px){
+  .stopcard .frow{display:block}
+  .stopcard .frow>.fld{width:100%;margin-bottom:var(--s-5)}
+  .stopcard .frow>.fld:last-child{margin-bottom:0}
+}
+
+/* =========================================================
+   PAGINA DO PASSEIO — desenhada como os PDFs do guia:
+   capa com titulo por cima, secoes nomeadas, paradas em cartoes.
+   ========================================================= */
+.topbar.onhero{background:color-mix(in srgb,var(--paper) 92%,transparent)}
+.tourhero{position:relative;min-height:56vh;display:flex;align-items:flex-end;
+  background:var(--surface-2) center/cover no-repeat}
+.thveil{position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(4,26,21,.94) 0%,rgba(4,26,21,.72) 38%,rgba(4,26,21,.18) 72%,transparent 100%)}
+.thin{position:relative;width:100%;max-width:1080px;margin:0 auto;
+  padding:var(--s-14) var(--s-8) var(--s-10);color:#fff}
+.thin h1{font-family:var(--f-display);font-weight:800;letter-spacing:var(--track-display);
+  font-size:clamp(26px,5.4vw,44px);line-height:1.08;color:#fff;max-width:18ch}
+.thsub{margin-top:var(--s-6);font-family:var(--f-display);font-weight:600;
+  font-size:clamp(14px,2.4vw,19px);line-height:1.45;color:rgba(255,255,255,.9);max-width:44ch}
+.badge.onhero{display:inline-block;margin-top:var(--s-7);
+  background:rgba(255,255,255,.14);color:#fff;backdrop-filter:blur(8px)}
+
+/* secao com etiqueta, como os titulos de pagina do PDF */
+.sec{margin-top:var(--s-12)}
+.sec:first-child{margin-top:var(--s-10)}
+.seclabel{display:block;margin-bottom:var(--s-6);padding-bottom:var(--s-5);
+  border-bottom:1px solid var(--line);
+  font-family:var(--f-display);font-weight:700;font-size:var(--fs-6);
+  letter-spacing:var(--track-display);color:var(--ink)}
+
+/* paradas em cartoes — as tres colunas do "O programa" */
+.stopgrid{list-style:none;margin:var(--s-9) 0 0;padding:0;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:var(--s-8);
+  /* sem isto o grid estica todo cartao ate a altura do mais alto da linha,
+     e quem tem texto curto fica com um vazio grande embaixo */
+  align-items:start}
+.stopcardc{display:flex;flex-direction:column;min-width:0;border-radius:var(--r-lg);
+  overflow:hidden;background:var(--surface);box-shadow:var(--sh-1)}
+.scph{display:block;aspect-ratio:3/2;background:var(--surface-3) center/cover no-repeat}
+/* Sem foto, um bloco cinza do tamanho de uma imagem so cria buraco.
+   Vira uma faixa fina na cor da marca, e o cartao encolhe. */
+.scph.none{aspect-ratio:auto;height:6px;background:var(--brand-assinatura)}
+.scbody{padding:var(--s-8);position:relative}
+/* o cartao tem overflow:hidden; sem foto a faixa e de 6px e o numero,
+   puxado para cima, sairia do cartao e apareceria cortado */
+.stopcardc:has(.scph.none) .scnum2{top:4px}
+.scnum2{position:absolute;top:calc(var(--s-8) * -1 + 4px);right:var(--s-8);
+  width:30px;height:30px;border-radius:50%;background:var(--brand-primaria);color:#fff;
+  display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:var(--fs-2);
+  box-shadow:0 0 0 3px var(--surface)}
+.scbody b{display:block;margin-top:5px;font-family:var(--f-display);font-weight:700;
+  font-size:var(--fs-5);line-height:1.25;color:var(--ink)}
+.scbody p{margin-top:var(--s-5);font-size:var(--fs-3);line-height:1.65;color:var(--ink-2)}
+.scnote{display:block;margin-top:var(--s-6);padding-top:var(--s-5);border-top:1px solid var(--line);
+  font-size:var(--fs-2);line-height:1.5;color:var(--highlight-text)}
+
+/* faixa de datas e horarios */
+.factgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s-8);
+  padding:var(--s-9) var(--s-8);border-radius:var(--r-lg);background:var(--surface-2)}
+.factgrid div{min-width:0}
+.factgrid small{display:block;font-size:var(--fs-1);color:var(--ink-3);
+  letter-spacing:var(--track-label);text-transform:uppercase;margin-bottom:5px}
+.factgrid b{display:block;font-family:var(--f-display);font-weight:700;font-size:var(--fs-4);
+  line-height:1.35;color:var(--ink)}
+.factgrid small.sub{margin:5px 0 0;text-transform:none;letter-spacing:0;font-size:var(--fs-2)}
+.linkmap{display:inline-block;margin-top:6px;font-size:var(--fs-2);color:var(--accent);
+  text-decoration:underline;text-underline-offset:3px}
+
+/* bloco de valor, como a pagina 5 do PDF */
+.pricebox{display:grid;grid-template-columns:auto 1fr;gap:var(--s-10);align-items:start;
+  padding:var(--s-9) var(--s-8);border-radius:var(--r-lg);
+  background:var(--surface);border:1px solid var(--line)}
+.pbmain b{display:block;font-family:var(--f-display);font-weight:800;
+  font-size:clamp(30px,6vw,42px);line-height:1;color:var(--ink)}
+.pbmain>small{display:block;margin-top:5px;font-size:var(--fs-3);color:var(--ink-3)}
+.pbearly{display:block;margin-top:var(--s-5);font-size:var(--fs-2);line-height:1.45;
+  color:var(--highlight-text);max-width:24ch}
+.pbterms p{font-size:var(--fs-4);line-height:1.55;color:var(--ink)}
+.pbterms small{display:block;margin-top:var(--s-5);font-size:var(--fs-2);line-height:1.55;color:var(--ink-3)}
+@media (max-width:560px){ .pricebox{grid-template-columns:1fr;gap:var(--s-8)} }
+
+/* barra fixa de salvar — o editor de passeio e longo demais para deixar
+   os botoes so no topo; ela acompanha a rolagem e nunca sai da vista */
+.savebar{position:sticky;bottom:0;z-index:40;display:flex;align-items:center;gap:var(--s-5);
+  margin:var(--s-9) 0 0;padding:var(--s-6) var(--s-8);
+  padding-bottom:calc(var(--s-6) + env(safe-area-inset-bottom));
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(12px);
+  border:1px solid var(--line);border-bottom:0;box-shadow:var(--sh-2)}
+.sbwhat{flex:1;min-width:0;font-size:var(--fs-3);color:var(--ink-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.autosave{margin-bottom:var(--s-6);color:var(--ok)}
+@media (max-width:760px){
+  .savebar{bottom:64px}          /* nao cobre a barra de abas do painel */
+  .sbwhat{display:none}
+  .savebar button{flex:1}
+}
+
+/* sem data ainda: convite em vez de beco sem saida */
+.nodates{padding:var(--s-7) 0 var(--s-3)}
+.nodates p{font-size:var(--fs-3);line-height:1.6;color:var(--ink-2);margin-bottom:var(--s-7)}
+
+/* frase de capa, nota do valor e fechamento — o formato dos PDFs dela */
+.tagline-tour{margin:0 0 var(--s-5);font-family:var(--f-display);font-weight:600;
+  font-size:var(--fs-5);line-height:1.4;color:var(--ink-2)}
+.minnote{margin-top:var(--s-5);font-size:var(--fs-3);color:var(--ink-2)}
+.pricenote{margin-top:var(--s-4);font-size:var(--fs-2);line-height:1.5;color:var(--ink-3)}
+.closing{margin-top:var(--s-10);padding:var(--s-9) var(--s-8);border-radius:var(--r-lg);
+  background:var(--surface-2);border-left:3px solid var(--brand-assinatura)}
+.closing p{font-family:var(--f-display);font-weight:600;font-size:var(--fs-5);
+  line-height:1.5;color:var(--ink)}
+
+/* aviso do preço escalonado, logo abaixo do valor */
+.pearly{display:block;margin-top:4px;font-style:normal;font-size:var(--fs-2);
+  line-height:1.4;color:var(--highlight-text);font-weight:var(--t-body)}
+.pr u{text-decoration:none;font-size:var(--fs-2);color:var(--ink-3);font-weight:var(--t-body)}
+.earlyleft{display:block;margin-top:6px;padding:5px 10px;border-radius:var(--r-sm);
+  background:var(--highlight-wash);color:var(--highlight-text);
+  font-size:var(--fs-2);font-weight:var(--t-strong)}
+.pricebreak{margin-top:4px;font-size:var(--fs-2);color:var(--ink-3);font-variant-numeric:tabular-nums}
+
+/* ---------- botões de contato na tela de clientes ----------
+   Cada canal na sua cor, com o nome escrito. Em telas estreitas
+   o nome some e fica só o desenho — que agora dá para reconhecer. */
+.ico-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;
+  border-radius:var(--r-pill);font-size:var(--fs-2);font-weight:var(--t-strong);
+  background:var(--surface-2);color:var(--ink-2);white-space:nowrap;
+  transition:background var(--d-fast),color var(--d-fast)}
+.ico-btn svg{flex:none}
+.ico-btn.wa{color:#0f7a4a}
+.ico-btn.ml{color:var(--ink-2)}
+.ico-btn.ig{color:var(--brand-destaque)}
+.ico-btn:hover{background:var(--surface-3)}
+.ico-btn:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--accent) 22%,transparent)}
+td.tacts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;align-items:center}
+@media (max-width:1100px){ .ico-btn span{display:none} .ico-btn{padding:6px 8px} }
+
+/* ações da linha de reserva: cobrar é a ação principal, dar baixa é a secundária */
+.tacts{display:flex;flex-wrap:wrap;gap:var(--s-3);align-items:center;justify-content:flex-end}
+.mini.cta-ish{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.mini.cta-ish:hover{filter:brightness(1.08)}
+.mini.strong{font-weight:var(--t-strong)}
+.mini.ghost{background:transparent;color:var(--ink-3)}
+.howgot{font-size:var(--fs-2);color:var(--ink-3);margin-right:var(--s-3)}
+
+/* faixa de painel destravado — precisa incomodar sem gritar */
+.alert.nolog{display:block;margin-bottom:var(--s-9)}
+.alert.demo{background:var(--ok-wash);color:var(--ok)}
+/* faixa de proposta do prototipo — fixa embaixo, por cima de tudo */
+.protobar{position:fixed;left:0;right:0;bottom:0;z-index:998;padding:9px 14px;
+  background:var(--highlight-wash);color:var(--ink);border-top:1px solid var(--line);
+  font-size:11.5px;line-height:1.45;text-align:center;
+  padding-bottom:calc(9px + env(safe-area-inset-bottom))}
+.protobar b{font-weight:700}
+.alert.nolog b{display:block;font-size:var(--fs-5);margin-bottom:var(--s-4)}
+.alert.nolog p{font-size:var(--fs-3);line-height:1.6;margin-bottom:var(--s-7);max-width:62ch}
+
+/* retrato dentro do ADM */
+.ph-edit{display:flex;gap:var(--s-8);align-items:flex-start;flex-wrap:wrap}
+.ph-edit>div{flex:1 1 160px;min-width:0}
+.ph-edit img{width:88px;height:110px;object-fit:cover;object-position:center 20%;
+  border-radius:var(--r);flex:none;background:var(--surface-2)}
+.ph-edit .none{width:88px;height:110px;border-radius:var(--r);background:var(--surface-2);
+  display:grid;place-items:center;color:var(--ink-3);font-size:26px;flex:none}
+  display:grid;place-items:center;color:var(--ink-3);font-size:22px;flex:none}
+
+/* --- preco por numero de pessoas (tabela da Ingrid) --- */
+.fromlbl{font-size:.52em;font-weight:600;text-transform:lowercase;opacity:.7;letter-spacing:.02em}
+.ptab{margin-top:12px;border-top:1px solid var(--linha);padding-top:10px}
+.ptab summary{cursor:pointer;font-weight:600;font-size:.9rem;padding:4px 0}
+.ptabhelp{margin:6px 0 10px;font-size:.82rem;opacity:.75}
+.ptab table{width:100%;border-collapse:collapse;font-size:.9rem}
+.ptab td{padding:6px 0;border-bottom:1px solid var(--linha)}
+.ptab td:last-child{text-align:right;font-weight:600;white-space:nowrap}
+.ptab tr:last-child td{border-bottom:0}
+.ptabbig{margin:10px 0 2px;font-size:.82rem;opacity:.75}
+.ptabedit{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-top:8px}
+.ptabedit .fld.sm{margin:0}
+.ptabedit .fld.sm span{font-size:.74rem;opacity:.7}
+.ptabedit .fld.sm input{padding:8px 10px}
+
+/* --- o selo da guia: dois arquivos, o tema escolhe --- */
+.vilogo{display:inline-flex;align-items:center;vertical-align:middle;line-height:0}
+.vilogo .lg-escuro{display:none}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .vilogo .lg-claro{display:none}
+  :root:not([data-theme="light"]) .vilogo .lg-escuro{display:inline-block}
+}
+:root[data-theme="dark"] .vilogo .lg-claro{display:none}
+:root[data-theme="dark"] .vilogo .lg-escuro{display:inline-block}
+
+/* --- transfer: veiculo x horario --- */
+.trftab{table-layout:fixed;width:100%}
+.trftab th:first-child,.trftab td:first-child{width:auto}
+.trftab th:not(:first-child),.trftab td:not(:first-child){width:74px}
+.trftab thead th{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;opacity:.65;
+  padding:0 0 6px 10px;text-align:right}
+.trftab thead th:first-child{text-align:left;padding-left:0}
+.trftab td{vertical-align:top;padding:8px 0}
+.trftab td:first-child{text-align:left;font-weight:600;padding-right:10px}
+.trftab td:first-child small{display:block;font-weight:400;font-size:.74rem;opacity:.7;
+  margin-top:3px;line-height:1.35}
+.trftab td:not(:first-child){text-align:right;white-space:nowrap;font-weight:600;padding-left:10px}
+.trfpick{margin:4px 0 14px}
+.trfpick > b{display:block;font-size:.95rem}
+.trfpick .why{display:block;margin:2px 0 10px}
+.trfopts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.trfopt{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;
+  padding:12px;border:1.5px solid var(--line-2);border-radius:14px;background:var(--surface);
+  color:inherit;cursor:pointer}
+.trfopt b{font-size:.95rem}
+.trfopt small{font-size:.74rem;opacity:.7;line-height:1.3}
+.trfopt span{margin-top:2px;font-weight:700;font-size:1.05rem;color:var(--accent)}
+.trfopt.on{border-color:var(--accent);background:var(--accent-wash)}
+@media (max-width:380px){.trfopts{grid-template-columns:1fr}}
+
+/* --- quem mais vem no grupo --- */
+.grupo{margin:14px 0 6px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}
+.grupo > b{display:block;font-size:.95rem}
+.grupo .why{display:block;margin:4px 0 12px}
+.grow{display:grid;grid-template-columns:1fr 118px;gap:8px;margin-bottom:8px}
+.grow input{width:100%;padding:11px 12px;border:1px solid var(--line-2);border-radius:11px;
+  background:var(--surface);color:var(--ink);font:inherit;font-size:.92rem}
+.grow input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.mini.wide{width:100%;margin-top:2px}
+@media (max-width:360px){.grow{grid-template-columns:1fr}}
+
+.veiocom{color:var(--ink-3);font-size:.8rem}
+
+.grpline{display:block;margin-top:4px;color:var(--ink-3);line-height:1.4}
+.grpline b{color:var(--ink-2);font-weight:600}
+
+/* --- primeira tela: redes e links de parceiros (o "Beacons" dela) --- */
+.redes{display:flex;justify-content:center;gap:10px;margin:14px 0 4px}
+.rede{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+  background:var(--surface-2);color:var(--ink-2);transition:transform var(--d-fast) var(--spring)}
+.rede svg{width:19px;height:19px;display:block}
+.rede:hover{transform:translateY(-2px)}
+.rede.ig{background:radial-gradient(circle at 30% 107%,#fdf497 0%,#fdf497 5%,#fd5949 45%,#d6249f 60%,#285AEB 90%);color:#fff}
+.rede.yt{background:#FF0000;color:#fff}
+.rede.fb{background:#1877F2;color:#fff}
+.rede.bl{background:var(--brand-primaria);color:#fff}
+.hubsec{margin:14px 4px 2px;font-family:var(--f-mono);font-size:var(--fs-1);letter-spacing:var(--track-label);
+  text-transform:uppercase;color:rgba(255,255,255,.8)}
+.lk.parc .go{font-size:14px}
+
+/* --- adultos e criancas --- */
+.pessoas{margin:4px 0 10px}
+.paxrow > span b{display:block}
+.paxrow > span small{display:block;color:var(--ink-3);font-size:var(--fs-2)}
+.pessoas .why{margin-top:8px}
+
+/* --- transfer: centro, sinal --- */
+.trfcentro{margin:12px 0 14px}
+.trfcentro > b{display:block;font-size:.95rem}
+.trfcentro .why{display:block;margin:2px 0 10px}
+.trfsn{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.trfsn .popt{text-align:center}
+.sinalnote{margin:12px 0 4px;padding:11px 13px;border-radius:var(--r);background:var(--highlight-wash);
+  color:var(--ink);font-size:var(--fs-3);line-height:1.45}
+.trftab tr.mesmo td{border-top:0;padding-top:2px}
+.trftab tr.novo td{border-top:1px solid var(--line)}
+
+/* --- vitrine: onde --- */
+.chips.onde{margin-bottom:8px}
+.chips.onde .chip{font-size:var(--fs-2)}
+
+/* --- monte seu roteiro --- */
+.roteiro .rtintro{color:var(--ink-2);margin:-4px 0 18px;line-height:1.5}
+.rtbloco{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);padding:16px;margin-bottom:12px}
+.rtbloco h3{font-size:var(--fs-4);margin-bottom:6px}
+.rtbloco > .why{display:block;margin-bottom:10px}
+.rtbloco .chips{margin-bottom:6px}
+.rtbloco .chip.on{background:var(--brand-primaria);color:#fff}
+.roteiro .cta{margin-top:6px;display:flex;align-items:center;justify-content:center;gap:8px}
+.roteiro.fim{text-align:center;padding-top:60px}
+
+/* --- painel: pedidos de roteiro --- */
+.pedidos summary{cursor:pointer;display:flex;align-items:center;gap:8px}
+.pedido{border-top:1px solid var(--line);padding:12px 0}
+.pedido.resp{opacity:.62}
+.pdtop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pdmsg{white-space:pre-wrap;font-family:inherit;font-size:var(--fs-2);background:var(--surface-2);
+  border-radius:var(--r);padding:10px 12px;margin:8px 0;color:var(--ink-2);line-height:1.5}
+
+/* --- painel: tabela do transfer, links, cidades --- */
+.trfedit-wrap{overflow-x:auto;margin:8px 0 10px;-webkit-overflow-scrolling:touch}
+.trfedit{border-collapse:collapse;min-width:640px;width:100%;font-size:var(--fs-2)}
+.trfedit th{text-align:left;font-weight:600;color:var(--ink-3);padding:0 4px 6px}
+.trfedit td{padding:3px 4px}
+.trfedit input{width:100%;padding:7px 8px;border:1px solid var(--line-2);border-radius:8px;
+  background:var(--surface);color:var(--ink);font:inherit}
+.trfedit td:first-child input{width:58px}
+.trfedit td:nth-child(n+4) input{width:72px}
+.edrow{border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:10px}
+.edrow .frow{align-items:flex-end}
+.edrow .fld.sm{max-width:74px}
+.regn{align-self:center;white-space:nowrap}
+
+.stophead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:26px 0 12px}
+.stophead small{color:var(--ink-3);font-size:var(--fs-2)}
+
+.tourcard .ctag{display:block;margin-top:4px;color:var(--ink-2);font-size:var(--fs-3);line-height:1.35}
+
+/* --- ingressos por idade --- */
+.pbing{margin-top:10px;font-size:var(--fs-2);color:var(--ink-2);line-height:1.4}
+.idades{padding:10px 0 4px;border-bottom:1px solid var(--line)}
+.idades > small{display:block;color:var(--ink-3);font-size:var(--fs-2);margin-bottom:8px}
+.idrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.idsel{display:flex;flex-direction:column;gap:3px;font-size:var(--fs-2);color:var(--ink-2)}
+.idsel select{padding:9px 10px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit}
+.sums>div.ingbox{display:block;padding:0;border-bottom:0}
+.ingbox .quebra{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.ingbox .quebra b{white-space:nowrap}
+.ingbox .quebra span small{display:block;color:var(--ink-3);font-size:var(--fs-1);margin-top:2px}
+.ingbox .quebra.dia{opacity:.75}
+.ingbox .why{margin:6px 0 2px}
+.ingfalta{margin:8px 0}
+
+/* no painel da Ingrid a faixa de demonstracao do cliente nao aparece: o
+   painel ja tem o proprio aviso verde, e no celular ela tapava as abas */
+body.em-adm #demoFaixa{display:none}
+</style>
+</head>
+<body>
+
+<!-- Versão nova disponível. Só aparece quando ela está no meio de alguma
+     coisa — fora isso o app se atualiza sozinho, sem interromper. Fica fixa
+     embaixo para ser vista em qualquer tela: escondida num canto do painel,
+     ela nunca veria. -->
+<div class="novabar" id="novaBar">
+  <div class="novatxt">
+    <b>Tem uma versão nova</b>
+    <small>Seus dados ficam como estão. Leva um segundo.</small>
+  </div>
+  <button class="cta sm" id="btNova">Atualizar</button>
+  <button class="novax" id="btNovaX" aria-label="Agora não">×</button>
+</div>
+
+<!-- ABERTURA — pintada no primeiro quadro, antes do JS.
+     O símbolo se desenha traço a traço, girando em 3D; depois vem a palavra. -->
+<div id="splash" class="splash">
+  <div class="sp-stage">
+    <div class="sp-mark">
+      <svg viewBox="0 0 200 200" width="190" height="190" fill="none"
+           stroke="#FFD23F" stroke-width="14" stroke-linecap="round" aria-hidden="true">
+        <path class="s-p s-x1" d="M100 20 a80 80 0 1 1 -0.1 0" style="--len:510"/>
+        <path class="s-p s-x2" d="M100 52 L100 148" style="--len:100"/>
+        <path class="s-p s-v1" d="M52 100 L148 100" style="--len:100"/>
+        <path class="s-p s-v2" d="M66 66 L134 134" style="--len:100"/>
+        <path class="s-p s-h"  d="M134 66 L66 134" style="--len:100"/>
+      </svg>
+    </div>
+    <!-- o nome do negocio e a credencial vem do config.js (app.js preenche) -->
+    <div class="sp-word" id="spWord"></div>
+    <div class="sp-role" id="spRole"></div>
+  </div>
+</div>
+
+<div id="app"></div>
+<script src="config.js?v=1.95.0"></script>
+<script src="auth.js?v=1.95.0"></script>
+<script src="logo.js?v=1.95.0"></script>
+<script src="fx.js?v=1.95.0"></script>
+<script src="qrcode.js?v=1.95.0"></script>
+<script src="qr.js?v=1.95.0"></script>
+<script src="pix.js?v=1.95.0"></script>
+<script src="traduz.js?v=1.95.0"></script>
+<script src="store.js?v=1.95.0"></script>
+<script src="cloud.js?v=1.95.0"></script>
+<script src="nuvem-itens.js?v=1.95.0"></script>
+<script src="i18n.js?v=1.95.0"></script>
+<script src="operacao.js?v=1.95.0"></script>
+<script src="operacao-telas.js?v=1.95.0"></script>
+<script src="precos.js?v=1.95.0"></script>
+<script src="app.js?v=1.95.0"></script>
+<script src="assistente.js?v=1.95.0"></script>
+<script src="assistente-ingrid.js?v=1.95.0"></script>
+<script>
+/* PWA — como a versão nova chega no celular dela.
+
+   No laptop a pessoa recarrega a página o tempo todo, então a versão nova
+   sempre chega. No celular o app fica congelado na memória por dias e nunca
+   recarrega. Três coisas precisam estar certas ao mesmo tempo:
+
+   1. updateViaCache:'none' — sem isto o navegador guarda o PRÓPRIO sw.js
+      por até 24h: o app pergunta "tem versão nova?", recebe o arquivo velho
+      de cache e conclui que não tem. É a causa raiz; sem ela o resto não
+      adianta.
+   2. Conferir quando ela VOLTA pro app, não só de hora em hora — no celular
+      o timer pode não rodar em segundo plano.
+   3. Não recarregar em cima dela. Se estiver digitando uma reserva ou no
+      meio do checkout, a página não pode sumir. Aí aparece uma barra e ela
+      decide quando. */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
+    const confere = () => reg.update().catch(() => {});
+    setInterval(confere, 30 * 60 * 1000);
+    /* o iOS dispara visibilitychange em rajada; a trava evita enxurrada */
+    let ultima = 0;
+    const aoVoltar = () => {
+      if (document.hidden) return;
+      const agora = Date.now();
+      if (agora - ultima < 60000) return;
+      ultima = agora; confere();
+    };
+    document.addEventListener('visibilitychange', aoVoltar);
+    addEventListener('focus', aoVoltar);
+    addEventListener('online', () => { ultima = 0; aoVoltar(); });
+  }).catch(() => {});
+
+  /* Na PRIMEIRA visita o service worker também assume o controle, e o
+     controllerchange dispara igual. Sem esta trava, todo cliente novo veria
+     "tem uma versão nova" logo de cara — ou levaria um recarregamento à toa
+     no meio da primeira olhada nos passeios. Só é atualização se já havia
+     um controlador antes. */
+  /* E so conta se o controlador de antes era ESTE app. A demonstracao da
+     raiz do site (guia.eugeniofim.com) tem um service worker que tambem
+     cobre /ingrid/: quem ja abriu a demo antes veria "versao nova" na
+     primeira visita ao app dela. */
+  const ctlAntes = navigator.serviceWorker.controller;
+  const jaTinhaControlador = !!ctlAntes &&
+    new URL('./sw.js', location.href).href === ctlAntes.scriptURL;
+  let trocou = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!jaTinhaControlador) return;
+    if (trocou) return; trocou = true;
+    /* ocupada = digitando, escolhendo data, ou no meio do checkout.
+       isBusyEditing vem do app.js e é a mesma trava que impede a sincronia
+       de apagar a escolha do cliente. */
+    const ocupada = (typeof isBusyEditing === 'function') && isBusyEditing();
+    if (!ocupada) { location.reload(); return; }
+    const barra = document.getElementById('novaBar');
+    if (barra) barra.classList.add('on');
+    else location.reload();
+  });
+}
+/* a barra some se ela fechar; volta na próxima versão */
+addEventListener('DOMContentLoaded', () => {
+  const barra = document.getElementById('novaBar');
+  if (!barra) return;
+  const bt = document.getElementById('btNova'), x = document.getElementById('btNovaX');
+  if (bt) bt.onclick = () => location.reload();
+  if (x)  x.onclick  = () => barra.classList.remove('on');
+});
+/* guarda o convite de instalação (Android / Chrome no laptop) */
+window.__installEvt = null;
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.__installEvt = e; });
+</script>
+</body>
+</html>
