@@ -1752,8 +1752,23 @@ function ingComCache(ms) {
   out[out.length - 1] = { ...u, content: blocos };
   return out;
 }
+/* O MODELO FORTE PENSA ANTES (blocos "thinking" assinados). A assinatura fica presa ao prompt com que
+   nasceu — e o nosso prompt muda a cada mensagem (SITUAÇÃO AGORA, diário). Guardar esses blocos no
+   histórico dava "Erro 400: Invalid signature in thinking block… The system prompt differs" na
+   mensagem seguinte (relato da Ingrid, 03/10). A própria mensagem de erro manda remover o bloco:
+   nunca vai pra API nem pro histórico. */
+const ingEhPensamento = (b) => b && (b.type === 'thinking' || b.type === 'redacted_thinking');
+function ingSemPensamento(ms) {
+  return (ms || []).map(m => {
+    if (m.role !== 'assistant' || !Array.isArray(m.content) || !m.content.some(ingEhPensamento)) return m;
+    const c = m.content.filter(b => !ingEhPensamento(b));
+    return { ...m, content: c.length ? c : [{ type: 'text', text: '…' }] };
+  });
+}
 /* resposta cortada no meio (max_tokens): nunca roda ação pela metade nem deixa tool_use sem resposta */
 function ingCortado(corpo) {
+  if (corpo && Array.isArray(corpo.content) && corpo.content.some(ingEhPensamento)) corpo.content = corpo.content.filter(b => !ingEhPensamento(b));
+  if (corpo && Array.isArray(corpo.content) && !corpo.content.length) corpo.content = [{ type: 'text', text: '…' }];
   if (!corpo || corpo.stop_reason !== 'max_tokens' || !Array.isArray(corpo.content)) return corpo;
   corpo.content = corpo.content.filter(b => b.type !== 'tool_use');
   corpo.content.push({ type: 'text', text: '\n\n(A resposta ficou grande demais e foi cortada — me peça em partes menores.)' });
@@ -1781,7 +1796,7 @@ async function ingChamarChave(mensagens) {
   let modelo = ING_MODELO_CHAVE; try { if (localStorage.getItem(ING_SEM_PRO) === '1') modelo = IA_MODELO; } catch (e) {}
   const vai = (m, comWeb) => () => iaFetch('https://api.anthropic.com/v1/messages', { method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': iaChave(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({ model: m, max_tokens: 8000, system: iaSistema(), tools: ingFerramentas(comWeb), messages: ingComCache(mensagensParaEnvio(mensagens)) }) });
+    body: JSON.stringify({ model: m, max_tokens: 8000, system: iaSistema(), tools: ingFerramentas(comWeb), messages: ingComCache(ingSemPensamento(mensagensParaEnvio(mensagens))) }) });
   let { r, corpo } = await ingPede(vai(modelo, true));
   if (!r.ok && ingSemWeb(corpo)) ({ r, corpo } = await ingPede(vai(modelo, false)));
   if (!r.ok && modelo !== IA_MODELO && (r.status === 404 || (corpo && corpo.error && /model/i.test(corpo.error.message || '')))) {
@@ -1802,7 +1817,7 @@ iaChamar = async function (mensagens) {
      usa o modelo mais inteligente com o limite dela (cofre: _comum/pro.js). Sem login = demo. */
   const cliente = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.clienteCofre) || '';
   const tok = typeof authToken === 'function' ? authToken() : null;
-  const monta = (comWeb) => JSON.stringify({ max_tokens: 4000, ...(cliente ? { cliente } : {}), system: iaSistema(), tools: ingFerramentas(comWeb), messages: ingComCache(mensagensParaEnvio(mensagens)) });
+  const monta = (comWeb) => JSON.stringify({ max_tokens: 4000, ...(cliente ? { cliente } : {}), system: iaSistema(), tools: ingFerramentas(comWeb), messages: ingComCache(ingSemPensamento(mensagensParaEnvio(mensagens))) });
   const cab = { 'content-type': 'application/json', ...(cliente && tok ? { authorization: 'Bearer ' + tok } : {}) };
   if (monta(true).length > 1950000) throw new Error('Esse arquivo é grande demais para o assistente (máx. ~1,4 MB). Mande um print, uma foto ou um PDF menor.');
   const vai = (comWeb) => () => iaFetch(COFRE + '/api/claude', { method: 'POST', headers: cab, body: monta(comWeb) });
