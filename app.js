@@ -1512,6 +1512,7 @@ function admShell(tab, inner) {
         `<div class="nav-grp">${g.h ? `<div class="nav-h">${g.h}</div>` : ''}${g.tabs.map(([id, k]) =>
           `<button class="nb ${tab === id ? 'on' : ''}" data-tab="${id}" id="nb-${id}">${t(k)}</button>`).join('')}</div>`).join('')}</nav>
       <div class="railfoot">
+        <button class="nb ghost" id="nbTutorial" title="Ver o tutorial de novo, nesta tela">🎓 Tutorial</button>
         <button class="nb ghost" id="viewSite">👁 ${t('viewSite')}</button>
         <button class="nb ghost" id="exitAdm">← ${t('exit')}</button>
       </div>
@@ -1523,6 +1524,7 @@ function admShell(tab, inner) {
   $$('.nb[data-tab]').forEach(b => b.onclick = () => go('/adm/' + b.dataset.tab));
   if ($('#nbAssist')) $('#nbAssist').onclick = () => { try { if (typeof iaAbre === 'function') iaAbre(); } catch (e) {} };
   $('#viewSite').onclick = () => go('/');
+  const tut = $('#nbTutorial'); if (tut) tut.onclick = () => { DB.settings.tutorialAdm = true; DB.settings.tutorialClient = true; save(); route(); };
   $('#exitAdm').onclick = async () => {
     if (isLoggedIn()) { await authSignOut(); toast(t('loginOut')); }
     go('/');

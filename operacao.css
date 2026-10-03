@@ -832,3 +832,7 @@ a.orc-row:hover .tinfo b{text-decoration:underline}
   .at-b{flex:none;padding:8px 12px;font-size:var(--fs-2);min-height:38px}
   .drv-bt{margin-left:0}
 }
+
+/* botão Tutorial: na barra lateral (tela larga) e no topo (celular) */
+.at-tut{display:none}
+@media(max-width:820px){.at-tut{display:inline-flex}}

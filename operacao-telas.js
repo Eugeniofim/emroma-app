@@ -1594,6 +1594,7 @@ function opDocNomePdf() {
 function opDoc(titulo, corpo, acoes, arquivo) {
   document.body.classList.add('em-adm');
   opDoc._nome = String(arquivo || '').trim(); opDocNomePdf();
+  opDoc._ultimo = { titulo, corpo, arquivo: opDoc._nome };   // o assistente guarda este documento no Drive (guardar_documento)
   app.innerHTML = `<div class="doc-barra">
       <button class="mini" id="docVolta">← voltar</button>
       ${acoes || ''}
@@ -2699,8 +2700,8 @@ const Arquivos = {
   /* devolve a ficha na hora; gravar no aparelho e no Drive acontece por tras */
   guarda({ src, blob, nome, tipo, clienteId, clienteNome, bookingId, descricao }) {
     const ext = (String(src || '').match(/^data:([^;]+)/) || [])[1] || (blob && blob.type) || 'image/jpeg';
-    const fim = /pdf/.test(ext) ? '.pdf' : /png/.test(ext) ? '.png' : '.jpg';
-    const base = drvNome(nome || `${isoToday()} ${tipo || 'arquivo'}`).replace(/\.(jpe?g|png|pdf)$/i, '');
+    const fim = /pdf/.test(ext) ? '.pdf' : /png/.test(ext) ? '.png' : /html/.test(ext) ? '.html' : /plain/.test(ext) ? '.txt' : '.jpg';
+    const base = drvNome(nome || `${isoToday()} ${tipo || 'arquivo'}`).replace(/\.(jpe?g|png|pdf|html?|txt)$/i, '');
     const a = { id: uid(), nome: base + fim, tipo: tipo || 'documento', clienteId: clienteId || '', clienteNome: clienteNome || '', bookingId: bookingId || '',
                 descricao: descricao || '', criado: new Date().toISOString(), mime: ext, drive: '' };
     DB.arquivos = DB.arquivos || []; DB.arquivos.push(a); _opSave();
@@ -2994,6 +2995,7 @@ function atalhosHtml() {
     <button class="at-b" data-at="cliente">👤 Novo cliente</button>
     <button class="at-b" data-at="pagto">💶 Pagamento</button>
     <button class="at-b drv-bt ${drvEstado.liberada ? 'ok' : drvEstado.pasta ? 'warn' : ''}" data-at="drive"><i class="drv-dot" aria-hidden="true"></i>📁 Google Drive</button>
+    <button class="at-b at-tut" id="atTutorial" data-at="tutorial" title="Ver o tutorial de novo">🎓 Tutorial</button>
   </nav>`;
 }
 /* a janelinha (dialog nativo: Esc fecha, o foco fica dentro) */
@@ -3027,6 +3029,7 @@ function atBusca(d, soDevendo, escolhe) {
   inp.oninput = pinta; pinta(); inp.focus();
 }
 const ATALHO = {
+  tutorial() { DB.settings.tutorialAdm = true; DB.settings.tutorialClient = true; save(); route(); },
   orc() {
     const d = opJanela('＋ Novo orçamento', `<p class="why">Cole a conversa do WhatsApp (ou Instagram, e-mail). O app monta o rascunho com os preços da sua tabela; você confere e manda.</p>
       <label class="fld">Conversa<textarea id="atConv" rows="7" placeholder="Cole aqui a conversa inteira"></textarea></label>

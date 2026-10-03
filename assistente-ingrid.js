@@ -876,6 +876,9 @@ Nem toda fala é um pedido de ação. Quando ela quer PENSAR junto ("o que você
 ## APRENDER COM ELA
 Quando ela te corrigir ("não, o sinal do transfer é sempre 30", "ingresso do Vaticano subiu") ou disser um jeito de trabalhar ("eu nunca fecho transfer de madrugada sem…"): faça o que ela pediu E, numa linha no fim, pergunte "Guardo isso como regra para sempre?". Se ela disser sim → guardar_memoria com a regra curta e clara. Se for número da Tabela (preço, ingresso, gestão) → editar_tabela_precos, não memória. Nunca pergunte isso duas vezes pela mesma coisa.
 
+## INTERNET
+Você tem a busca na internet (web_search). Use quando a resposta NÃO está no app: horário e dia de fechamento de uma atração, greve ou feriado na Itália, status de um voo, endereço ou site de um hotel, uma dúvida de cliente sobre Roma. Resuma em poucas linhas e cite a fonte em uma linha (nome do site). No máximo 3 buscas por pergunta. Nunca pesquise dados de clientes dela na internet, e nunca invente o que não achou.
+
 ## REGRA ABSOLUTA DELA
 Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. Você prepara (rascunho de orçamento, texto de mensagem, resumo) e ELA confere e envia pelos botões do app. Não existe ferramenta que mande nada para fora — é de propósito.
 
@@ -927,6 +930,7 @@ Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. V
 - Ela pagou a guia/motorista ("paguei a Giulia por tudo até hoje", "acertei com o Marco") → acerto_guia só com guia (sem de/ate = tudo até hoje) — NÃO pergunte o período.
 - Ela mandou um comprovante no chat (print do Pix, PDF do banco) → leia o valor e o nome, ache a reserva (buscar) e chame registrar_pagamento com anexo. "Pagou tudo" = sem valor (o que falta). Diga onde o comprovante ficou (a ferramenta devolve).
 - Outro arquivo do cliente (passaporte, bilhete, voucher do hotel) → arquivar.
+- "Guarda o orçamento da Mariana no Drive" → guardar_documento (tipo orcamento, cliente Mariana) NA HORA, sem perguntar "orçamento ou voucher?" (ela acabou de dizer) nem número: o documento vai pronto para a pasta do cliente no Google Drive (EmRoma › Clientes › nome), com o nome certo. Abre em qualquer navegador; para PDF é "imprimir → salvar como PDF".
 - Conversa de cliente colada → ler_conversa.
 - Regra de trabalho dela para você lembrar sempre → guardar_memoria (vale em todos os aparelhos dela; apagar_memoria tira).
 - DECISÃO tomada na conversa que não virou ação no app ("vamos esperar a Lu Viaja responder antes de fechar", "não vou mais trabalhar com o motorista X", "em dezembro subo o preço") → anotar_diario (uma linha, com o porquê). Tudo o que ela confirma no cartão já entra no diário sozinho. Para lembrar o que foi decidido em outro dia → ver_diario.
@@ -1733,17 +1737,25 @@ if (ING_REAL) {
 }
 /* ---- 9. A CHAMADA AO COFRE: resposta maior (2000) e arquivo grande avisado antes ----
    (o cofre recusa pedido acima de ~2 milhões de caracteres: PDF de mais de ~1,4 MB) */
+/* A INTERNET (pedido dele, 03/10): a busca na web é do próprio Claude (ferramenta de servidor
+   da Anthropic — o cofre só repassa). Entra junto com as ferramentas do app; se a conta não
+   tiver a busca liberada, a chamada volta sem ela e o app lembra até recarregar. */
+const ING_WEB = { type: 'web_search_20250305', name: 'web_search', max_uses: 3 };
+let ingWebBloqueada = false;
+function ingFerramentas(comWeb) { return comWeb && !ingWebBloqueada ? [...IA_FERRAMENTAS, ING_WEB] : IA_FERRAMENTAS; }
+function ingSemWeb(corpo) { const m = String((corpo && corpo.error && corpo.error.message) || ''); if (/web_search|web search/i.test(m)) { ingWebBloqueada = true; return true; } return false; }
 /* com CHAVE própria (o "Gasto aqui"): também o modelo mais inteligente. Se a chave não tiver
    acesso a ele, volta sozinho para o modelo de antes e lembra. */
 const ING_MODELO_CHAVE = 'claude-opus-5-5', ING_SEM_PRO = 'ingrid_ia_sem_pro';
 async function ingChamarChave(mensagens) {
   let modelo = ING_MODELO_CHAVE; try { if (localStorage.getItem(ING_SEM_PRO) === '1') modelo = IA_MODELO; } catch (e) {}
-  const vai = (m) => fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
+  const vai = (m, comWeb) => fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': iaChave(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({ model: m, max_tokens: 8000, system: iaSistema(), tools: IA_FERRAMENTAS, messages: mensagensParaEnvio(mensagens) }) });
+    body: JSON.stringify({ model: m, max_tokens: 8000, system: iaSistema(), tools: ingFerramentas(comWeb), messages: mensagensParaEnvio(mensagens) }) });
   let r;
-  try { r = await vai(modelo); } catch (e) { throw new Error(iaTraduzErro(0)); }
+  try { r = await vai(modelo, true); } catch (e) { throw new Error(iaTraduzErro(0)); }
   let corpo = await r.json().catch(() => null);
+  if (!r.ok && ingSemWeb(corpo)) { r = await vai(modelo, false); corpo = await r.json().catch(() => null); }
   if (!r.ok && modelo !== IA_MODELO && (r.status === 404 || (corpo && corpo.error && /model/i.test(corpo.error.message || '')))) {
     try { localStorage.setItem(ING_SEM_PRO, '1'); } catch (e) {}
     modelo = IA_MODELO; r = await vai(modelo); corpo = await r.json().catch(() => null);
@@ -1762,12 +1774,15 @@ iaChamar = async function (mensagens) {
      usa o modelo mais inteligente com o limite dela (cofre: _comum/pro.js). Sem login = demo. */
   const cliente = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.clienteCofre) || '';
   const tok = typeof authToken === 'function' ? authToken() : null;
-  const body = JSON.stringify({ max_tokens: 4000, ...(cliente ? { cliente } : {}), system: iaSistema(), tools: IA_FERRAMENTAS, messages: mensagensParaEnvio(mensagens) });
+  const monta = (comWeb) => JSON.stringify({ max_tokens: 4000, ...(cliente ? { cliente } : {}), system: iaSistema(), tools: ingFerramentas(comWeb), messages: mensagensParaEnvio(mensagens) });
+  let body = monta(true);
   if (body.length > 1950000) throw new Error('Esse arquivo é grande demais para o assistente (máx. ~1,4 MB). Mande um print, uma foto ou um PDF menor.');
+  const cab = { 'content-type': 'application/json', ...(cliente && tok ? { authorization: 'Bearer ' + tok } : {}) };
   let r;
-  try { r = await fetch(COFRE + '/api/claude', { method: 'POST', headers: { 'content-type': 'application/json', ...(cliente && tok ? { authorization: 'Bearer ' + tok } : {}) }, body }); }
-  catch (e) { throw new Error(iaTraduzErro(0)); }
-  const corpo = await r.json().catch(() => null);
+  try { r = await fetch(COFRE + '/api/claude', { method: 'POST', headers: cab, body }); } catch (e) { throw new Error(iaTraduzErro(0)); }
+  let corpo = await r.json().catch(() => null);
+  /* a conta não tem a busca na internet liberada: tenta de novo sem ela (e lembra, pra não insistir) */
+  if (!r.ok && ingSemWeb(corpo)) { body = monta(false); try { r = await fetch(COFRE + '/api/claude', { method: 'POST', headers: cab, body }); } catch (e) { throw new Error(iaTraduzErro(0)); } corpo = await r.json().catch(() => null); }
   if (r.status === 429 && corpo && corpo.error && corpo.error.type === 'limite') { marcaEsgotado('claude'); throw Object.assign(new Error(ia('vivoAcabou')), { acabou: true }); }
   if (!r.ok) throw new Error(iaTraduzErro(r.status, corpo));
   /* cortou no meio (resposta longa demais): não roda ação pela metade — avisa */
@@ -1947,3 +1962,41 @@ ING_PLANO.anotar_diario = function (i) {
     return p;
   };
 })();
+
+/* =====================================================
+   GUARDAR O DOCUMENTO NO DRIVE (pedido dele, 03/10): "guarda o orçamento da Mariana no Drive"
+   → o app desenha o documento (o mesmo do botão imprimir), embrulha num arquivo .html com os
+   estilos dentro (abre em qualquer navegador, imprime como PDF) e guarda na pasta do cliente
+   no Google Drive pelo mesmo caminho dos comprovantes (Arquivos.guarda → Clientes › nome).
+===================================================== */
+function ingDocArquivo(titulo, corpo) {
+  let css = '';
+  try { for (const sh of document.styleSheets) { try { css += [...sh.cssRules].map(r => r.cssText).join('\n'); } catch (e) {} } } catch (e) {}
+  const g = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.guia) || {};
+  return `<!doctype html><html lang="pt-BR" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)} — ${esc(g.negocio || '')}</title><style>${css}\nbody{background:#fff;margin:0}.doc{box-shadow:none;margin:0 auto;max-width:860px}.doc-barra,.nao-imprime{display:none!important}</style></head><body class="em-adm"><article class="doc"><header class="doc-cab">${logoFull({ mark: 34 })}<div><b>${esc(titulo)}</b><small>${esc(guiaNegocio())} · ${esc(guiaNome())}${DB.settings.whats ? ' · WhatsApp ' + esc(DB.settings.whats) : ''}</small></div></header>${corpo}</article></body></html>`;
+}
+IA_FERRAMENTAS.push({ name: 'guardar_documento', description: 'Guarda o ORÇAMENTO ou o VOUCHER de um cliente como arquivo na pasta dele no Google Drive (EmRoma › Clientes › nome), com o nome certo (aaaa_mm_dd Cliente). O documento é o mesmo do botão imprimir; abre em qualquer navegador e vira PDF por "imprimir → salvar como PDF". Ache pelo nome do cliente. Ela disse "orçamento" → tipo orcamento; "voucher" → voucher: NUNCA pergunte qual dos dois, nem peça número.', input_schema: { type: 'object', properties: { tipo: { type: 'string', enum: ['orcamento', 'voucher'] }, cliente: { type: 'string', description: 'nome do cliente, número do orçamento ou código da reserva' } }, required: ['tipo', 'cliente'] } });
+ING_PLANO.guardar_documento = function (i) {
+  let nome = '', fazerDoc = null, arquivo = '', cliId = '';
+  if (i.tipo === 'voucher') {
+    const r = ingAchaReservaNome(i.cliente, '', { viagem: true }); if (!r.b) return r;
+    nome = r.b.name; cliId = r.b.clienteId || ''; fazerDoc = () => opDocVoucher(r.b.id);
+    const orc = r.b.orcamentoId && Orc.get(r.b.orcamentoId); arquivo = (orc ? Orc.nomeArquivo(orc) : `${String(r.b.date || '').replace(/-/g, '_')} ${r.b.name}`) + ' - Voucher';
+  } else {
+    const r = ingAchaOrc(i.cliente); if (!r.o) return r;
+    nome = r.o.cliente.nome; fazerDoc = () => opDocOrc(r.o.id); arquivo = Orc.nomeArquivo(r.o);
+    const c = Cadastro.all().find(x => Orc.mesmoCliente({ nome: x.nome, whats: x.whats }, r.o.cliente)); cliId = c ? c.id : '';
+  }
+  const pasta = typeof drvEstado !== 'undefined' && drvEstado.pasta;
+  return { titulo: 'Guardar no Google Drive', assumiu: pasta ? [] : ['a pasta do Drive ainda não foi escolhida neste aparelho: o arquivo fica guardado no app e sobe quando ela escolher (botão Google Drive)'],
+    linhas: [['Documento', i.tipo === 'voucher' ? 'Voucher' : 'Orçamento'], ['Cliente', nome], ['Arquivo', arquivo + '.html'], ['Pasta', `EmRoma › Clientes › ${nome}`]],
+    fazer: async () => {
+      const hashAntes = location.hash;
+      try { fazerDoc(); } catch (e) { return E_('não consegui montar o documento: ' + e.message); }
+      const u = opDoc._ultimo || {}; const html = ingDocArquivo(u.titulo || (i.tipo === 'voucher' ? 'Voucher' : 'Orçamento'), u.corpo || '');
+      if (location.hash !== hashAntes) location.hash = hashAntes; else route();
+      const g = Arquivos.guarda({ blob: new Blob([html], { type: 'text/html' }), nome: arquivo, tipo: 'documento', clienteId: cliId, clienteNome: nome, descricao: (i.tipo === 'voucher' ? 'Voucher' : 'Orçamento') + ' (do assistente)' });
+      let r = null; try { r = await Promise.race([g.feito, new Promise(res => setTimeout(() => res({ fila: true }), 4000))]); } catch (e) { r = { erro: String(e && e.message || e) }; }
+      return { ok: true, arquivo: g.arquivo.nome, onde: r && r.ok ? 'Google Drive: ' + r.caminho : 'guardado no app; vai para o Drive quando a pasta estiver liberada (botão Google Drive no topo)' };
+    } };
+};
