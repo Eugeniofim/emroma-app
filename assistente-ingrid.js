@@ -870,13 +870,13 @@ Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. V
 - Meu dia (serviços do dia, emergência): ver_hoje, buscar, detalhes_servico, escalar, registrar_pagamento; mudar uma reserva (dia, hora, pessoas, valor): alterar_reserva
 - Orçamentos (Sob consulta): ver_orcamentos, ler_conversa (conversa colada → rascunho), criar_orcamento, editar_orcamento (MUDA o que já existe: cliente, serviços, datas, valores, bagagem, pessoas), mudar_orcamento (situação/validade/% sinal), fechar_orcamento, apagar_orcamento (o repetido)
 - TABELA DE PREÇOS (as 4 abas do Excel dela: Transfer Roma, Transfer Roma 5%, Guia Roma, BV Roma): ver_precos acha a linha certa por pessoas e serviço e devolve preço, por pessoa, SINAL (= preço − custo), custo, cartão e noturno, com um ref. VOCÊ LÊ ESSA TABELA — nunca peça o valor ou o sinal a ela: consulte ver_precos e passe o ref em preco_ref. E você MUDA a Tabela: editar_tabela_precos (preço, custo, gestão, o que inclui, valor de ingresso, desconto da 5%).
-- Voucher (o texto de cada reserva, que se monta sozinho) e Pipeline (kanban dos pedidos): abrir_aba voucher / pipeline
-- Conversas (central de mensagens): ver_conversas mostra quem está esperando algo dela e o que ela já mandou; a mensagem ELA manda pelo botão da aba (abrir_aba conversas) — você só escreve o texto quando ela pedir
+- Voucher (monta sozinho para cada viagem): ver_voucher, editar_voucher (texto PADRÃO de um bloco, ou só o voucher de uma viagem: tirar/pôr bloco e observação) · Pontos de encontro: ver_pontos, editar_ponto, escolher_ponto (o ponto de UMA reserva — é o que sai no voucher) · Pipeline (kanban): abrir_aba pipeline
+- Conversas (central de mensagens): ver_conversas mostra quem está esperando algo dela e o que ela já mandou; "mandei tal coisa pra fulana" → registrar_mensagem (fica no histórico); a mensagem ELA manda pelo botão da aba (abrir_aba conversas) — você só escreve o texto quando ela pedir
 - Planilha (o CRM dela, linha por serviço, igual ao Google Planilhas): ver_crm lê TODAS as colunas (filtre por cliente/mês); ver_painel dá os números e o "precisa de você"; para MUDAR qualquer célula: editar_planilha (como tocar na célula); FOLLOW-UP 1/2/3 (antes "repescagem"): follow_up — grava as datas na Planilha E cria as tarefas. Você EDITA a planilha: nunca diga que não consegue
-- Transfer (New Star Limousine — SÓ transfers de Roma; os de fora de Roma são com outro fornecedor): ver_transfers (inclui os dados prontos para colar na plataforma)
+- Transfer (New Star Limousine — SÓ transfers de Roma; os de fora de Roma são com outro fornecedor): ver_transfers (inclui os dados prontos para colar na plataforma); pedido feito lá → transfer_pedido (com o número deles)
 - ⭐ Avaliações do site: ver_avaliacoes
 - Arquivos: ver_arquivos
-- NÃO SABE ONDE ESTÁ? procurar (acha em todas as abas). Pergunta geral sobre o negócio ("como estamos?", "o que tem pendente?") → ver_tudo. Você lê quase tudo do app — se para alguma coisa não houver ferramenta (pontos de encontro, textos fixos do voucher), diga isso em uma linha e abra a aba certa (abrir_aba) dizendo o que tocar. Nunca finja que fez.
+- NÃO SABE ONDE ESTÁ? procurar (acha em todas as abas). Pergunta geral sobre o negócio ("como estamos?", "o que tem pendente?") → ver_tudo. Você lê quase tudo do app — se para alguma coisa não houver ferramenta (ex.: as regiões do site, os textos de e-mail), diga isso em uma linha e abra a aba certa (abrir_aba) dizendo o que tocar. Nunca finja que fez.
 - Tarefas e anotações: ver_tarefas (inclui lembretes do app e clientes que devem), anotar_tarefa (entende "todo dia 01", "toda segunda"), mudar_tarefa (mudar dia/hora/texto, adiar, fixar, reabrir, apagar — NUNCA crie outra para mudar uma que existe), concluir_tarefa, lembrete_feito, ver_anotacoes, anotar
 - Guias e motoristas: ver_guias, quem_esta_livre, marcar_disponibilidade, cadastrar_guia, mudar_guia (inclui preferência), remover_guia, escalar
 - Agenda: ver_agenda, ver_hoje com a data; tarefas com dia aparecem na Agenda sozinhas
@@ -885,7 +885,7 @@ Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. V
 - Etapas do CRM (aberto/confirmado/avaliar/finalizado/perdido): ver_crm, marcar_perdido, avaliacao_pedida
 - Quem vai no passeio (ingressos nominais): quem_vai, ingressos_comprados, link_servico
 - Cupons e parcerias: ver_parceiros, cadastrar_parceiro, comissao_paga, ver_cupons, criar_cupom
-- Contabilidade: ver_contabilidade, ver_contas, registrar_pagamento (a CONTA decide Brasil ou Europa; "prestador" = pago na mão da guia, fora do caixa dela)
+- Contabilidade: ver_contabilidade, ver_contas, registrar_pagamento (a CONTA decide Brasil ou Europa; "prestador" = pago na mão da guia, fora do caixa dela), corrigir_pagamento (valor/conta errados ou apagar), acerto_guia (marcar que pagou a guia/motorista)
 - Arquivos e Google Drive: registrar_pagamento com anexo (comprovante), arquivar (outro documento). Tudo fica na ficha do cliente e na pasta EmRoma › Clientes › nome do cliente no Google Drive.
 - Meus passeios: ver_passeios, criar_passeio, alterar_passeio, mudar_preco, mudar_tabela (preço por número de pessoas), adicionar_horario, remover_horario
 - Relatórios: ver_relatorio
@@ -901,6 +901,8 @@ Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. V
 - Ideia, fornecedor, detalhe solto → anotar.
 - A guia respondeu livre/ocupada → marcar_disponibilidade (fecha sozinha a tarefa de espera).
 - Dinheiro que entrou → registrar_pagamento com a conta; se ela não disse a conta, PERGUNTE.
+- Pagamento na conta errada ("o sinal da Mariana caiu no Wise Brasil, não no Europa") → corrigir_pagamento com codigo = o nome do cliente e conta = a certa: corrige todos os pagamentos dele de uma vez — NÃO pergunte qual pagamento.
+- Ela pagou a guia/motorista ("paguei a Giulia por tudo até hoje", "acertei com o Marco") → acerto_guia só com guia (sem de/ate = tudo até hoje) — NÃO pergunte o período.
 - Ela mandou um comprovante no chat (print do Pix, PDF do banco) → leia o valor e o nome, ache a reserva (buscar) e chame registrar_pagamento com anexo. "Pagou tudo" = sem valor (o que falta). Diga onde o comprovante ficou (a ferramenta devolve).
 - Outro arquivo do cliente (passaporte, bilhete, voucher do hotel) → arquivar.
 - Conversa de cliente colada → ler_conversa.
@@ -1411,6 +1413,7 @@ ${ING_REAL ? '.iaDemoExtra{display:none}' : ''}
   if (t && t.input_schema && t.input_schema.properties) {
     t.input_schema.properties.valor = { type: 'number', description: 'valor total novo (só se mudou)' };
     t.input_schema.properties.codigo = { type: 'string', description: 'código da reserva OU nome do cliente' };
+    t.input_schema.properties.servico = { type: 'string', description: 'qual serviço do cliente (ex.: "Vaticano", "transfer") — evita pedir o código' };
     t.description = 'Muda uma reserva: dia, hora, pessoas, nome, contato ou valor. Serviço que veio da Tabela de preços não muda de valor sozinho: se mudou, passe valor.';
   }
   const c = IA_FERRAMENTAS.find(x => x.name === 'criar_reserva');
@@ -1419,16 +1422,36 @@ ${ING_REAL ? '.iaDemoExtra{display:none}' : ''}
     c.description += ' Pagamento: registre depois com registrar_pagamento (com a conta — é a conta que decide Brasil ou Europa).';
   }
 })();
-function ingAchaReservaNome(q) {
+/* acha a reserva pelo que ela fala: código, nome do cliente, ou "o Vaticano da Mariana" /
+   "o transfer da Mariana" (teste ao vivo de 03/10: a IA pedia o código toda hora).
+   servico = pista do serviço; viagem = qualquer serviço da viagem serve (voucher). */
+const ING_TRANSFER_RE = /↔|transfer|aeroporto|fiumicino|ciampino|civitavecchia|termini|esta[cç][aã]o|porto/i;
+function ingAchaReservaNome(q, servico, opts) {
+  opts = opts || {};
   const rb = ingAchaReserva(q); if (rb.b) return rb;
   const n = ingN(q); if (!n) return rb;
-  const l = (DB.bookings || []).filter(x => x.status !== 'cancelled' && ingN(x.name).includes(n)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  if (l.length === 1) return { b: l[0] };
-  if (l.length > 1) return { erro: 'mais de uma reserva desse cliente — diga qual (código): ' + l.slice(0, 10).map(x => `${x.code} ${x.date} ${x.time} ${nomeDoServico(x)}`).join(' · ') };
+  const ativos = (DB.bookings || []).filter(x => x.status !== 'cancelled');
+  let l = ativos.filter(x => ingN(x.name).includes(n)), sv = ingN(servico || '');
+  if (!l.length) {
+    const PEQ = new Set(['da', 'do', 'de', 'dos', 'das', 'o', 'a', 'no', 'na', 'reserva', 'servico']);
+    const toks = n.split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !PEQ.has(t));
+    const nomeT = toks.filter(t => ativos.some(x => ingN(x.name).split(/\s+/).includes(t)));
+    if (nomeT.length) { l = ativos.filter(x => nomeT.every(t => ingN(x.name).includes(t))); sv = [sv, ...toks.filter(t => !nomeT.includes(t))].filter(Boolean).join(' '); }
+  }
+  if (l.length > 1 && sv) {
+    const st = sv.split(/[^a-z0-9]+/).filter(t => t.length >= 3);
+    const casa = (x) => st.every(t => t === 'transfer' ? ING_TRANSFER_RE.test(nomeDoServico(x)) : ingN(nomeDoServico(x) + ' ' + (x.voo || '') + ' ' + (x.date || '')).includes(t));
+    const f = l.filter(casa); if (f.length) l = f;
+    /* "o Vaticano" = o passeio, não a linha de ingresso/gestão/fones dele */
+    if (l.length > 1) { const pr = l.filter(x => !/^(Ingressos|Gestão|Fones)/.test(nomeDoServico(x))); if (pr.length >= 1) l = pr; }
+  }
+  if (l.length > 1 && opts.viagem) { const fut = l.filter(x => x.date >= hojeIso()).sort((a, b) => String(a.date).localeCompare(String(b.date))); return { b: fut[0] || l[l.length - 1], todas: l }; }
+  if (l.length === 1) return { b: l[0], todas: l };
+  if (l.length > 1) return { erro: 'mais de uma reserva desse cliente — passe servico (ex.: "Vaticano", "transfer", "Roma Antiga") ou o código: ' + l.slice(0, 10).map(x => `${x.code} ${x.date} ${x.time} ${nomeDoServico(x)}`).join(' · '), varias: l };
   return rb;
 }
 ING_PLANO.alterar_reserva = function (i) {
-  const r = ingAchaReservaNome(i.codigo); if (!r.b) return r;
+  const r = ingAchaReservaNome(i.codigo, i.servico); if (!r.b) return r;
   const b = r.b; if (b.status === 'cancelled') return E_('essa reserva está cancelada');
   const x = Tours.get(b.tourId), muda = {}, assumiu = [], linhas = [['Reserva', `${b.code} · ${b.name} · ${nomeDoServico(b)}`]];
   if (isoOk(i.data) && i.data !== b.date) { muda.date = i.data; linhas.push(['Dia', `${ingData(b.date)} → ${ingData(i.data)}`]); }
@@ -1544,7 +1567,7 @@ ING_LER.abrir_aba = function (i) {
   if (!i || !i.item) return _ingAbrirAba(i || {});
   let item = String(i.item).trim();
   if (i.aba === 'consulta') { const r = ingAchaOrc(item); if (!r.o) return r; item = r.o.id; }
-  else if (i.aba === 'voucher') { const r = ingAchaReservaNome(item); if (!r.b) return r; item = r.b.id; }
+  else if (i.aba === 'voucher') { const r = ingAchaReservaNome(item, '', { viagem: true }); if (!r.b) return r; item = r.b.id; }
   else if (i.aba === 'clients') { const r = ingAchaCliente(item); if (r.c && r.c.key) item = r.c.key; else if (r.opcoes || r.erro) return r; }
   return _ingAbrirAba({ aba: i.aba, item });
 };
@@ -1642,4 +1665,127 @@ iaChamar = async function (mensagens) {
     corpo.stop_reason = 'end_turn';
   }
   return corpo;
+};
+
+/* =====================================================
+   O QUE FALTAVA O ASSISTENTE ALCANÇAR (03/10, v1.96): pontos de encontro, textos
+   do voucher, acerto com guia, transfer pedido na New Star, mensagem que ela
+   mandou, corrigir pagamento. Toda aba com quem leia e quem escreva.
+===================================================== */
+const ingAchaPonto = (q) => { const n = ingN(q); if (!n) return null; return Pontos.get(q) || Pontos.all().find(p => ingN(p.nome) === n) || (Pontos.all().filter(p => ingN(p.nome).includes(n)).length === 1 ? Pontos.all().find(p => ingN(p.nome).includes(n)) : null); };
+const ingBloco = (q) => { const n = ingN(q); return VOUCHER_BLOCOS_META.find(m => m.k === q) || VOUCHER_BLOCOS_META.find(m => ingN(m.nome).includes(n) || ingN(m.k).includes(n)); };
+IA_FERRAMENTAS.push(
+  { name: 'ver_pontos', description: 'Os pontos de encontro (onde o cliente encontra a guia/motorista): nome, endereço, instruções, mapa — e de que passeio é o padrão.', input_schema: { type: 'object', properties: {} } },
+  { name: 'editar_ponto', description: 'Cria, muda ou apaga um ponto de encontro (Ajustes → Pontos de encontro).', input_schema: { type: 'object', properties: {
+    ponto: { type: 'string', description: 'nome ou id do ponto que já existe (vazio = criar um novo)' }, nome: { type: 'string' }, endereco: { type: 'string' }, mapa: { type: 'string', description: 'link do Google Maps (https://…)' },
+    instrucoes: { type: 'string', description: 'o que o cliente lê no voucher (ex.: "em frente à entrada, guia com a plaquinha EmRoma, chegar 15 min antes")' }, apagar: { type: 'boolean' } } } },
+  { name: 'escolher_ponto', description: 'Escolhe o ponto de encontro de UMA reserva (é o que sai no voucher dela).', input_schema: { type: 'object', properties: { servico: { type: 'string', description: 'qual serviço do cliente (ex.: "Vaticano", "transfer") — evita pedir o código' }, codigo: { type: 'string', description: 'código da reserva ou nome do cliente' }, ponto: { type: 'string', description: 'nome do ponto (ver_pontos)' } }, required: ['codigo', 'ponto'] } },
+  { name: 'ver_voucher', description: 'O voucher: sem código, os textos padrão de cada bloco (aba Voucher); com código/cliente, o voucher daquela viagem (serviços, blocos que saem, observação).', input_schema: { type: 'object', properties: { codigo: { type: 'string', description: 'código da reserva ou nome do cliente (opcional)' } } } },
+  { name: 'editar_voucher', description: 'Muda o voucher. Texto PADRÃO de um bloco (vale para todos os vouchers): bloco + texto. Só o voucher de UMA viagem: codigo + tirar_blocos / por_blocos + nota (observação que sai antes da assinatura).', input_schema: { type: 'object', properties: {
+    bloco: { type: 'string', description: 'nome ou chave do bloco (ver_voucher)' }, texto: { type: 'string' },
+    codigo: { type: 'string', description: 'reserva ou cliente (para mudar só o voucher dele)' }, tirar_blocos: { type: 'array', items: { type: 'string' } }, por_blocos: { type: 'array', items: { type: 'string' } }, nota: { type: 'string' } } } },
+  { name: 'acerto_guia', description: 'Marca como ACERTADO (pago) o que ela devia à guia/motorista — ou desmarca. Por reserva (codigo) ou tudo de uma pessoa (guia): sem "de" = desde o começo, sem "ate" = até hoje ("paguei a Giulia por tudo até hoje" = só guia). ver_contabilidade mostra o acerto.', input_schema: { type: 'object', properties: {
+    codigo: { type: 'string' }, guia: { type: 'string' }, de: { type: 'string', description: 'AAAA-MM-DD' }, ate: { type: 'string', description: 'AAAA-MM-DD' }, desfazer: { type: 'boolean' } } } },
+  { name: 'transfer_pedido', description: 'Marca que o transfer já foi PEDIDO na New Star (com o número do pedido deles) — ou desmarca.', input_schema: { type: 'object', properties: { servico: { type: 'string', description: 'qual serviço do cliente (ex.: "Vaticano", "transfer") — evita pedir o código' }, codigo: { type: 'string', description: 'código da reserva ou cliente' }, numero: { type: 'string', description: 'número/código do pedido na New Star' }, desmarcar: { type: 'boolean' } }, required: ['codigo'] } },
+  { name: 'registrar_mensagem', description: 'Registra na aba Conversas uma mensagem que ELA mandou a um cliente (por fora do app), pra ficar no histórico e nas pendências.', input_schema: { type: 'object', properties: { cliente: { type: 'string' }, texto: { type: 'string' }, canal: { type: 'string', enum: ['whats', 'insta', 'email'] } }, required: ['cliente', 'texto'] } },
+  { name: 'corrigir_pagamento', description: 'Corrige pagamento registrado errado: muda o valor ou a conta, ou apaga. CONTA ERRADA de um cliente ("o sinal caiu no Wise Brasil"): passe só codigo = nome do cliente + conta — corrige todos os pagamentos dele de uma vez (não pergunte qual). Valor ou apagar: diga qual pagamento (1, 2… na ordem de ver_ficha).', input_schema: { type: 'object', properties: { servico: { type: 'string', description: 'qual serviço do cliente (ex.: "Vaticano", "transfer") — evita pedir o código' },
+    codigo: { type: 'string', description: 'código da reserva ou cliente' }, pagamento: { type: 'integer', description: 'qual pagamento (1 = o primeiro)' }, valor: { type: 'number' }, conta: { type: 'string' }, apagar: { type: 'boolean' } }, required: ['codigo'] } }
+);
+IA_LEITURA.add('ver_pontos'); IA_LEITURA.add('ver_voucher');
+ING_LER.ver_pontos = function () {
+  const l = Pontos.all(); if (!l.length) return 'nenhum ponto de encontro cadastrado ainda (editar_ponto cria)';
+  return l.map(p => ({ id: p.id, nome: p.nome, endereco: p.endereco || '', instrucoes: p.instrucoes || '', mapa: linkMapa(p) || '',
+    padrao_de: (DB.tours || []).filter(x => x.pontoPadrao === p.id).map(x => nomeTour(x)) }));
+};
+ING_PLANO.editar_ponto = function (i) {
+  const p = i.ponto ? ingAchaPonto(i.ponto) : null;
+  if (i.ponto && !p) return E_('não achei esse ponto — ver_pontos lista os nomes');
+  if (i.apagar) { if (!p) return E_('qual ponto apagar?'); return { titulo: 'Apagar ponto de encontro', assumiu: [], linhas: [['Ponto', p.nome], ['Some de', 'Ajustes, passeios e vouchers']], fazer: () => { Pontos.remove(p.id); return { ok: true }; } }; }
+  const d = { id: p ? p.id : '', nome: i.nome || (p && p.nome) || '', endereco: i.endereco ?? (p && p.endereco) ?? '', mapa: i.mapa ?? (p && p.mapa) ?? '', instrucoes: i.instrucoes ?? (p && p.instrucoes) ?? '' };
+  if (!d.nome) return E_('qual o nome do ponto?');
+  if (d.mapa && !/^https?:\/\//i.test(d.mapa)) return E_('o link do mapa precisa começar com http');
+  return { titulo: p ? 'Mudar ponto de encontro' : 'Novo ponto de encontro', assumiu: [], linhas: [['Nome', d.nome], ...(d.endereco ? [['Endereço', d.endereco]] : []), ...(d.instrucoes ? [['Instruções', d.instrucoes]] : []), ...(d.mapa ? [['Mapa', d.mapa]] : [])],
+    fazer: () => { const r = Pontos.salva(d); return r && r.erro ? E_(r.erro) : { ok: true, id: r.id }; } };
+};
+ING_PLANO.escolher_ponto = function (i) {
+  const r = ingAchaReservaNome(i.codigo, i.servico); if (!r.b) return r;
+  const p = ingAchaPonto(i.ponto); if (!p) return E_('não achei esse ponto — ver_pontos lista os nomes (ou editar_ponto cria)');
+  return { titulo: 'Ponto de encontro da reserva', assumiu: [], linhas: [['Reserva', `${r.b.code} · ${r.b.name} · ${nomeDoServico(r.b)}`], ['Ponto', p.nome]], fazer: () => { escolhePonto(r.b.id, p.id); return { ok: true }; } };
+};
+ING_LER.ver_voucher = function (i) {
+  if (!i || !i.codigo) return { blocos: VOUCHER_BLOCOS_META.map(m => ({ chave: m.k, nome: m.nome, quando: m.quando, texto: String(voucherBlocoTxt(m.k)).slice(0, 400) })) };
+  const r = ingAchaReservaNome(i.codigo, '', { viagem: true }); if (!r.b) return r;
+  const bs = voucherViagem(r.b), cfg = bs.find(x => x.voucherFora || x.voucherNota) || {};
+  const blocos = typeof voucherBlocosViagem === 'function' ? voucherBlocosViagem(bs) : VOUCHER_BLOCOS_META.map(m => m.k);
+  return { cliente: r.b.name, servicos: bs.map(x => `${x.code} ${x.date} ${x.time} ${nomeDoServico(x)} · encontro: ${(pontoDoServico(x) || {}).nome || '—'}`),
+    blocos_que_saem: blocos.filter(k => !(cfg.voucherFora || []).includes(k)).map(k => (VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome),
+    blocos_tirados: (cfg.voucherFora || []).map(k => (VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome), observacao: cfg.voucherNota || '', abrir: 'abrir_aba voucher com item = código ou cliente' };
+};
+ING_PLANO.editar_voucher = function (i) {
+  if (i.bloco && i.texto != null && !i.codigo) {
+    const m = ingBloco(i.bloco); if (!m) return E_('não achei esse bloco — ver_voucher lista os blocos');
+    return { titulo: 'Texto padrão do voucher', assumiu: ['vale para os próximos vouchers (todos os clientes)'], linhas: [['Bloco', m.nome], ['Texto novo', String(i.texto).slice(0, 300) + (String(i.texto).length > 300 ? '…' : '')]],
+      fazer: () => { voucherSalvaBloco(m.k, i.texto); return { ok: true }; } };
+  }
+  if (!i.codigo) return E_('diga o bloco + texto (padrão) ou o código/cliente (voucher de uma viagem)');
+  const r = ingAchaReservaNome(i.codigo, '', { viagem: true }); if (!r.b) return r;
+  const bs = voucherViagem(r.b), cfg = bs.find(x => x.voucherFora || x.voucherNota) || {};
+  const fora = new Set(cfg.voucherFora || []), linhas = [['Voucher de', `${r.b.name} · ${bs.length} serviço(s)`]];
+  for (const q of i.tirar_blocos || []) { const m = ingBloco(q); if (!m) return E_(`não achei o bloco "${q}"`); fora.add(m.k); linhas.push(['Tira', m.nome]); }
+  for (const q of i.por_blocos || []) { const m = ingBloco(q); if (!m) return E_(`não achei o bloco "${q}"`); fora.delete(m.k); linhas.push(['Põe de volta', m.nome]); }
+  const nota = i.nota !== undefined ? String(i.nota) : (cfg.voucherNota || ''); if (i.nota !== undefined) linhas.push(['Observação', nota || '(sem observação)']);
+  if (linhas.length === 1) return E_('nada para mudar');
+  return { titulo: 'Mudar o voucher desta viagem', assumiu: [], linhas, fazer: () => { const f = [...fora]; for (const x of bs) { x.voucherFora = f; x.voucherNota = nota; _opSaveBooking(x); } return { ok: true }; } };
+};
+ING_PLANO.acerto_guia = function (i) {
+  let lista = [];
+  if (i.codigo) { const r = ingAchaReservaNome(i.codigo, i.servico); if (!r.b) return r; lista = [r.b]; }
+  else if (i.guia) {
+    const n = ingN(i.guia), ps = Equipe.all().filter(p => ingN(p.nome).includes(n)); if (ps.length !== 1) return E_(ps.length ? 'mais de uma pessoa com esse nome — diga qual: ' + ps.map(p => p.nome).join(', ') : 'não achei essa guia/motorista — ver_guias');
+    const de = isoOk(i.de) ? i.de : '2000-01-01', ate = isoOk(i.ate) ? i.ate : hojeIso();
+    lista = acertos(de, ate).filter(a => a.b.prestadorId === ps[0].id && (i.desfazer ? a.acertado : !a.acertado)).map(a => a.b);
+    if (!lista.length) return E_(`nada ${i.desfazer ? 'acertado' : 'a acertar'} com ${ps[0].nome} nesse período`);
+  } else return E_('diga a reserva (codigo) ou a pessoa (guia) e o período');
+  const saldo = acertos('2000-01-01', '2999-12-31').filter(a => lista.includes(a.b)).reduce((s, a) => s + a.saldo, 0);
+  return { titulo: i.desfazer ? 'Desfazer acerto' : 'Acerto com guia/motorista', assumiu: [], linhas: [['Serviços', String(lista.length)], ...lista.slice(0, 6).map(b => [b.date, `${b.name} · ${nomeDoServico(b)}`]),
+    ['Saldo', saldo >= 0 ? `${eur(saldo)} (Ingrid paga)` : `${eur(-saldo)} (a pessoa devolve)`]],
+    fazer: () => { for (const b of lista) marcaAcertado(b.id, !i.desfazer); return { ok: true, servicos: lista.length }; } };
+};
+ING_PLANO.transfer_pedido = function (i) {
+  const r = ingAchaReservaNome(i.codigo, i.servico || 'transfer'); if (!r.b) return r;
+  if (!i.desmarcar && !String(i.numero || '').trim()) return E_('qual o número do pedido na New Star?');
+  return { titulo: i.desmarcar ? 'Transfer: desmarcar pedido' : 'Transfer pedido na New Star', assumiu: [], linhas: [['Reserva', `${r.b.code} · ${r.b.name} · ${r.b.date} ${r.b.time}`], ['Pedido New Star', i.desmarcar ? '(desmarcado)' : String(i.numero).trim()]],
+    fazer: () => { nccMarca(r.b.id, i.desmarcar ? null : String(i.numero).trim()); return { ok: true }; } };
+};
+ING_PLANO.registrar_mensagem = function (i) {
+  const r = ingAchaCliente(i.cliente); if (!r.c) return r;
+  const txt = String(i.texto || '').trim(); if (!txt) return E_('qual foi a mensagem?');
+  return { titulo: 'Registrar mensagem enviada', assumiu: [], linhas: [['Cliente', r.c.name], ['Canal', i.canal || 'whats'], ['Mensagem', txt.slice(0, 200)]],
+    fazer: () => { Conversas.log(r.c.key, { texto: txt, canal: i.canal || 'whats' }); if (Tarefas.sincroniza) Tarefas.sincroniza(); return { ok: true }; } };
+};
+ING_PLANO.corrigir_pagamento = function (i) {
+  let r = ingAchaReservaNome(i.codigo, i.servico);
+  /* "o sinal da Mariana caiu no Wise Brasil": o sinal do pedido está espalhado nos serviços — muda a conta de todos de uma vez */
+  if (!r.b && r.varias && i.conta && !i.apagar && !(+i.valor > 0)) {
+    const ct = ingConta(i.conta); if (ct.erro) return E_(ct.erro);
+    const pag = r.varias.flatMap(b => (b.payments || []).filter(p => p.conta !== CONTA_PRESTADOR && p.conta !== ct.id).map(p => ({ b, p })));
+    if (!pag.length) return E_('não há pagamento desse cliente em outra conta');
+    return { titulo: 'Corrigir a conta dos pagamentos', assumiu: ['muda a conta de todos os pagamentos desse cliente (o sinal do pedido)'],
+      linhas: [['Cliente', r.varias[0].name], ['Pagamentos', String(pag.length)], ['Total', eur(pag.reduce((s2, x) => s2 + (+x.p.amount || 0), 0))], ['Conta', `${[...new Set(pag.map(x => Contas.nome(x.p.conta) || x.p.method))].join(', ')} → ${Contas.nome(ct.id) || ct.id}`]],
+      fazer: () => { const bs = new Set(); for (const x of pag) { x.p.conta = ct.id; bs.add(x.b); } for (const b of bs) _opSaveBooking(b); if (Tarefas.sincroniza) Tarefas.sincroniza(); return { ok: true, pagamentos: pag.length }; } };
+  }
+  if (!r.b) return r;
+  const b = r.b, ps = b.payments || [];
+  if (!ps.length) return E_('essa reserva não tem pagamento registrado');
+  const k = (+i.pagamento || (ps.length === 1 ? 1 : 0)) - 1;
+  if (k < 0 || !ps[k]) return E_('qual pagamento? ' + ps.map((p, n) => `${n + 1}. ${p.date} ${eur(p.amount)} ${p.conta ? Contas.nome(p.conta) : p.method || ''}`).join(' · '));
+  const p = ps[k], linhas = [['Reserva', `${b.code} · ${b.name}`], ['Pagamento', `${p.date} ${eur(p.amount)} ${p.conta ? Contas.nome(p.conta) : p.method || ''}`]];
+  let conta = null;
+  if (i.conta) { const ct = ingConta(i.conta); if (ct.erro) return E_(ct.erro); conta = ct.id; linhas.push(['Conta', `→ ${Contas.nome(conta) || conta}`]); }
+  if (i.apagar) linhas.push(['Apaga', 'sim — sai da contabilidade']);
+  else if (+i.valor > 0) linhas.push(['Valor', `${eur(p.amount)} → ${eur(+i.valor)}`]);
+  else if (!conta) return E_('mudar o quê? (valor, conta ou apagar)');
+  return { titulo: 'Corrigir pagamento', assumiu: [], linhas, fazer: () => {
+    if (i.apagar) b.payments.splice(k, 1); else { if (+i.valor > 0) p.amount = Math.round(+i.valor * 100) / 100; if (conta) p.conta = conta; }
+    _opSaveBooking(b); if (Tarefas.sincroniza) Tarefas.sincroniza(); return { ok: true, pago_agora: eur(Bookings.paid(b)), falta: eur(Bookings.due(b)) }; } };
 };

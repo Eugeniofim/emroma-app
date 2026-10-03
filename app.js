@@ -3187,6 +3187,43 @@ route();
   if (document.body) poe(); else addEventListener('DOMContentLoaded', poe);
 })();
 
+/* O APP MUDOU DE ENDEREÇO (03/10/2026 — guia.eugeniofim.com/ingrid → app.emroma.com).
+   Liga com APP_CONFIG.novoEndereco (vazio = desligado). No endereço ANTIGO:
+   - visitante do site (fora do ADM): vai direto pro endereço novo, na mesma tela;
+   - ela (ADM): uma faixa no topo. O botão só libera depois que TUDO o que estava
+     pendente neste aparelho subiu pra nuvem — assim nada se perde na troca. */
+(function mudouDeEndereco() {
+  const novo = String((typeof APP_CONFIG !== 'undefined' && APP_CONFIG.novoEndereco) || '').replace(/\/+$/, '');
+  if (!novo) return;
+  let alvo; try { alvo = new URL(novo); } catch (e) { return; }
+  if (location.hostname === alvo.hostname) return;   // já está no endereço novo
+  const destino = () => novo + '/' + location.hash;
+  if (!location.hash.startsWith('#/adm')) { location.replace(destino()); return; }
+  const pendente = () => {
+    let n = 0;
+    try { n += (typeof qAll === 'function' ? qAll().length : 0); } catch (e) {}
+    try { const f = typeof itLe === 'function' && typeof IT_FILA !== 'undefined' ? itLe(IT_FILA, {}) : {}; for (const c of Object.values(f || {})) n += Object.keys(c || {}).length; } catch (e) {}
+    return n;
+  };
+  const semDrive = () => { try { return typeof Arquivos !== 'undefined' ? Arquivos.pendentes().length : 0; } catch (e) { return 0; } };
+  const pinta = () => {
+    let el = document.getElementById('mudouFaixa');
+    if (!el) { el = document.createElement('div'); el.id = 'mudouFaixa'; document.body.appendChild(el); }
+    const p = pendente(), a = semDrive();
+    el.innerHTML = `<b>O EmRoma mudou de endereço:</b> ${esc(alvo.host)} — mesmo login, tudo continua lá.
+      ${p ? `<span>Mandando para a nuvem o que ficou aqui (${p})…</span>` : `<a class="mudouBt" href="${esc(destino())}">Abrir no endereço novo →</a>`}
+      ${a ? `<small>${a} arquivo(s) ainda só neste aparelho: mande para o Google Drive (aba Arquivos) antes.</small>` : ''}`;
+    if (p) { try { typeof qFlush === 'function' && qFlush(); } catch (e) {} try { typeof itEnfileirar === 'function' && itEnfileirar(); typeof itEnviarFila === 'function' && itEnviarFila(); } catch (e) {} }
+  };
+  const st = document.createElement('style');
+  st.textContent = `#mudouFaixa{position:fixed;left:0;right:0;top:0;z-index:9998;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:center;
+    padding:10px 16px;background:var(--accent,#5b3145);color:var(--accent-ink,#fff);font:600 14px var(--f-ui,system-ui);text-align:center}
+    #mudouFaixa .mudouBt{background:#fff;color:var(--accent,#5b3145);padding:7px 14px;border-radius:999px;text-decoration:none;font-weight:700}
+    #mudouFaixa small{flex-basis:100%;font-weight:500;opacity:.9} body:has(#mudouFaixa){padding-top:52px}`;
+  const liga = () => { document.head.appendChild(st); pinta(); setInterval(pinta, 4000); };
+  if (document.body) liga(); else addEventListener('DOMContentLoaded', liga);
+})();
+
 /* PRIMEIRO DESENHO DA TELA — no FIM do arquivo, de proposito.
 
    Ficava no meio, antes de "const ICO" e "let pendingSync". Quem abria o app

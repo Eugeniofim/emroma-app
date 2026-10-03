@@ -12,7 +12,27 @@
    que nenhum banco fica gravado no codigo. */
 const SUPA_URL = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.supabaseUrl) || '';
 const SUPA_KEY = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.supabaseKey) || '';
-const QUEUE_KEY = 'vi_queue_v1';
+/* CADA APP COM A SUA FILA (03/10): no mesmo endereço moram os apps de demonstração, e a fila com
+   nome comum ('vi_queue_v1') deixava uma reserva de TESTE deles subir para o banco dela quando o app
+   dela, logado, esvaziava a fila. Agora: 'ingrid_fila_envio_v1'. Da fila antiga só vem o que é
+   DESTE app (a reserva que existe nos dados dela, ou o catálogo) — o resto fica lá, quieto. */
+const QUEUE_KEY = (typeof DB_KEY === 'string' && DB_KEY !== 'vi_db_v1') ? DB_KEY.replace('_db_', '_fila_envio_') : 'vi_queue_v1';
+(function () {
+  if (QUEUE_KEY === 'vi_queue_v1') return;
+  try {
+    const velha = JSON.parse(localStorage.getItem('vi_queue_v1') || '[]'); if (!Array.isArray(velha) || !velha.length) return;
+    const ids = new Set(((typeof DB !== 'undefined' && DB && DB.bookings) || []).map(b => b.id));
+    const minha = [], resto = [];
+    for (const j of velha) {
+      const p = String((j && j.path) || ''), id = (j && j.body && (j.body.id || (j.body.data && j.body.data.id))) || decodeURIComponent((p.match(/id=eq\.([^&]+)/) || [])[1] || '');
+      ((p.startsWith('appstate') || (p.startsWith('bookings') && id && ids.has(id))) ? minha : resto).push(j);
+    }
+    if (!minha.length) return;
+    let atual = []; try { atual = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]') || []; } catch (e) {}
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(atual.concat(minha)));
+    localStorage.setItem('vi_queue_v1', JSON.stringify(resto));
+  } catch (e) {}
+})();
 
 /* Sem prazo maximo, uma requisicao pendurada trava o app inteiro: foi isso
    que fez o login demorar um minuto. 12s e generoso ate para 3G ruim. */
