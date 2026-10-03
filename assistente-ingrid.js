@@ -55,7 +55,7 @@ function ingAchaCliente(q) {
   const todos = Cadastro.all().map(c => ({ key: chaveFicha(c), id: c.id, name: c.nome, email: c.email, whats: c.whats, veioCom: c.grupoDe ? (Cadastro.get(c.grupoDe) || {}).nome : '' }));
   const exato = todos.filter(c => ingN(c.name) === n);
   const l = exato.length ? exato : todos.filter(c => (n && ingN(c.name).includes(n)) || (c.email && ingN(c.email) === n)
-    || (dig.length >= 6 && String(c.whats || '').replace(/\D/g, '').endsWith(dig.slice(-8))));
+    || (dig.length >= 4 && String(c.whats || '').replace(/\D/g, '').endsWith(dig.slice(-8))));   // 4 últimos números do telefone (pedido dela, 03/10)
   if (l.length === 1) return { c: l[0] };
   if (!l.length) return { erro: `não achei o cliente "${q}"` };
   return { erro: 'mais de um cliente com esse nome — pergunte qual', opcoes: l.slice(0, 6).map(c => ({ nome: c.name, contato: c.email || c.whats || '', veio_com: c.veioCom || '' })) };
@@ -130,6 +130,7 @@ const ING_FERRAMENTAS = [
   { name: 'ver_anotacoes', description: 'Anotações (inclui os resumos do WhatsApp). Com busca opcional.', input_schema: obj({ busca: S_() }) },
   { name: 'ver_contabilidade', description: 'Recebimentos do período por conta, separados em Brasil e Europa, o que as guias receberam direto, e o acerto com cada guia/motorista. Sem datas = o mês atual.', input_schema: obj({ de: S_('AAAA-MM-DD'), ate: S_('AAAA-MM-DD') }) },
   { name: 'ver_ficha', description: 'Ficha completa de um cliente: contato, serviços, pagamentos, quem veio junto, anotações, tarefas e orçamentos.', input_schema: obj({ cliente: S_('nome, e-mail ou WhatsApp') }, ['cliente']) },
+  { name: 'contas_do_cliente', description: 'QUANTO o cliente já pagou, quanto FALTA, quanto paga NO DIA e PARA QUEM (serviço por serviço), e se o sinal ainda está pendente — tudo em euros, pronto para repetir. Use SEMPRE que ela perguntar "quanto falta", "quanto paga no dia", "quanto deve", "quanto já pagou", "pra quem". NUNCA some de cabeça.', input_schema: obj({ cliente: S_('nome do cliente, WhatsApp ou código da reserva') }, ['cliente']) },
   { name: 'ver_relatorio', description: 'Os números do período (semana, mês, 90 dias, ano): o que entrou, vendido, serviços, ticket, margem, a receber, orçamentos, o que já está vendido para as próximas semanas, serviço que mais rende, turno mais cheio, antecedência.', input_schema: obj({ periodo: { type: 'string', enum: ['semana', 'mes', '90', 'ano'] } }) },
   { name: 'ver_contas', description: 'As contas onde ela recebe (id, nome, Brasil ou Europa).', input_schema: obj() },
   { name: 'ver_backup', description: 'Quando foi o último backup, onde (pasta do computador/Google Drive ou baixado) e se o de hoje já foi feito.', input_schema: obj() },
@@ -278,10 +279,12 @@ const ING_LER = {
   ver_contabilidade(i) {
     const de = isoOk(i.de) ? i.de : hojeIso().slice(0, 8) + '01', ate = isoOk(i.ate) ? i.ate : hojeIso();
     const rs = extratoContas(de, ate), soma = (f) => rs.filter(f).reduce((s, r) => s + r.amount, 0);
-    const porConta = {};
-    for (const r of rs) { const k = r.conta ? Contas.nome(r.conta) : r.method + ' (sem conta)'; porConta[k] = (porConta[k] || 0) + r.amount; }
-    return { periodo: { de, ate }, brasil: soma(r => r.lado === 'brasil'), europa: soma(r => r.lado === 'europa'), direto_com_guias: soma(r => r.lado === 'prestador'),
-      por_conta: porConta, acertos: acertos(de, ate).map(a => ({ quem: a.pessoa ? a.pessoa.nome : '?', servico: a.b.name + ' ' + a.b.date, custo: a.custo, saldo: a.saldo, acertado: a.acertado })) };
+    const porLado = { brasil: {}, europa: {}, direto_com_guias: {} };
+    for (const r of rs) { const k = r.conta ? Contas.nome(r.conta) : r.method + ' (sem conta)'; const L = r.lado === 'brasil' ? porLado.brasil : r.lado === 'europa' ? porLado.europa : porLado.direto_com_guias; L[k] = Math.round(((L[k] || 0) + r.amount) * 100) / 100; }
+    return { periodo: { de, ate },
+      brasil: { total: eur(soma(r => r.lado === 'brasil')), por_conta: porLado.brasil }, europa: { total: eur(soma(r => r.lado === 'europa')), por_conta: porLado.europa },
+      direto_com_guias: { total: eur(soma(r => r.lado === 'prestador')), nota: 'pago na mão da guia/motorista — NÃO entra no caixa dela (nem no Brasil nem na Europa)', por_quem: porLado.direto_com_guias },
+      regra: 'repita EXATAMENTE estes totais; não some nem decomponha de cabeça', acertos: acertos(de, ate).map(a => ({ quem: a.pessoa ? a.pessoa.nome : '?', servico: a.b.name + ' ' + a.b.date, custo: a.custo, saldo: a.saldo, acertado: a.acertado })) };
   },
   ver_ficha(i) {
     const r = ingAchaCliente(i.cliente); if (!r.c) return r;
@@ -291,6 +294,20 @@ const ING_LER = {
       etiquetas: f.tags, anotacoes: f.notas,
       servicos: bs.map(b => ({ ...ingServ(b), quem_vai: participantesDe(b).map(p => ({ nome: p.nome, idade: idadeDe(p.nasc, b.date) })), ingressos_comprados: Op.precisaIngresso(b) ? !!b.ingressosOk : 'não precisa', links: (b.links || []).map(l => l.nome + ': ' + l.url) })), tarefas: Tarefas.doCliente(k, c.whats).filter(t => !t.feita).map(t => ({ tarefa_id: t.id, texto: t.texto, dia: t.prazo })),
       orcamentos: o.orcamentos.map(x => ({ numero: x.num, situacao: x.status, total: Orc.total(x) })) };
+  },
+  contas_do_cliente(i) {
+    let bs = [], nome = '';
+    const rb = ingAchaReservaNome(i.cliente, '', { viagem: true });
+    if (rb.b) { nome = rb.b.name; bs = (rb.todas || [rb.b]).filter(b => b.status !== 'cancelled'); }
+    else { const r = ingAchaCliente(i.cliente); if (!r.c) return r; const cad = Cadastro.get(r.c.id); nome = cad.nome; bs = Cadastro.reservas(cad).filter(b => b.status !== 'cancelled'); }
+    const S = (f) => Math.round(bs.reduce((s, b) => s + (+f(b) || 0), 0) * 100) / 100;
+    const serv = bs.sort((a, b) => String(a.date).localeCompare(String(b.date))).map(b => { const nd = Op.noDia(b), sf = Op.sinalFalta(b);
+      return { servico: `${nomeDoServico(b)} · ${ingData(b.date)}`, codigo: b.code, quem_faz: (Equipe.get(b.prestadorId) || {}).nome || 'ninguém escalado', total: eur(+b.total || 0), sinal: eur(+b.sinal || 0), ja_pagou: eur(Bookings.paid(b)), falta: eur(Bookings.due(b)),
+        sinal_pendente: sf > 0 ? eur(sf) : 'não', no_dia: eur(nd.valor || 0), no_dia_para: nd.valor ? (nd.para === 'prestador' ? 'quem faz o serviço, em dinheiro' : 'a Ingrid') : '—' }; });
+    const orcs = Orc.all().filter(o => ['novo', 'rascunho', 'enviado'].includes(o.status) && ingN(o.cliente.nome) === ingN(nome)).map(o => ({ numero: o.num, situacao: o.status, contas: ingContas(o) }));
+    return { cliente: nome, servicos: serv, totais: { total: eur(S(b => b.total)), ja_pagou: eur(S(b => Bookings.paid(b))), falta: eur(S(b => Bookings.due(b))), sinal_pendente: eur(S(b => Op.sinalFalta(b))), no_dia_total: eur(S(b => Op.noDia(b).valor)),
+        no_dia_para_quem_faz: eur(S(b => Op.dueNoDia(b))), no_dia_para_a_ingrid: eur(S(b => Op.dueIngrid(b) - Op.sinalFalta(b))) },
+      ...(orcs.length ? { orcamentos_em_aberto: orcs } : {}), regra: 'repita EXATAMENTE estes valores, serviço por serviço se ela pediu "pra quem"; nunca some nem recalcule' };
   },
   ver_relatorio(i) {
     const P = Painel.periodo(i.periodo || 'mes');
@@ -682,7 +699,8 @@ const ING_PLANO = {
     const n = Orc.itensConta(o).filter(x => (x.tourId && Tours.get(x.tourId)) || (x.data && String(x.desc || '').trim() && !x.sugestao)).length;
     return { titulo: 'Fechar orçamento', assumiu: i.sinal_recebido == null ? ['o sinal ainda não caiu — quando cair, registre com registrar_pagamento'] : [], linhas: [['Orçamento', `${o.num} · ${o.cliente.nome}`], ['Vira', `${n} reserva(s)`], ['Sinal', `${eur(Orc.sinal(o))} ${i.sinal_recebido ? '— já caiu em ' + Contas.nome(i.conta) : '— ainda não caiu'}`]],
       fazer: () => { const bs = Orc.fecha(o.id, { sinalRecebido: !!i.sinal_recebido, conta: i.conta }); Tarefas.sincroniza(); const of = Orc.get(o.id) || o;
-        return { ok: true, reservas: bs.map(b => `${b.code} ${b.date} ${nomeDoServico(b)}`), contas: { total: eur(Orc.total(of)), sinal: eur(Orc.sinal(of)), sinal_ja_caiu: !!i.sinal_recebido, pagar_no_dia: eur(Math.max(0, Math.round((Orc.total(of) - Orc.sinal(of)) * 100) / 100)), regra: 'repita EXATAMENTE estes valores; nunca calcule de cabeça' } }; } };
+        const noDia = bs.map(b => { const nd = Op.noDia(b); return { servico: `${nomeDoServico(b)} ${b.date}`, no_dia: eur(nd.valor || 0), para: nd.valor ? (nd.para === 'prestador' ? 'quem faz o serviço (guia/motorista), em dinheiro' : 'a Ingrid') : '—' }; });
+        return { ok: true, reservas: bs.map(b => `${b.code} ${b.date} ${nomeDoServico(b)}`), contas: { total: eur(Orc.total(of)), sinal: eur(Orc.sinal(of)), sinal_ja_caiu: !!i.sinal_recebido, pagar_no_dia: eur(Math.max(0, Math.round((Orc.total(of) - Orc.sinal(of)) * 100) / 100)), no_dia_por_servico: noDia, regra: 'repita EXATAMENTE estes valores; nunca calcule de cabeça. "Quanto falta / quanto paga no dia": ver_ficha traz por serviço e para quem.' } }; } };
   },
   ajustar_termos(i) {
     const linhas = [];
@@ -894,7 +912,7 @@ Você é o assistente de ${guiaNome()}, dona da ${guiaNegocio()} — receptivo t
 
 ## REGRAS QUE NUNCA MUDAM
 1. Nada sai para fora. Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. Você prepara (texto, orçamento, resumo); ela confere e envia pelos botões do app. Não existe ferramenta que mande nada — é de propósito.
-2. DINHEIRO: total, sinal, custo e "pagar no dia" vêm das ferramentas (ver_precos e o campo contas). Repita EXATAMENTE o que a ferramenta devolve. Nunca calcule sinal, total ou porcentagem de cabeça — o sinal NÃO é 50% nem 30%: é a soma dos sinais da Tabela. Com opção pendente, diga "a partir de".
+2. DINHEIRO: total, sinal, custo e "pagar no dia" vêm das ferramentas (ver_precos e o campo contas). Repita EXATAMENTE o que a ferramenta devolve. Nunca calcule sinal, total, "no dia" ou porcentagem de cabeça — o sinal NÃO é 50% nem 30%: é a soma dos sinais da Tabela. Com opção pendente, diga "a partir de". Pergunta de "quanto" (quanto falta, quanto paga no dia e pra quem, quanto entrou, quanto deve à guia) → chame a ferramenta ANTES de responder (contas_do_cliente, ver_contabilidade, ver_relatorio) e repita os números dela; nunca some de memória — todo valor em € que você escrever sem ter vindo de uma ferramenta ganha um aviso de "confira" na tela.
 3. Nunca invente preço, data, voo, valor recebido ou o que não achou. Quando a ferramenta devolve opções (duas "Juliana"), pergunte qual — nunca chute.
 4. Ache tudo pelo NOME: o cliente, "o Vaticano da Mariana", "o transfer da Mariana". Nunca peça número, código ou ref a ela.
 5. UM orçamento por cliente até ele pagar e receber o voucher. Mudança entra no MESMO (editar_orcamento NO MESMO NÚMERO — nunca crie um segundo); repetido → apagar_orcamento.
@@ -924,6 +942,7 @@ Meu dia: ver_hoje, buscar · Orçamentos (Sob consulta): ver_orcamentos, ler_con
 - Guia respondeu livre/ocupada → marcar_disponibilidade (fecha a espera sozinha) · passar o serviço → escalar · transfer pedido na New Star → transfer_pedido com o número deles.
 - Comprovante no chat (print, PDF) → leia valor e nome, ache a reserva e registrar_pagamento com anexo · outro documento → arquivar · "guarda o orçamento/voucher da Mariana no Drive" → guardar_documento (tipo = o que ela disse, cliente = nome) na hora, sem perguntar.
 - Conversa colada → ler_conversa · mensagem que ELA mandou → registrar_mensagem · ponto de encontro de uma reserva → escolher_ponto · voucher (padrão ou de uma viagem) → editar_voucher.
+- "Quanto falta", "quanto paga no dia e pra quem", "quanto deve", "quanto já pagou" → contas_do_cliente (serviço por serviço, para quem, tudo em euros) — repita; nunca some.
 - Não sabe onde está → procurar · como estamos / o que tem pendente → ver_tudo · a Planilha inteira → ver_crm (filtre por cliente, etapa ou mês) · números → ver_painel, ver_relatorio · tabela de comissões → exportar_comissoes.
 
 ## ORÇAMENTO — o fluxo
@@ -1051,10 +1070,38 @@ iaTravado = function (sim) { ingOrbe('pensa', sim); return _ingTravado(sim); };
 
 /* a resposta que chega depois de ela perguntar e lida em voz alta —
    o historico redesenhado ao abrir a gaveta, nao */
+/* VIGIA DE DINHEIRO (teste "como a Ingrid", 03/10: a IA somou de cabeça os preços cheios e disse
+   "€ 1.199,50 no dia" quando o certo era € 824,50). Regra estrutural: todo valor em € que o assistente
+   escreve tem que ter vindo de uma ferramenta nesta conversa (ou da fala dela, ou da situação do dia).
+   Se não veio, o balão ganha um aviso visível — nunca mais um número inventado passa em silêncio. */
+let ingNumerosTurno = new Set();
+function ingNumeros(s) {
+  const out = new Set();
+  for (const m of String(s || '').matchAll(/\d[\d.]*,\d{1,2}(?!\d)|\d[\d.]*(?:\.\d+)?/g)) {
+    const t = m[0];
+    if (t.includes(',')) out.add(Math.round(parseFloat(t.replace(/\./g, '').replace(',', '.')) * 100));           // 1.388,50 → 138850
+    else { const v = parseFloat(t); if (!isNaN(v)) out.add(Math.round(v * 100)); if (/^\d{1,3}(\.\d{3})+$/.test(t)) out.add(Math.round(parseFloat(t.replace(/\./g, '')) * 100)); }   // 824.5 e 1.388 (milhar)
+  }
+  return out;
+}
+function ingColheNumeros(s) { for (const v of ingNumeros(s)) ingNumerosTurno.add(v); }
+/* os valores em € do texto que NÃO vieram de nenhuma ferramenta/fala/estado desta conversa */
+function ingDinheiroSuspeito(texto, conhecidos) {
+  const K = conhecidos || ingNumerosTurno, out = [];
+  for (const m of String(texto || '').matchAll(/(?:€|EUR)\s?(\d[\d.]*(?:,\d{1,2})?)(?!\d)/g)) {
+    const t = m[1], v = t.includes(',') ? parseFloat(t.replace(/\./g, '').replace(',', '.')) : (/^\d{1,3}(\.\d{3})+$/.test(t) ? parseFloat(t.replace(/\./g, '')) : parseFloat(t));
+    if (isNaN(v)) continue; const c = Math.round(v * 100);
+    if (!K.has(c) && !out.includes('€ ' + t)) out.push('€ ' + t);
+  }
+  return out;
+}
+const _ingRoda = iaRodaFerramenta;
+iaRodaFerramenta = async function (nome, input) { const r = await _ingRoda(nome, input); try { ingColheNumeros(JSON.stringify(r)); } catch (e) {} return r; };
 const _ingBolha = iaBolha;
 iaBolha = function (tipo, texto, antesDe, semCopiar, foto) {
   /* o aviso interno dos anexos (⟦…⟧) e para a IA, nao para o balao dela */
   if (tipo === 'user' && typeof texto === 'string') texto = texto.replace(/\s*⟦[\s\S]*?⟧/g, '');
+  if (tipo === 'assistant' && typeof texto === 'string') { const sus = ingDinheiroSuspeito(texto); if (sus.length) texto += `\n\n⚠️ ${sus.join(', ')}: esse valor eu calculei por conta própria, não veio do app — confira em "contas do cliente" antes de usar.`; }
   const el = _ingBolha(tipo, texto, antesDe, semCopiar, foto);
   if (el.querySelectorAll) el.querySelectorAll('img[src^="data:application/pdf"]').forEach(im => { const sp = document.createElement('span'); sp.className = 'ia-pdf'; sp.textContent = '📄 PDF'; im.replaceWith(sp); });
   if (tipo === 'assistant' && ingVozEspera) ingFalar(texto);
@@ -1081,6 +1128,8 @@ iaMostraAnexo = function () {
 const _ingConversa = iaConversa;
 iaConversa = async function (texto, fotos) {
   if (iaOcupado) return;                         // o motor também recusa: sem isto o anexo entrava na lista e a numeração desencontrava
+  /* o vigia de dinheiro começa a conversa sabendo o que ela disse, a situação do dia, a memória e o diário */
+  ingNumerosTurno = new Set(); try { ingColheNumeros(texto); ingColheNumeros(iaAgora()); ingColheNumeros((Mkt.get().memoria || []).map(x => x.texto).join(' ')); if (typeof ingDiarioTexto === 'function') ingColheNumeros(ingDiarioTexto(14)); } catch (e) {}
   ingPararFala(); ingVozEspera = true;
   fotos = !fotos ? [] : Array.isArray(fotos) ? fotos : [fotos];
   const base = ingAnexos.length;
@@ -1323,6 +1372,11 @@ iaDesenha = function () {
   const f = g.querySelector('#iaForm');
   if (f && !g.querySelector('.iaBarra') && !iaMostrandoChave) f.insertAdjacentHTML('beforebegin', '<div class="iaBarra" role="group" aria-label="Sugestões"></div>');
   ingSugestoesPinta();
+  /* CRÉDITOS DA IA (pedido do Eugênio, 03/10): o assistente gasta a conta Anthropic de quem paga o cofre;
+     um botão no rodapé abre a página de créditos (Billing) numa aba nova — sem sair do app */
+  const pe = g.querySelector('#iaPe');
+  if (pe && !pe.querySelector('#iaCreditos')) { const sp = pe.querySelector('span') || pe; sp.insertAdjacentHTML('beforeend', ' · <button type="button" id="iaCreditos" title="Pôr créditos na conta da IA (console da Anthropic → Billing)">💳 Créditos</button>');
+    pe.querySelector('#iaCreditos').onclick = () => { try { window.open('https://console.anthropic.com/settings/billing', '_blank', 'noopener'); } catch (e) {} }; }
   const lb = g.querySelector('#iaLimpa');
   if (lb && !lb.dataset.pergunta) { const orig = lb.onclick; lb.dataset.pergunta = '1';
     lb.onclick = (e) => { if (confirm('Começar uma conversa nova?\n\nA memória continua — o que você me ensinou (as regras, os passeios, os ingressos) eu não esqueço.')) return orig && orig.call(lb, e); }; }
@@ -1524,6 +1578,7 @@ function ingAchaReservaNome(q, servico, opts) {
   const n = ingN(q); if (!n) return rb;
   const ativos = (DB.bookings || []).filter(x => x.status !== 'cancelled');
   let l = ativos.filter(x => ingN(x.name).includes(n)), sv = ingN(servico || '');
+  const dig = n.replace(/\D/g, ''); if (!l.length && dig.length >= 4 && /^[\d\s()+-]+$/.test(String(q))) l = ativos.filter(x => String(x.whats || '').replace(/\D/g, '').endsWith(dig.slice(-8)));   // 4 últimos do telefone
   if (!l.length) {
     const PEQ = new Set(['da', 'do', 'de', 'dos', 'das', 'o', 'a', 'no', 'na', 'reserva', 'servico']);
     const toks = n.split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !PEQ.has(t));
