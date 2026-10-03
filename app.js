@@ -272,7 +272,7 @@ addEventListener('hashchange', route);
    login ali mesmo sem mudar o hash, e depois de entrar go('/adm/today')
    nao mudava nada — o evento nunca vinha. Mesmo destino = redesenha na mao. */
 function go(h) {
-  if (location.hash === '#' + h) route();
+  if (location.hash === '#' + h) { route._tela = ''; route(); }   // tocou a mesma aba de novo: volta pro topo
   else location.hash = h;
 }
 /* APARELHO NOVO COM NUVEM (03/10/2026): o app nasce EM BRANCO de propósito (store.js load) e só
@@ -293,6 +293,10 @@ function viewCarregando(demorou) {
 }
 function route() {
   Coach.hide();
+  /* redesenho da MESMA tela (nuvem chegou, relógio virou, dado mudou): fica onde ela estava.
+     Antes todo redesenho dava scrollTo(0,0) — "a aba de tarefas volta pra cima" (Ingrid, 03/10). */
+  const mesmaTela = route._tela === location.hash, yAntes = window.scrollY || 0;
+  route._tela = location.hash;
   const h = location.hash.slice(2) || '';
   const p = h.split('/');
   /* primeiro acesso, nuvem ainda não chegou: nada de capa vazia (login e ADM seguem normais) */
@@ -316,7 +320,7 @@ function route() {
   document.body.classList.toggle('em-adm', p[0] === 'adm');
   cestaBarra(p[0]);
   faixaAcimaDaBarra();
-  scrollTo(0, 0);
+  if (mesmaTela) requestAnimationFrame(() => scrollTo(0, yAntes)); else scrollTo(0, 0);
 }
 
 /* A faixa do rodape (proposta / demonstracao) e a barra de abas do painel

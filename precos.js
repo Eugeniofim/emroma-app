@@ -86,6 +86,13 @@ const Precos = {
         if (g && +g.inteiro === 25) g.inteiro = 24; }
       DB.settings.ingVat24 = true; mudou = true;
     }
+    /* 03/10: ela corrigiu — "são 25 euros por adulto" (o Doc de 02/10 dizia 24). Volta a 25 uma vez;
+       depois disso ela muda na Tabela de preços quando quiser */
+    if (typeof DB.settings === 'object' && DB.settings && !DB.settings.ingVat25 && typeof Tours !== 'undefined') {
+      for (const id of ['vaticano-3h', 'vaticano-4h']) { const x = Tours.get(id); const g = x && (x.ingressos || []).find(y => /museus do vaticano/i.test((y.nome && y.nome.pt) || ''));
+        if (g && +g.inteiro === 24) g.inteiro = 25; }
+      DB.settings.ingVat25 = true; mudou = true;
+    }
     if (mudou) Precos._save();
   },
   /* o "inclui" de uma duração (vai no orçamento entre parênteses) */

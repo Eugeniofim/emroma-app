@@ -262,7 +262,7 @@ function admHoje(arg) {
         <button class="mini" data-dia="${addDays(dia, 1)}" aria-label="próximo dia">→</button>
       </div></div>
     <div class="op-busca">
-      <input id="hjBusca" type="search" autocomplete="off" placeholder="🔎 Emergência? Nome do cliente, voo, código ou telefone">
+      <input id="hjBusca" type="search" autocomplete="off" placeholder="🔎 Buscar em tudo: nome, palavra-chave, voo ou os 4 últimos números do telefone">
       <div id="hjRes"></div>
     </div>
     ${dia === hoje && (late.length || semPres.length || novos) ? `<div class="op-pend">
@@ -300,15 +300,22 @@ function admHoje(arg) {
   $$('[data-dia]').forEach(b => b.onclick = () => vai(b.dataset.dia));
   $('#hjData').onchange = (e) => { if (e.target.value) vai(e.target.value); };
   const res = $('#hjRes');
+  /* BUSCA GERAL: serviços, clientes, orçamentos, tarefas, anotações, guias e parceiros (pedido dela, 03/10) */
   $('#hjBusca').oninput = (e) => {
-    const r = Op.busca(e.target.value).slice(0, 8);
-    res.innerHTML = r.length ? `<div class="op-resbusca">${r.map(b => `<button class="op-achado" data-ir="${esc(b.id)}">
-        <b>${esc(b.name)}</b><small>${fmtDate(b.date)} ${esc(b.time)} · ${esc(opNomeServ(b))}${b.voo ? ' · ✈ ' + esc(b.voo) : ''} · ${esc(b.code)}</small></button>`).join('')}</div>`
-      : (e.target.value.trim().length >= 2 ? '<p class="why">Nada encontrado.</p>' : '');
-    $$('[data-ir]', res).forEach(btn => btn.onclick = () => {
-      const b = Bookings.get(btn.dataset.ir);
-      admHoje._foco = b.id; vai(b.date);
-    });
+    const q = e.target.value, R = Op.procuraTudo(q);
+    const tipo = (t) => `<span class="op-tipo">${t}</span>`;
+    res.innerHTML = !R ? '' : !R.total ? '<p class="why">Nada encontrado.</p>' : `<div class="op-resbusca">
+      ${R.servicos.map(b => `<button class="op-achado" data-ir="${esc(b.id)}">${tipo('serviço')}<b>${esc(b.name)}</b><small>${fmtDate(b.date)} ${esc(b.time)} · ${esc(opNomeServ(b))}${b.voo ? ' · ✈ ' + esc(b.voo) : ''} · ${esc(b.code)}</small></button>`).join('')}
+      ${R.clientes.map(c => `<a class="op-achado" href="#/adm/clients/${encodeURIComponent(chaveFicha(c))}">${tipo('cliente')}<b>${esc(c.nome)}</b><small>${esc(c.whats || c.email || '')}</small></a>`).join('')}
+      ${R.orcamentos.map(o => `<a class="op-achado" href="#/adm/consulta/${esc(o.id)}">${tipo('orçamento')}<b>${esc(o.cliente.nome)}</b><small>${esc(o.num)} · ${esc(o.status)}</small></a>`).join('')}
+      ${R.tarefas.map(t => `<button class="op-achado" data-tarefa="${esc(q)}">${tipo('tarefa')}<b>${esc(t.texto)}</b><small>${t.prazo ? fmtDate(t.prazo) : 'sem data'}${t.hora ? ' ' + esc(t.hora) : ''}${t.clienteNome ? ' · ' + esc(t.clienteNome) : ''}</small></button>`).join('')}
+      ${R.notas.map(t => `<button class="op-achado" data-nota="${esc(q)}">${tipo('anotação')}<b>${esc(t.texto)}</b><small>${esc((t.detalhe || '').slice(0, 80))}</small></button>`).join('')}
+      ${R.equipe.map(p => `<a class="op-achado" href="#/adm/guias">${tipo(p.tipo === 'motorista' ? 'motorista' : 'guia')}<b>${esc(p.nome)}</b><small>${esc(p.whats || '')}</small></a>`).join('')}
+      ${R.parceiros.map(p => `<a class="op-achado" href="#/adm/coupons">${tipo('parceiro')}<b>${esc(p.nome)}</b><small>${esc(p.cupom || '')}</small></a>`).join('')}
+    </div>`;
+    $$('[data-ir]', res).forEach(btn => btn.onclick = () => { const b = Bookings.get(btn.dataset.ir); admHoje._foco = b.id; vai(b.date); });
+    $$('[data-tarefa]', res).forEach(btn => btn.onclick = () => { admTarefas._s = admTarefas._s || { v: 'tarefas', busca: '' }; admTarefas._s.v = 'tarefas'; admTarefas._s.buscaT = btn.dataset.tarefa; go('/adm/tarefas'); });
+    $$('[data-nota]', res).forEach(btn => btn.onclick = () => { admTarefas._s = admTarefas._s || { v: 'notas', busca: '' }; admTarefas._s.v = 'notas'; admTarefas._s.busca = btn.dataset.nota; go('/adm/tarefas/notas'); });
   };
   opLigaCards(() => admHoje(dia));
   tfLigaMini(() => admHoje(dia));
@@ -2501,7 +2508,10 @@ function admTarefas(arg) {
   if (arg === 'notas') S.v = 'notas';
   const hoje = isoToday();
   const sozinhas = Tarefas.sincroniza(hoje);
-  const G = Tarefas.grupos(hoje);
+  const G0 = Tarefas.grupos(hoje);
+  /* busca nas tarefas (pedido dela, 03/10): nome, palavra ou 4 últimos números do telefone */
+  const qT = String(S.buscaT || '').trim(), F = (l) => qT ? l.filter(t => Tarefas.casa(t, qT)) : l;
+  const G = { atrasadas: F(G0.atrasadas), hoje: F(G0.hoje), semana: F(G0.semana), depois: F(G0.depois), semData: F(G0.semData), feitas: F(G0.feitas) };
   const abertas = G.atrasadas.length + G.hoje.length + G.semana.length + G.depois.length + G.semData.length;
   const notas = Tarefas.notas(S.busca);
   const clientes = Clients.all().filter(c => !c.acompanhante);
@@ -2531,13 +2541,14 @@ function admTarefas(arg) {
     ${sozinhas.length || recentes.length ? `<section class="card tf-sozinha"><h3>✨ Concluídas sozinhas</h3>
       ${[...new Map([...sozinhas, ...recentes].map(t => [t.id, t])).values()].map(t => `<div class="tf-row feita"><span class="tf-ck on">✓</span><div class="tf-corpo"><span class="tf-txt">${esc(t.texto)}</span><small>${esc(t.obsFim)}</small></div></div>`).join('')}
     </section>` : ''}
-    ${tfLembretesHtml(hoje)}
+    <div class="op-busca"><input id="tfBusca" type="search" autocomplete="off" placeholder="🔎 Procurar tarefa: nome, palavra-chave ou os 4 últimos números do telefone" value="${esc(qT)}"></div>
+    ${qT ? `<p class="why">${abertas + G.feitas.length ? `${abertas} aberta(s)${G.feitas.length ? ` e ${G.feitas.length} feita(s)` : ''} com "${esc(qT)}"` : `Nenhuma tarefa com "${esc(qT)}".`}</p>` : tfLembretesHtml(hoje)}
     ${grupo('Atrasadas', G.atrasadas, 'bad')}
     ${grupo('Hoje', G.hoje, 'hoje')}
     ${grupo('Próximos 7 dias', G.semana)}
     ${grupo('Mais para frente', G.depois)}
     ${grupo('Sem data', G.semData)}
-    ${!abertas ? '<div class="emptybox"><p>Nenhuma tarefa aberta. 🎉</p></div>' : ''}
+    ${!abertas && !qT ? '<div class="emptybox"><p>Nenhuma tarefa aberta. 🎉</p></div>' : ''}
     ${G.feitas.length ? `<details class="card tf-grupo"><summary><b>Feitas</b> <span class="tf-n">${G.feitas.length}</span></summary>${G.feitas.map(t => tfLinha(t, hoje)).join('')}</details>` : ''}
     ` : `
     <section class="card tf-nova">
@@ -2565,6 +2576,7 @@ function admTarefas(arg) {
       </article>`).join('') || '<p class="empty">Nenhuma anotação.</p>'}</div>`}`);
 
   const re = () => admTarefas();
+  const tb = $('#tfBusca'); if (tb) tb.oninput = (e) => { S.buscaT = e.target.value; re(); const el = $('#tfBusca'); if (el) { el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } };
   $$('[data-tv]').forEach(b => b.onclick = () => { S.v = b.dataset.tv; re(); });
   const cliDe = (nome) => { const c = clientes.find(x => x.name.toLowerCase() === String(nome || '').trim().toLowerCase()); return { clienteKey: c ? c.key : '', clienteNome: String(nome || '').trim(), whats: c ? c.whats : '' }; };
   const tx = $('#tfTexto');

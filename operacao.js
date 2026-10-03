@@ -232,6 +232,26 @@ const Op = {
   },
   /* Emergencia: "o cliente chegou e nao acha o motorista". Ela digita um
      pedaco do nome, o voo ou o codigo e acha em segundos. */
+  /* BUSCA GERAL (pedido da Ingrid, 03/10): nome, palavra-chave ou os 4 últimos números do telefone,
+     em serviços, clientes, orçamentos, tarefas, anotações, guias/motoristas e parceiros */
+  procuraTudo(q) {
+    const n = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const s = n(q).trim(); if (s.length < 2) return null;
+    const dig = s.replace(/\D/g, '');
+    const tem = (...vs) => vs.some(v => v && n(v).includes(s)) || (dig.length >= 4 && vs.some(v => /\d{4}/.test(String(v || '')) && String(v).replace(/\D/g, '').includes(dig)));
+    const T = typeof Tarefas !== 'undefined' ? Tarefas.all() : [];
+    const R = {
+      servicos: Op.busca(q).slice(0, 8),
+      clientes: (typeof Cadastro !== 'undefined' ? Cadastro.all() : []).filter(c => tem(c.nome, c.whats, c.email, c.indicadoNome, c.pais)).slice(0, 8),
+      orcamentos: (typeof Orc !== 'undefined' ? Orc.all() : []).filter(o => tem(o.cliente.nome, o.cliente.whats, o.cliente.email, o.num, o.obs, (o.itens || []).map(x => x.desc).join(' '))).slice(0, 8),
+      tarefas: T.filter(t => t.tipo !== 'nota' && !t.feita && Tarefas.casa(t, q)).slice(0, 8),
+      notas: T.filter(t => t.tipo === 'nota' && Tarefas.casa(t, q)).slice(0, 6),
+      equipe: (typeof Equipe !== 'undefined' ? Equipe.all() : []).filter(p => tem(p.nome, p.whats, p.obs, (p.cidades || []).join(' '))).slice(0, 6),
+      parceiros: (typeof Parceiros !== 'undefined' ? Parceiros.all() : []).filter(p => tem(p.nome, p.cupom, p.contato)).slice(0, 6),
+    };
+    R.total = Object.values(R).reduce((a, l) => a + (Array.isArray(l) ? l.length : 0), 0);
+    return R;
+  },
   busca(q) {
     const n = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     const s = n(q).trim(); if (s.length < 2) return [];
@@ -1454,6 +1474,14 @@ const Tarefas = {
       semData: abertas.filter(t => !t.prazo),
       feitas: Tarefas.all().filter(t => t.tipo === 'tarefa' && t.feita).sort((a, b) => (b.feitaEm || '').localeCompare(a.feitaEm || '')).slice(0, 30),
     };
+  },
+  /* a tarefa/anotação casa com a busca? nome, palavra do texto/detalhe/cliente ou 4 últimos números do telefone */
+  casa(t, q) {
+    const n = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const s = n(q).trim(); if (!s) return true;
+    const dig = s.replace(/\D/g, '');
+    if ([t.texto, t.detalhe, t.nota, t.clienteNome, t.obsFim].some(v => v && n(v).includes(s))) return true;
+    return dig.length >= 4 && String(t.whats || '').replace(/\D/g, '').includes(dig);
   },
   notas(busca) {
     const n = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
