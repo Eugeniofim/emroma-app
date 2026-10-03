@@ -26,6 +26,9 @@ var APP_CONFIG = {
      prontos (modo demonstracao). Na entrega, troca pela chave dela. */
   cofre: 'https://uopfqlogjzuqpabptxkb.supabase.co/functions/v1/cofre',
   clienteCofre: 'ingrid',
+  /* O app mudou de endereço (03/10/2026): quando isto tiver o endereço novo, o site antigo
+     avisa e leva pra lá (depois de subir tudo que estava pendente). Vazio = desligado. */
+  novoEndereco: 'https://app.emroma.com',
 
   guia: {
     nome: 'Ingrid',

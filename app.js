@@ -3199,6 +3199,8 @@ route();
   if (location.hostname === alvo.hostname) return;   // já está no endereço novo
   const destino = () => novo + '/' + location.hash;
   if (!location.hash.startsWith('#/adm')) { location.replace(destino()); return; }
+  /* saiu do ADM pro site (sem recarregar): o site mora no endereço novo */
+  addEventListener('hashchange', () => { if (!location.hash.startsWith('#/adm')) location.replace(destino()); });
   const pendente = () => {
     let n = 0;
     try { n += (typeof qAll === 'function' ? qAll().length : 0); } catch (e) {}
