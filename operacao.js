@@ -1717,6 +1717,8 @@ function pacoteBackup() {
     precos: DB.precos || [], conversas: DB.conversas || {},
     /* a ficha dos arquivos (comprovantes, documentos — o arquivo mesmo fica no Drive) */
     arquivos: DB.arquivos || [],
+    /* o diário do assistente (o que foi feito e decidido, dia a dia) */
+    iaDiario: DB.iaDiario || [],
   };
 }
 function resumoBackup(p) {
@@ -1742,6 +1744,7 @@ function restauraBackup(txt) {
     clientes: p.clientes || [], parceiros: p.parceiros || [], pontos: p.pontos || [], interesse: p.interesse || {},
     precos: Array.isArray(p.precos) ? p.precos : [], conversas: (p.conversas && typeof p.conversas === 'object') ? p.conversas : {},
     arquivos: Array.isArray(p.arquivos) ? p.arquivos : [],
+    iaDiario: Array.isArray(p.iaDiario) ? p.iaDiario : [],
   });
   novo.cadastroFeito = Array.isArray(p.clientes) ? 1 : 0; novo.parceirosSeed = 1; novo.pontosSeed = 1;
   novo.settings = fillSettings(p.configuracoes || {});

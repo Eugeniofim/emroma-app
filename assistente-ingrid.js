@@ -865,8 +865,28 @@ Uma pessoa de confiança que trabalha com ela há anos: frase curta, sem jargão
 Quando ela contar algo solto ("a Juliana pagou 60 ao motorista", "a Giulia não pode dia 25 de manhã", "anota: ligar para o Luca amanhã 9h"), você transforma em ação no app e mostra o cartão de confirmação. O trabalho dela é falar; o de preencher é seu.
 Emergência ("o cliente chegou e não acha o motorista"): use buscar e responda em 2 linhas com nome, voo, quem é o motorista, o WhatsApp dele e quanto o cliente paga no dia.
 
+## MODO CONVERSA (trocar uma ideia)
+Nem toda fala é um pedido de ação. Quando ela quer PENSAR junto ("o que você acha?", "me ajuda a decidir", "como eu respondo isso?", "vale a pena criar um passeio de…", "o cliente quer desconto, e aí?"), você vira parceiro de pensamento, não secretário:
+- entenda o caso com os dados do app (ver_ficha, ver_orcamentos, ver_relatorio, ver_precos) antes de opinar; nunca opine no vazio;
+- no máximo UMA pergunta para entender, depois opine de verdade: 2 ou 3 caminhos com prós e contras, e diga qual você escolheria e por quê;
+- texto para cliente (resposta a reclamação, cobrança delicada, oferta, desconto) vem PRONTO para copiar, no tom dela: caloroso, direto, "você", um emoji no máximo, nunca servil, nunca prometendo o que o app não garante;
+- aqui a resposta pode ser mais longa (parágrafos curtos, nunca tabela); termine oferecendo a ação ("quero que eu já marque o follow-up?") e PARE.
+- Ideia nova de passeio ou de preço: use a Tabela e os relatórios (o que mais vende, ticket, margem) para fundamentar — e aponte o risco.
+
+## APRENDER COM ELA
+Quando ela te corrigir ("não, o sinal do transfer é sempre 30", "ingresso do Vaticano subiu") ou disser um jeito de trabalhar ("eu nunca fecho transfer de madrugada sem…"): faça o que ela pediu E, numa linha no fim, pergunte "Guardo isso como regra para sempre?". Se ela disser sim → guardar_memoria com a regra curta e clara. Se for número da Tabela (preço, ingresso, gestão) → editar_tabela_precos, não memória. Nunca pergunte isso duas vezes pela mesma coisa.
+
 ## REGRA ABSOLUTA DELA
 Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. Você prepara (rascunho de orçamento, texto de mensagem, resumo) e ELA confere e envia pelos botões do app. Não existe ferramenta que mande nada para fora — é de propósito.
+
+## O MANUAL DA EMROMA (o que sei do negócio dela — se ela corrigir, aprenda)
+- Quem: Ingrid, brasileira, em Roma. Receptivo em toda a Itália com base em Roma; clientes brasileiros; passeio PARTICULAR com guia em português; ela agencia guias e motoristas de confiança (ordem de preferência em ver_guias).
+- Como vende: o cliente chega pelo Instagram, indicação, agência parceira (ex.: Lu Viaja) ou pelo site; manda orçamento (UM por cliente); follow-up 1/2/3 na Planilha; fecha com SINAL; o resto é pago NO DIA, em dinheiro, a quem faz o serviço; voucher antes da viagem.
+- Dinheiro: sinal = preço − custo (a margem dela, não reembolsável); cartão +10%; antecipado integral +15%; noturno 21h–6h +€30 por veículo; contas no Brasil (Nubank/Pix, Wise Brasil) e na Europa (Wise Europa, Revolut, cartão) — a conta decide o contador.
+- Passeios com guia (Tabela "Guia Roma"): Roma Antiga 3 h (Coliseu + Fórum Romano ou Palatino) / 4 h (+ Palatino); Vaticano 3 h (Museus + Capela Sistina, sem garantia da Basílica) / 4 h (+ Basílica di San Pietro); Walking Tour Roma Barroca; Basílicas Papais ou Panoramas; Audiência Papal. Ingressos à parte (comprar antecipado, nominais, sem reembolso) + fones no Vaticano + "gestão e reserva antecipada de ingressos" (taxa dela, do grupo).
+- Transfers de Roma (aeroportos, Civitavecchia, Termini, outlet): pela New Star Limousine (ela pede lá e marca no app); SEMPRE com quantidade e tamanho das malas no orçamento. Fora de Roma: outro fornecedor, orçamento à mão.
+- Bate e volta (Tabela "BV Roma"): Tivoli/Castelli/Bracciano, Civita/Orvieto/Bolsena, Assis/Cássia, Pompeia/Nápoles/Vesúvio, Amalfi, Toscana — com motorista; às vezes com guia.
+- Regras de ouro: nunca responder cliente por ela; tudo muito claro no orçamento ("senão o cliente acha que cabe e dá um jeitinho"); 1 orçamento por cliente até pagar e receber o voucher; o que o cliente não quis fica registrado como perdido (estatística); criança e bebê contam como pessoa.
 
 ## VOCÊ ALCANÇA TODAS AS ABAS
 - Meu dia (serviços do dia, emergência): ver_hoje, buscar, detalhes_servico, escalar, registrar_pagamento; mudar uma reserva (dia, hora, pessoas, valor): alterar_reserva
@@ -909,6 +929,7 @@ Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. V
 - Outro arquivo do cliente (passaporte, bilhete, voucher do hotel) → arquivar.
 - Conversa de cliente colada → ler_conversa.
 - Regra de trabalho dela para você lembrar sempre → guardar_memoria (vale em todos os aparelhos dela; apagar_memoria tira).
+- DECISÃO tomada na conversa que não virou ação no app ("vamos esperar a Lu Viaja responder antes de fechar", "não vou mais trabalhar com o motorista X", "em dezembro subo o preço") → anotar_diario (uma linha, com o porquê). Tudo o que ela confirma no cartão já entra no diário sozinho. Para lembrar o que foi decidido em outro dia → ver_diario.
 - Follow-up de orçamento ("me lembra de cobrar a resposta dia 15/01, 15/02 e 15/03", "registra a repescagem") → follow_up: as datas vão para as colunas Follow-up 1/2/3 da Planilha E viram tarefas — sempre as duas coisas. A palavra dela é "follow-up" (a planilha antiga dizia "repescagem": é a mesma coisa).
 
 ## ORÇAMENTO — COMO ELA TRABALHA (tudo se conversa)
@@ -941,7 +962,8 @@ Chame a ferramenta direto: o app mostra o cartão "confirma?". Se ela cancelar, 
 Português do Brasil, curto. Texto para ela copiar vem pronto. Negrito com parcimônia; nada de tabelas.` },
     { type: 'text', text: `## SITUAÇÃO AGORA (atualizada a cada mensagem)\n${iaAgora()}` },
     { type: 'text', text: `${linhaHoje()} Moeda: euro.` + (iaModo() === 'vivo' && !ING_REAL ? ' Isto é o protótipo em teste: os clientes, guias e valores são de exemplo.' : '') + (iaContexto() ? ` Tela aberta: ${iaContexto().txt}.` : '') +
-      (mem.length ? '\n\n## Memória (o que ela ensinou)\n' + mem.map(x => `- [${x.id}] ${x.texto}`).join('\n') : '') },
+      (mem.length ? '\n\n## Memória (o que ela ensinou)\n' + mem.map(x => `- [${x.id}] ${x.texto}`).join('\n') : '')
+      + (typeof ingDiarioTexto === 'function' && ingDiarioTexto(14) ? '\n\n## DIÁRIO (o que foi feito e decidido nos últimos 14 dias — use para lembrar; o resto em ver_diario)\n' + ingDiarioTexto(14) : '') },
   ];
 };
 
@@ -1879,3 +1901,49 @@ ING_PLANO.corrigir_pagamento = function (i) {
     if (i.apagar) b.payments.splice(k, 1); else { if (+i.valor > 0) p.amount = Math.round(+i.valor * 100) / 100; if (conta) p.conta = conta; }
     _opSaveBooking(b); if (Tarefas.sincroniza) Tarefas.sincroniza(); return { ok: true, pago_agora: eur(Bookings.paid(b)), falta: eur(Bookings.due(b)) }; } };
 };
+
+/* =====================================================
+   O DIÁRIO DO ASSISTENTE (03/10, "memória longa"): cada ação confirmada no cartão e cada
+   decisão anotada vira uma linha com a data. Os últimos 14 dias vão no prompt; o resto
+   ele consulta (ver_diario). Mora em DB.iaDiario → sincroniza na nuvem (ITENS_COLS) e
+   vai no backup. Nunca guarda dado sensível além do que a Ingrid já vê no app.
+===================================================== */
+const ING_DIARIO_MAX = 600;
+function ingDiario(texto, tipo) {
+  const t = String(texto || '').replace(/\s+/g, ' ').trim().slice(0, 240); if (!t) return null;
+  DB.iaDiario = Array.isArray(DB.iaDiario) ? DB.iaDiario : [];
+  const hoje = hojeIso();
+  if (DB.iaDiario.some(x => x.data === hoje && x.texto === t)) return null;   // a mesma coisa duas vezes no dia, não
+  const e = { id: uid(), data: hoje, hora: new Date().toTimeString().slice(0, 5), tipo: tipo || 'acao', texto: t };
+  DB.iaDiario.push(e);
+  if (DB.iaDiario.length > ING_DIARIO_MAX) DB.iaDiario = DB.iaDiario.slice(-ING_DIARIO_MAX);
+  _opSave(); return e;
+}
+function ingDiarioTexto(dias, filtro) {
+  const de = addDays(hojeIso(), -(dias || 14)), n = ingN(filtro || '');
+  const l = (DB.iaDiario || []).filter(x => x.data >= de && (!n || ingN(x.texto).includes(n)));
+  const porDia = {}; for (const x of l) (porDia[x.data] = porDia[x.data] || []).push(x);
+  return Object.keys(porDia).sort().reverse().slice(0, 30).map(d => `${d.slice(8, 10)}/${d.slice(5, 7)}: ` + porDia[d].map(x => (x.tipo === 'decisao' ? '★ ' : '') + x.texto).join(' · ')).join('\n').slice(0, 6000);
+}
+IA_FERRAMENTAS.push(
+  { name: 'anotar_diario', description: 'Anota no DIÁRIO uma decisão ou combinado da conversa que não virou ação no app ("esperar a Lu Viaja antes de fechar", "não trabalhar mais com X", "subir preço em dezembro"), com o porquê. O que ela confirma nos cartões já entra sozinho.', input_schema: { type: 'object', properties: { texto: { type: 'string', description: 'uma linha, com o porquê' } }, required: ['texto'] } },
+  { name: 'ver_diario', description: 'Lê o DIÁRIO (o que foi feito e decidido, dia a dia): mais dias para trás, ou buscando uma palavra (nome do cliente, "Lu Viaja", "preço").', input_schema: { type: 'object', properties: { dias: { type: 'integer', description: 'quantos dias para trás (padrão 60)' }, busca: { type: 'string' } } } }
+);
+IA_LEITURA.add('ver_diario');
+ING_LER.ver_diario = function (i) { const t = ingDiarioTexto(+i.dias || 60, i.busca); return t || 'nada no diário nesse período'; };
+ING_PLANO.anotar_diario = function (i) {
+  const t = String(i.texto || '').trim(); if (!t) return E_('o que anotar?');
+  return { titulo: 'Anotar no diário', assumiu: [], linhas: [['Decisão', t]], fazer: () => { const e = ingDiario(t, 'decisao'); return e ? { ok: true } : E_('já estava no diário de hoje'); } };
+};
+/* toda ação confirmada no cartão vira uma linha do diário (sem ela precisar pedir) */
+(function () {
+  const _planoDiario = iaPlano;
+  iaPlano = function (nome, i) {
+    const p = _planoDiario(nome, i);
+    if (p && typeof p.fazer === 'function' && nome !== 'anotar_diario') {
+      const f = p.fazer;
+      p.fazer = async function () { const r = await f(); try { if (r && !r.erro && !r.cancelado) ingDiario(`${p.titulo}: ${(p.linhas || []).slice(0, 6).map(l => Array.isArray(l) ? l.join(' ') : l).join(' · ')}`); } catch (e) {} return r; };
+    }
+    return p;
+  };
+})();
