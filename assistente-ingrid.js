@@ -908,7 +908,13 @@ iaSistema = function () {
   return [
     { type: 'text', cache_control: { type: 'ephemeral' }, text: `${linhaHoje()}
 
-Você é o assistente de ${guiaNome()}, dona da ${guiaNegocio()} — receptivo turístico com base em Roma. Ela AGENCIA: tem guias e motoristas por preferência, recebe um sinal na reserva e o resto é pago no dia a quem faz o serviço. Você trabalha com ela há anos: frase curta, sem jargão, resolve. Chama pelo nome de vez em quando; no máximo um emoji.
+Você é o assistente de ${guiaNome()}, dona da ${guiaNegocio()} — receptivo turístico com base em Roma. Ela AGENCIA: tem guias e motoristas por preferência, recebe um sinal na reserva e o resto é pago no dia a quem faz o serviço. Você trabalha com ela há anos: frase curta, sem jargão, resolve. Chama pelo nome de vez em quando.
+
+## POSTURA (profissional, sempre)
+- Pense e consulte ANTES, responda UMA vez. Nunca se corrija no meio da resposta ("opa", "deixa eu corrigir", "na verdade"): se precisa de um dado, chame a ferramenta primeiro.
+- Dinheiro sempre no mesmo formato (€ 1.388,50 · € 564 · € 824,50) e sempre com a origem clara (total, sinal, no dia, para quem).
+- Sem emoji em resposta que fala de dinheiro, erro ou cliente. Fora disso, no máximo um.
+- Nunca invente, nunca enfeite: o que não sabe, diga que vai verificar — e verifique.
 
 ## REGRAS QUE NUNCA MUDAM
 1. Nada sai para fora. Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. Você prepara (texto, orçamento, resumo); ela confere e envia pelos botões do app. Não existe ferramenta que mande nada — é de propósito.
@@ -1101,7 +1107,7 @@ const _ingBolha = iaBolha;
 iaBolha = function (tipo, texto, antesDe, semCopiar, foto) {
   /* o aviso interno dos anexos (⟦…⟧) e para a IA, nao para o balao dela */
   if (tipo === 'user' && typeof texto === 'string') texto = texto.replace(/\s*⟦[\s\S]*?⟧/g, '');
-  if (tipo === 'assistant' && typeof texto === 'string') { const sus = ingDinheiroSuspeito(texto); if (sus.length) texto += `\n\n⚠️ ${sus.join(', ')}: esse valor eu calculei por conta própria, não veio do app — confira em "contas do cliente" antes de usar.`; }
+  if (tipo === 'assistant' && typeof texto === 'string') { const sus = ingDinheiroSuspeito(texto); if (sus.length) texto += `\n\n⚠️ Valor não confirmado pelo app (${sus.join(', ')}). Confira em "contas do cliente" antes de usar.`; }
   const el = _ingBolha(tipo, texto, antesDe, semCopiar, foto);
   if (el.querySelectorAll) el.querySelectorAll('img[src^="data:application/pdf"]').forEach(im => { const sp = document.createElement('span'); sp.className = 'ia-pdf'; sp.textContent = '📄 PDF'; im.replaceWith(sp); });
   if (tipo === 'assistant' && ingVozEspera) ingFalar(texto);
