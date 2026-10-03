@@ -203,6 +203,20 @@ function ingContas(o) {
 }
 /* passeio com guia (da Tabela): põe os ingressos, os fones e a gestão junto — pedido dela de 02/10.
    Devolve quantas linhas entraram. pessoas: adultos/idades da fala dela (sem idade = adultos) */
+/* IDADES NO TEXTO (teste ao vivo de 03/10: o cartão dizia "2 adultos + 1 criança 10 anos" e os ingressos
+   saíram "para 3 adultos" porque a IA pôs a idade só em pessoas_nota). Se idades/adultos não vieram,
+   lê do texto: "10 anos" → 10; "bebê" sem idade → 0; "N adultos" → adultos. Devolve {adultos, idades} ou null. */
+function ingIdadesDaNota(i) {
+  if (!i || (Array.isArray(i.idades) && i.idades.length) || i.adultos != null) return null;
+  const t = ingN(i.pessoas_nota || '');
+  if (!t) return null;
+  const idades = [...t.matchAll(/(\d{1,2})\s*(?:anos|ano|a)\b/g)].map(m => +m[1]).filter(v => v >= 0 && v < 18);
+  const bebes = (t.match(/\bbebe/g) || []).length - idades.filter(v => v <= 2).length;
+  for (let k = 0; k < bebes; k++) idades.push(0);
+  if (!idades.length) return null;
+  const ad = t.match(/(\d{1,2})\s*adult/); const adultos = ad ? +ad[1] : null;
+  return { adultos, idades };
+}
 function ingComExtras(o, guias, i) {
   const antes = o.itens.length;
   for (const g of guias || []) if (g.precoRef) Orc.comExtras(o, g, { pax: g.pax, adultos: i && i.adultos, idades: i && i.idades });
@@ -555,6 +569,7 @@ const ING_PLANO = {
     const ja = Orc.abertosDoCliente({ id: '', cliente: { nome: i.cliente, whats: i.whats } });
     if (ja.length && !i.novo) return E_(`${i.cliente} já tem ${ja.map(x => x.num + ' (' + x.status + ')').join(', ')} em aberto. A regra dela é 1 orçamento por cliente até pagar e receber o voucher: use editar_orcamento no ${ja[0].num}. Só crie outro (novo: true) se ela pedir isso explicitamente.`);
     const itens = [], assumiu = [];
+    const lida = typeof ingIdadesDaNota === 'function' ? ingIdadesDaNota(i) : null; if (lida) { i.idades = lida.idades; if (lida.adultos != null) i.adultos = lida.adultos; assumiu.push(`idades lidas do texto: ${lida.idades.map(v => v ? v + ' anos' : 'bebê').join(', ')} (ingressos por idade)`); }
     for (const it of i.itens || []) {
       if (it.preco_ref && typeof Precos !== 'undefined') {
         /* a linha certa da Tabela de preços: valor, sinal (= preço − custo) e custo vêm de lá */
@@ -594,6 +609,7 @@ const ING_PLANO = {
   editar_orcamento(i) {
     const r = ingAchaOrc(i.numero); if (!r.o) return r;
     const o = r.o, itens = o.itens.map(x => ({ ...x })), cli = { ...o.cliente }, linhas = [['Orçamento', `${o.num} · ${o.cliente.nome}`]];
+    const lida = typeof ingIdadesDaNota === 'function' ? ingIdadesDaNota(i) : null; if (lida) { i.idades = lida.idades; if (lida.adultos != null) i.adultos = lida.adultos; linhas.push(['Idades (do texto)', lida.idades.map(v => v ? v + ' anos' : 'bebê').join(', ')]); }
     if (i.cliente) { cli.nome = i.cliente; linhas.push(['Cliente', i.cliente]); }
     if (i.whats) { cli.whats = i.whats; linhas.push(['WhatsApp', i.whats]); }
     if (i.email) { cli.email = i.email; linhas.push(['E-mail', i.email]); }
@@ -956,7 +972,7 @@ Meu dia: ver_hoje, buscar · Orçamentos (Sob consulta): ver_orcamentos, ler_con
 2. criar_orcamento ou editar_orcamento com preco_ref: valor, sinal e custo entram certos. Passeio com guia traz ingressos, fones e gestão sozinho — não escreva essas linhas. Carro OU minivan do mesmo trajeto, e 3 h OU 4 h do mesmo dia, viram OPÇÕES sozinhas (o total não soma as duas).
 3. Responda com as contas que a ferramenta devolveu e os serviços numerados. A descrição vem pronta da Tabela: não acrescente pessoas nem "Transfer Roma".
 4. Cliente escolheu → editar_orcamento acao "escolher" (não fecha: "anotei a escolha"). Não quis um serviço → editar_orcamento acao "tirar": fica no orçamento como PERDIDO (sai do total, fica na estatística dela); "voltar" se ele quiser de novo; "apagar" só erro de digitação. Fechou → fechar_orcamento (sinal_recebido + conta só se já caiu). "Fechado" só depois disso.
-Orçamento repetido do mesmo cliente → apagar_orcamento (pergunte qual fica; traga antes os serviços que faltarem com editar_orcamento). Bebê e criança contam como pessoa (escreva em pessoas_nota e lembre de carrinho e malas). 21h–6h é tarifa noturna sozinha. Desconto da "Transfer Roma 5%" só quando ela pedir. O orçamento nunca mostra o custo.
+Orçamento repetido do mesmo cliente → apagar_orcamento (pergunte qual fica; traga antes os serviços que faltarem com editar_orcamento). Bebê e criança contam como pessoa: escreva em pessoas_nota E passe as idades em idades (números) com adultos — é isso que faz o ingresso sair certo (criança grátis ou reduzido); lembre de carrinho e malas. 21h–6h é tarifa noturna sozinha. Desconto da "Transfer Roma 5%" só quando ela pedir. O orçamento nunca mostra o custo.
 Exemplo — "Monta pra Mariana, whats +55 27 99912-3306, 2 pessoas com 2 malas grandes, chegam 15/10 às 22h30 em Fiumicino, dia 16 Roma Antiga": ver_precos(transfer, 2, aeroporto) e ver_precos(guia, 2, roma antiga) → criar_orcamento(cliente Mariana, whats, bagagem "2 malas grandes", itens: carro 15/10 22:30, minivan 15/10 22:30, Roma Antiga 3 h 16/10, Roma Antiga 4 h 16/10, cada um com seu preco_ref) → "Montei o ORC-0012 da Mariana: transfer noturno (carro ou minivan) e Roma Antiga 3 h ou 4 h, com ingressos e gestão. A partir de [total], sinal [sinal]. Marco o follow-up padrão?"
 
 ## MODO CONVERSA (trocar uma ideia)
