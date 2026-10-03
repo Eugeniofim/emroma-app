@@ -275,10 +275,28 @@ function go(h) {
   if (location.hash === '#' + h) route();
   else location.hash = h;
 }
+/* APARELHO NOVO COM NUVEM (03/10/2026): o app nasce EM BRANCO de propósito (store.js load) e só
+   depois recebe a nuvem. No endereço novo (app.emroma.com) todo primeiro acesso via a capa
+   vazia — sem foto, sem passeios, texto de fábrica — por uns segundos, e para sempre se a
+   nuvem não respondesse. Agora, enquanto a nuvem não chega, o visitante vê "carregando"; o
+   relógio da nuvem (cloudStart) insiste sozinho e, quando chega, desenha a tela certa. */
+let NUVEM_ESPERANDO = typeof temNuvem === 'function' && temNuvem() && !(DB.tours || []).length;
+function viewCarregando(demorou) {
+  const g = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.guia) || {};
+  app.innerHTML = `<div class="hub"><div class="hub-in"><div class="vcard carregando">
+      <div class="hub-brand">${logoFull({ mark: 46, sub: esc(g.cidade || '') })}</div>
+      <p class="tagline">${demorou
+        ? (LANG === 'en' ? 'Still loading… check your connection.' : 'Ainda carregando… confira a sua internet.')
+        : (LANG === 'en' ? 'Loading…' : 'Carregando…')}</p>
+      ${demorou ? `<button class="mini" onclick="location.reload()">${LANG === 'en' ? 'Try again' : 'Tentar de novo'}</button>` : '<div class="carregando-barra"><i></i></div>'}
+    </div></div></div>`;
+}
 function route() {
   Coach.hide();
   const h = location.hash.slice(2) || '';
   const p = h.split('/');
+  /* primeiro acesso, nuvem ainda não chegou: nada de capa vazia (login e ADM seguem normais) */
+  if (NUVEM_ESPERANDO && !['adm', 'login', 'novasenha'].includes(p[0])) { viewCarregando(route._demorou); return; }
   if (p[0] !== 'adm' && typeof visualAplica === 'function') visualAplica(false);
   document.documentElement.lang = LANG === 'pt' ? 'pt-BR' : 'en';
   if (p[0] === 'novasenha') viewNewPass();
@@ -3156,6 +3174,8 @@ if (typeof fxAtualiza === 'function') {
 
 /* ---------- nuvem ---------- */
 cloudStart((r) => {
+  /* a primeira resposta da nuvem num aparelho novo: agora sim tem o que mostrar */
+  if (NUVEM_ESPERANDO) { NUVEM_ESPERANDO = false; route(); return; }
   if (r.bootstrap || r.semMudanca || r.segurando || r.vazio) return;
   if (r.fresh && r.fresh.length && location.hash.startsWith('#/adm')) {
     const b = r.fresh[r.fresh.length - 1];
@@ -3166,6 +3186,9 @@ cloudStart((r) => {
 route();
 });
 
+
+/* passou de 12 s sem a nuvem: avisa (o relógio continua tentando; chegando, a tela se desenha) */
+if (NUVEM_ESPERANDO) setTimeout(() => { if (NUVEM_ESPERANDO) { route._demorou = true; route(); } }, 12000);
 
 /* FAIXA DE DEMONSTRACAO — enquanto nao ha banco.
 

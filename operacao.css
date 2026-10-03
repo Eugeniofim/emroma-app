@@ -761,3 +761,10 @@ a.orc-row:hover .tinfo b{text-decoration:underline}
 /* 1 orçamento por cliente: o aviso no editor */
 .orc-dup{display:flex;flex-direction:column;gap:10px;margin:8px 0 14px}
 .orc-dup-acts{display:flex;flex-wrap:wrap;gap:8px}
+
+/* primeiro acesso num aparelho novo: "carregando" no lugar da capa vazia (03/10) */
+.vcard.carregando{min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.carregando-barra{width:140px;height:4px;border-radius:4px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:14px}
+.carregando-barra i{display:block;width:40%;height:100%;border-radius:4px;background:var(--highlight,#FFD23F);animation:carregaVai 1.1s ease-in-out infinite alternate}
+@keyframes carregaVai{from{transform:translateX(-30%)}to{transform:translateX(230%)}}
+@media(prefers-reduced-motion:reduce){.carregando-barra i{animation:none;width:100%}}
