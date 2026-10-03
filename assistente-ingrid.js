@@ -848,7 +848,9 @@ iaSaudacao = function () {
   l.push(hj.length ? `Hoje ${hj.length === 1 ? 'tem 1 serviço' : `são ${hj.length} serviços`}${semGuia ? `, ${semGuia} ainda sem guia/motorista` : ''}.` : 'Hoje não tem serviço.');
   if (G.atrasadas.length || G.hoje.length) l.push(`${G.hoje.length} tarefa(s) para hoje${G.atrasadas.length ? ` e ${G.atrasadas.length} atrasada(s)` : ''}.`);
   if (dev.length) l.push(`${dev.length} cliente(s) devem ${eur(dev.reduce((s, d) => s + d.total, 0))}.`);
-  l.push('É só falar: "quem está livre amanhã de manhã?", "anota ligar para o Luca às 9h", "a Juliana pagou 60 ao motorista".');
+  const urg = ingSugestoes().filter(x => x.urg <= 1).slice(0, 2);
+  if (urg.length) l.push(`Sugiro começar por: ${urg.map(x => x.rot.replace(/^🎟 /, 'ingressos de ')).join(' e ')} — é só tocar aqui embaixo.`);
+  else l.push('É só falar: "quem está livre amanhã de manhã?", "anota ligar para o Luca às 9h", "a Juliana pagou 60 ao motorista".');
   return l.join('\n');
 };
 iaSistema = function () {
@@ -1302,38 +1304,88 @@ iaDesenha = function () {
   const g = iaEl && iaEl.g; if (!g) return;
   if ((ingSemFoco || document.body.classList.contains('ia-dock')) && document.activeElement && document.activeElement.id === 'iaTxt' && foco && foco.id !== 'iaTxt') { try { document.activeElement.blur(); if (foco && foco.focus) foco.focus(); } catch (e) {} }
   const f = g.querySelector('#iaForm');
-  if (f && !g.querySelector('.iaBarra') && !iaMostrandoChave) {
-    f.insertAdjacentHTML('beforebegin', `<div class="iaBarra" role="group" aria-label="Atalhos">${ingAtalhos().map((a, k) => `<button type="button" class="iaBarraB${a.novo ? ' novo' : ''}" data-at="${k}">${esc(a.rot)}</button>`).join('')}</div>`);
-    const lista = ingAtalhos();
-    g.querySelectorAll('.iaBarraB').forEach(bt => bt.onclick = () => {
-      const a = lista[+bt.dataset.at]; if (!a || iaOcupado) return;
-      const ta = g.querySelector('#iaTxt');
-      if (a.escreve) { ta.value = a.escreve; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); ta.dispatchEvent(new Event('input', { bubbles: true })); return; }
-      if (iaModo() === 'demo' && typeof iaCenarios === 'function') { const c = iaCenarios().find(x => x.pede === a.pede); if (c && typeof iaRodaCenario === 'function') return iaRodaCenario(c); }
-      iaConversa(a.pede);
-    });
-  }
+  if (f && !g.querySelector('.iaBarra') && !iaMostrandoChave) f.insertAdjacentHTML('beforebegin', '<div class="iaBarra" role="group" aria-label="Sugestões"></div>');
+  ingSugestoesPinta();
   const lb = g.querySelector('#iaLimpa');
   if (lb && !lb.dataset.pergunta) { const orig = lb.onclick; lb.dataset.pergunta = '1';
     lb.onclick = (e) => { if (confirm('Começar uma conversa nova?\n\nA memória continua — o que você me ensinou (as regras, os passeios, os ingressos) eu não esqueço.')) return orig && orig.call(lb, e); }; }
   const ta = g.querySelector('#iaTxt');
   if (ta && f && !ta.dataset.temTxt) { ta.dataset.temTxt = '1'; const marca = () => f.classList.toggle('tem-txt', !!ta.value.trim()); ta.addEventListener('input', marca); marca(); }
 };
-/* os atalhos dela (com o número do dia, como o "Hoje N" do TI ARTES) */
-function ingAtalhos() {
-  const hoje = hojeIso(); let nHoje = 0, nTar = 0, nDev = 0;
-  try { nHoje = Op.doDia(hoje).length; } catch (e) {}
-  try { const G = Tarefas.grupos(hoje); nTar = G.atrasadas.length + G.hoje.length; } catch (e) {}
-  try { nDev = Lembretes.devedores(hoje).length; } catch (e) {}
-  return [
-    { rot: `Hoje${nHoje ? ' ' + nHoje : ''}`, pede: 'O que tenho hoje?' },
-    { rot: `Tarefas${nTar ? ' ' + nTar : ''}`, pede: 'Quais tarefas e follow-ups eu tenho para hoje e para esta semana?' },
-    { rot: 'Livre amanhã', pede: 'Quem está livre amanhã de manhã em Roma?' },
-    { rot: `Quem me deve${nDev ? ' ' + nDev : ''}`, pede: 'Quem está me devendo e quanto?' },
-    { rot: 'Orçamentos abertos', pede: 'Quais orçamentos estão em aberto esperando resposta?' },
-    { rot: '+ Orçamento', escreve: 'Monta um orçamento para ', novo: 1 },
-    { rot: '+ Tarefa', escreve: 'Anota: ', novo: 1 },
-  ];
+/* SUGESTÕES PROATIVAS (pedido do Eugênio, 03/10): a fileira de chips não é fixa — ela
+   nasce do que precisa dela AGORA (cobrança atrasada, follow-up vencido, pedido esperando
+   orçamento, serviço de amanhã sem guia, ingresso por comprar, transfer não pedido), com
+   nome e valor, do mais urgente (urg 0) ao de rotina (urg 2), mais atalhos que mudam com a
+   tela. Sem gastar IA: tudo sai dos dados do app; a IA só entra quando ela toca. */
+function ingSugestoes() {
+  const hoje = hojeIso(), am = addDays(hoje, 1), out = [], nomes = new Set();
+  const pt = (d) => d ? d.slice(8, 10) + '/' + d.slice(5, 7) : '';
+  const curto = (b) => { const n = String(nomeDoServico(b) || ''); return /↔|aeroporto|civitavecchia|termini|outlet|transfer/i.test(n) ? 'transfer' : n.replace(/\s*[(·\-–—].*$/, '').trim().slice(0, 22); };
+  const pon = (x) => { if (x && x.rot && !nomes.has(x.rot)) { nomes.add(x.rot); out.push(x); } };
+  const T = (f) => { try { return f() || []; } catch (e) { return []; } };
+  /* 1. dinheiro atrasado */
+  for (const d of T(() => Lembretes.devedores(hoje)).filter(x => x.atrasado).slice(0, 2))
+    pon({ urg: 0, rot: `Cobrar ${opPrimeiro(d.nome)} ${eur(d.total)}`, pede: `Prepara a mensagem de cobrança para ${d.nome} (${eur(d.total)} atrasado)` });
+  /* 2. follow-up vencido (orçamento mandado e sem resposta) */
+  for (const t of T(() => Tarefas.all()).filter(t => !t.feita && t.orcId && (t.etapa === 'aguardar' || t.etapa === 'followup') && t.prazo && t.prazo <= hoje).slice(0, 2)) {
+    const o = Orc.get(t.orcId); if (!o || o.status === 'fechado' || o.status === 'perdido') continue;
+    pon({ urg: t.prazo < hoje ? 0 : 1, rot: `Follow-up: ${opPrimeiro(o.cliente.nome)}`, pede: `Prepara o follow-up do orçamento ${o.num} da ${o.cliente.nome} (mandado e sem resposta)` });
+  }
+  /* 3. pedido esperando orçamento */
+  for (const o of T(() => Orc.all()).filter(o => o.status === 'novo').slice(0, 2))
+    pon({ urg: 1, rot: `Orçamento p/ ${opPrimeiro(o.cliente.nome) || 'pedido novo'}`, pede: `Monta o orçamento ${o.num} da ${o.cliente.nome || 'cliente novo'} com o que o cliente pediu` });
+  for (const p of T(() => Roteiros.all()).filter(p => !p.respondido && !(DB.orcamentos || []).some(o => o.pedidoId === p.id)).slice(0, 1))
+    pon({ urg: 1, rot: `Roteiro p/ ${opPrimeiro(p.nome) || 'pedido'}`, pede: `Monta o orçamento do pedido de roteiro de ${p.nome || 'cliente'} (ver_orcamentos → pedidos_de_roteiro)` });
+  /* 4. serviço sem guia/motorista nos próximos 3 dias */
+  for (const b of T(() => Op.semPrestador(3)).slice(0, 2)) {
+    const papel = /transfer|↔/i.test(nomeDoServico(b)) ? 'motorista' : 'guia';
+    pon({ urg: b.date <= am ? 0 : 1, rot: `${papel === 'guia' ? 'Guia' : 'Motorista'} p/ ${curto(b)} ${b.date === hoje ? 'hoje' : b.date === am ? 'amanhã' : pt(b.date)}`,
+      pede: `Quem está livre ${b.date === hoje ? 'hoje' : b.date === am ? 'amanhã' : 'dia ' + pt(b.date)} às ${b.time} para o ${nomeDoServico(b)} da ${b.name}? Pode escalar a primeira livre.` });
+  }
+  /* 5. ingressos por comprar (7 dias) */
+  for (const b of T(() => DB.bookings).filter(b => b.status !== 'cancelled' && b.date >= hoje && b.date <= addDays(hoje, 7) && Op.precisaIngresso(b) && !b.ingressosOk).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 2))
+    pon({ urg: b.date <= addDays(hoje, 2) ? 0 : 1, rot: `🎟 ${opPrimeiro(b.name)} ${pt(b.date)}`, pede: `Os ingressos do ${b.name} de ${pt(b.date)} (${nomeDoServico(b)}): o que falta comprar e até quando?` });
+  /* 6. transfer não pedido na New Star (7 dias) */
+  const ncc = T(() => transfersDe(hoje, addDays(hoje, 7), 'roma')).filter(b => !b.ncc);
+  if (ncc.length) pon({ urg: 1, rot: `New Star: ${ncc.length} transfer${ncc.length > 1 ? 's' : ''}`, pede: 'Quais transfers ainda não pedi na New Star? Me dá os dados prontos para colar.' });
+  /* 7. amanhã: confirmar com quem faz */
+  const amN = T(() => Op.doDia(am)).filter(b => b.status !== 'cancelled' && b.prestadorId).length;
+  if (amN) pon({ urg: 2, rot: `Confirmar amanhã (${amN})`, pede: 'Prepara as mensagens para confirmar os serviços de amanhã com as guias e motoristas' });
+  /* 8. a tela em que ela está */
+  const c = typeof iaContexto === 'function' ? iaContexto() : null, aba = c ? c.aba : '';
+  const ctxIni = out.length;
+  if (aba === 'consulta' && c.arg) { pon({ urg: 2, rot: 'Conferir malas', pede: 'Neste orçamento, confere se o transfer está com a quantidade e o tamanho das malas certos para as pessoas e a bagagem' }); pon({ urg: 2, rot: 'Pôr ingressos', pede: 'Neste orçamento, confere se os passeios com guia estão com ingressos, fones e gestão' }); pon({ urg: 2, rot: 'Marcar follow-up', escreve: 'Marca o follow-up deste orçamento para ' }); }
+  else if (aba === 'planilha' || aba === 'pipeline') pon({ urg: 2, rot: 'Quem não respondeu?', pede: 'Quais orçamentos mandei e ainda estão sem resposta? Ordena pelo mais antigo.' });
+  else if (aba === 'conversas') pon({ urg: 2, rot: 'Quem espera resposta?', pede: 'Quem está esperando uma resposta minha agora?' });
+  else if (aba === 'clients' && c.arg) pon({ urg: 2, rot: 'Resumo deste cliente', pede: 'Me dá um resumo deste cliente: viagem, o que já pagou, o que falta e o que ele pediu' });
+  else if (aba === 'precos') pon({ urg: 2, rot: 'Mudar um preço', escreve: 'Muda na tabela de preços: ' });
+  else if (aba === 'money' || aba === 'reports') pon({ urg: 2, rot: 'Como está o mês?', pede: 'Como está o mês: o que entrou, o que falta receber e o que devo às guias?' });
+  const daTela = out.slice(ctxIni); daTela.forEach(x => { x.tela = true; });
+  /* 9. o de sempre */
+  let nHoje = 0; try { nHoje = Op.doDia(hoje).length; } catch (e) {}
+  pon({ urg: 2, rot: `Hoje${nHoje ? ' ' + nHoje : ''}`, pede: 'O que tenho hoje?' });
+  pon({ urg: 2, rot: '+ Orçamento', escreve: 'Monta um orçamento para ', novo: 1 });
+  pon({ urg: 2, rot: '+ Tarefa', escreve: 'Anota: ', novo: 1 });
+  /* até 7 chips: os urgentes primeiro, os da tela SEMPRE entram, o resto preenche */
+  const MAX = 7, urg = out.filter(x => x.urg <= 1).sort((a, b) => a.urg - b.urg).slice(0, Math.max(2, MAX - daTela.length - 1));
+  const resto = out.filter(x => !urg.includes(x) && !x.tela);
+  return [...urg, ...daTela, ...resto].slice(0, MAX);
+}
+const ingAtalhos = ingSugestoes;
+/* a fileira de chips se refaz quando os dados ou a tela mudam (sem piscar: só se mudou) */
+function ingSugestoesPinta() {
+  const g = iaEl && iaEl.g, barra = g && g.querySelector('.iaBarra'); if (!barra) return;
+  const lista = ingSugestoes(), chave = lista.map(a => a.rot + (a.urg)).join('|');
+  if (barra.dataset.chave === chave) return;
+  barra.dataset.chave = chave;
+  barra.innerHTML = lista.map((a, k) => `<button type="button" class="iaBarraB${a.novo ? ' novo' : ''}${a.urg === 0 ? ' urg' : a.urg === 1 ? ' aten' : ''}" data-at="${k}" title="${esc(a.pede || a.escreve || '')}">${esc(a.rot)}</button>`).join('');
+  g.querySelectorAll('.iaBarraB').forEach(bt => bt.onclick = () => {
+    const a = lista[+bt.dataset.at]; if (!a || iaOcupado) return;
+    const ta = g.querySelector('#iaTxt');
+    if (a.escreve) { ta.value = a.escreve; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); ta.dispatchEvent(new Event('input', { bubbles: true })); return; }
+    if (iaModo() === 'demo' && typeof iaCenarios === 'function') { const c = iaCenarios().find(x => x.pede === a.pede); if (c && typeof iaRodaCenario === 'function') return iaRodaCenario(c); }
+    iaConversa(a.pede);
+  });
 }
 /* a nuvem não espera ela terminar de digitar no assistente: o painel fica fora da tela que se redesenha */
 (function () {
@@ -1341,8 +1393,9 @@ function ingAtalhos() {
   iaEl.fab.onclick = () => iaAbre();                 // o motor tinha guardado a função antiga
   iaEl.g.querySelector('#iaFecha').onclick = () => iaFecha();
   let t = 0; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(() => iaAtualizaFab(), 120); });
-  addEventListener('hashchange', () => setTimeout(ingDockAplica, 60));
+  addEventListener('hashchange', () => setTimeout(() => { ingDockAplica(); ingSugestoesPinta(); }, 60));
   setInterval(ingDockAplica, 1500);
+  setInterval(ingSugestoesPinta, 20000);
   setTimeout(ingDockAplica, 50);
   const st = document.createElement('style');
   st.textContent = `
@@ -1372,6 +1425,8 @@ function ingAtalhos() {
   background:var(--surface);border:1px solid var(--line);color:var(--ink-2);cursor:pointer;transition:background .2s,border-color .2s}
 .iaBarraB:hover{background:var(--surface-2);border-color:var(--accent-line);color:var(--ink)}
 .iaBarraB.novo{color:var(--accent);border-color:var(--accent-line);background:var(--accent-wash)}
+.iaBarraB.urg{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,transparent);background:var(--danger-wash)}
+.iaBarraB.aten{color:var(--highlight-text,var(--ink));border-color:color-mix(in srgb,var(--warn,#b8860b) 45%,transparent);background:var(--warn-wash,var(--highlight-wash))}
 .iaBarraB:disabled{opacity:.5;cursor:default}
 /* o cartão "confirma?" vira uma fala do assistente (avatar, pílulas, Confirmar primeiro) */
 .iaCard{position:relative;margin-left:38px;border:1px solid var(--line);border-radius:18px;border-top-left-radius:6px;padding:12px 14px;
