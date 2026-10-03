@@ -34,6 +34,17 @@ function opBaixa(nome, linhas) {
   a.download = nome; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
+/* TABELA DE COMISSÕES: baixa o CSV e, com a pasta do Google Drive escolhida, grava em EmRoma › Relatórios */
+async function comissoesCsv(comToque) {
+  const linhas = Parceiros.csv(), nome = `${isoToday().replace(/-/g, '_')} comissoes parceiros.csv`;
+  opBaixa(nome, linhas);
+  let drive = '';
+  try {
+    const l = await drvLiberada(!!comToque);
+    if (!l.erro) { const csv = linhas.map(r => r.map(v => String(v ?? '').replace(/;/g, ',').replace(/\n/g, ' ')).join(';')).join('\r\n'); drive = await drvGrava(l.h, ['Relatórios'], nome, new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })); toast('📁 No Google Drive: ' + drive); }
+  } catch (e) {}
+  return { baixado: nome, drive, parceiros: Parceiros.all().length };
+}
 async function opCopia(txt) {
   try { await navigator.clipboard.writeText(txt); toast(L('Copiado', 'Copied')); }
   catch (e) { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast(L('Copiado', 'Copied')); }
@@ -994,6 +1005,7 @@ function crmColunas() {
     { g: 'par', ed: ed.comVendor, h: 'Comissão vendor', v: r => m(r.comVendor), c: 'mono right', soma: r => r.comVendor || 0 },
     { g: 'par', ed: ed.comIndic, h: 'Comissão indicação', v: r => m(r.comIndic), c: 'mono right', soma: r => r.comIndic || 0 },
     { g: 'st', ed: ed.status, h: 'Status', v: r => crmEtapaPill(r.etapa, r.status) },
+    { g: 'st', h: 'Dias p/ fechar', v: r => r.tipo === 'orcamento' && Orc.diasAteFechar ? String(Orc.diasAteFechar(r.o) ?? '') : '', c: 'mono right', titulo: 'do pedido até fechar (ou em aberto até hoje)' },
     { g: 'st', ed: ed.motivo, h: 'Motivo da perda', v: r => esc(r.motivo) },
     { g: 'rep', ed: edRep(1), h: 'Follow-up 1', v: rp(1), c: 'mono' }, { g: 'rep', ed: edRes(1), h: 'Resultado 1', v: rs(1) }, { g: 'rep', ed: edRep(2), h: 'Follow-up 2', v: rp(2), c: 'mono' }, { g: 'rep', ed: edRes(2), h: 'Resultado 2', v: rs(2) },
     { g: 'rep', ed: edRep(3), h: 'Follow-up 3', v: rp(3), c: 'mono' }, { g: 'rep', ed: edRes(3), h: 'Resultado 3', v: rs(3) },
@@ -2360,10 +2372,11 @@ function admRelatorios() {
       </section>
       <section class="card"><h3>Parcerias <small class="why">(desde o começo)</small></h3>
         ${parcs.length ? parcs.map(x => `<div class="deprow"><b>${esc(x.p.nome)}</b><small>${x.c.reservas} reserva(s) · ${eur(x.c.faturado)}</small><span class="pill ${x.c.saldo > 0 ? 'warn' : 'ok'}">${x.c.saldo > 0 ? 'comissão ' + eur(x.c.saldo) : '✓ em dia'}</span></div>`).join('') : '<p class="why">Nenhuma reserva veio por parceiro ainda.</p>'}
-        <a class="mini" href="#/adm/coupons">cupons e parcerias</a>
+        <a class="mini" href="#/adm/coupons">cupons e parcerias</a> · <button class="mini" id="rpComCsv" type="button">baixar tabela de comissões (CSV)</button>
       </section>
     </div>`;
   $('#stage').appendChild(extra);
+  const bc = $('#rpComCsv'); if (bc) bc.onclick = () => comissoesCsv(true);
   $$('[data-rp]').forEach(b => b.onclick = () => { S.p = b.dataset.rp; admRelatorios(); });
   $('#rpVer') && ($('#rpVer').onclick = () => { const de = $('#rpDe').value, ate = $('#rpAte').value; if (!de || !ate || de > ate) return toast('Escolha as duas datas (de ≤ até)'); S.de = de; S.ate = ate; S.p = 'custom'; admRelatorios(); });
   const desenha = () => {
@@ -2932,7 +2945,7 @@ function admParcerias() {
   const ed = S.ed ? Parceiros.get(S.ed) : null;
   const avulsos = DB.coupons.filter(c => !c.parceiroId);
   admShell('coupons', `
-    <div class="pagehead"><h1 class="pageh">Cupons e parcerias</h1></div>
+    <div class="pagehead"><h1 class="pageh">Cupons e parcerias</h1><button class="mini" id="parCsv" type="button">⬇ tabela de comissões (CSV)</button></div>
     <div class="rp-tiles">
       ${rpTile('Parceiros', String(ps.length), '', '', 'influencers, agências e parceiros')}
       ${rpTile('Reservas por parceiros', String(tot('reservas')), '', '', `${tot('clientes')} clientes trazidos`)}
@@ -2964,6 +2977,7 @@ function admParcerias() {
       <div class="frow"><label class="fld">Código<input id="cpC" placeholder="VOLTA10"></label><label class="fld sm">%<input type="number" id="cpP" value="10"></label><label class="fld">Validade<input type="date" id="cpV"></label><button class="mini strong" id="cpAdd">+ cupom</button></div>
     </section>`);
   const re = () => admParcerias();
+  const pc = $('#parCsv'); if (pc) pc.onclick = () => comissoesCsv(true);
   $('#pfSalva').onclick = () => {
     const r = Parceiros.salva({ id: S.ed, nome: $('#pfNome').value, tipo: $('#pfTipo').value, contato: $('#pfCont').value, cupom: $('#pfCupom').value,
       desconto: $('#pfDesc').value, comissao: $('#pfCom').value, obs: $('#pfObs').value });

@@ -33,6 +33,15 @@ const IA_CONFIRMA = 'guia_ia_confirma';
 const IA_MODELO = 'claude-haiku-4-5';
 const IA_PRECO = { in: 1, out: 5, cacheW: 1.25, cacheR: 0.10 };  /* US$ por milhão de tokens */
 const IA_MAX_VOLTAS = 10;
+/* o histórico guardado: resultado de ferramenta maior que isto é encolhido ao gravar (a resposta
+   já foi dada; a próxima mensagem não precisa reenviar 150 linhas da planilha), e o total tem teto */
+const IA_RESULT_MAX = 3500, IA_HIST_MAX_CHARS = 120000;
+/* toda chamada à IA tem prazo — sem isto, rede ruim no celular era "pensando…" para sempre */
+const IA_PRAZO_MS = 90000;
+function iaFetch(url, opts, ms) {
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms || IA_PRAZO_MS);
+  return fetch(url, { ...(opts || {}), signal: ac.signal }).finally(() => clearTimeout(t));
+}
 
 const iaLe = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
 const iaGrava = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
@@ -923,8 +932,11 @@ async function iaRodaFerramenta(nome, input) {
     if (IA_LEITURA.has(nome)) return iaLeitura(nome, input);
     const plano = iaPlano(nome, input);
     if (plano.erro) return plano;
-    if (iaPerguntaAntes()) {
-      if (!(await iaPedeConfirmacao(plano))) return { cancelado: true, aviso: 'cancelou; não grave nada e não insista' };
+    /* IA_SEMPRE_CONFIRMA (definido pelo app): ferramentas que mostram o cartão mesmo com a
+       confirmação desligada — memória, tabela de preços, apagar, backup: um texto malicioso
+       colado numa conversa não pode gravar nada disso sozinho */
+    if (iaPerguntaAntes() || (typeof IA_SEMPRE_CONFIRMA !== 'undefined' && IA_SEMPRE_CONFIRMA.has(nome))) {
+      if (!(await iaPedeConfirmacao(plano))) return { cancelado: true, aviso: 'cancelou: nada foi gravado. Não insista nem refaça. Em UMA linha, pergunte o que ela quer diferente; se ela corrigir, faça do jeito dela e termine perguntando "Guardo isso como regra para sempre?"' };
     } else iaCartaoFeito(plano);
     const r = await plano.fazer();
     iaRedesenhaTela();
@@ -1044,9 +1056,9 @@ async function iaChamar(mensagens) {
   let r;
   try {
     r = vivo
-      ? await fetch(COFRE + '/api/claude', { method: 'POST', headers: { 'content-type': 'application/json' },
+      ? await iaFetch(COFRE + '/api/claude', { method: 'POST', headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ max_tokens: 1500, system: iaSistema(), tools: IA_FERRAMENTAS, messages: mensagensParaEnvio(mensagens) }) })
-      : await fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
+      : await iaFetch('https://api.anthropic.com/v1/messages', { method: 'POST',
           headers: { 'content-type': 'application/json', 'x-api-key': iaChave(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
           body: JSON.stringify({ model: IA_MODELO, max_tokens: 4000, system: iaSistema(), tools: IA_FERRAMENTAS, messages: mensagensParaEnvio(mensagens) }) });
   } catch (e) { throw new Error(iaTraduzErro(0)); }
@@ -1064,18 +1076,38 @@ function iaSomaGasto(u) {
   iaMostraGasto();
 }
 const ehPergunta = (m) => m.role === 'user' && (typeof m.content === 'string' || (Array.isArray(m.content) && m.content.some(b => b.type === 'text') && !m.content.some(b => b.type === 'tool_result')));
+/* resultado de ferramenta já respondido: guarda só o começo (a próxima mensagem não reenvia tudo) */
+function iaEncolheResultado(b) {
+  if (!b || b.type !== 'tool_result' || typeof b.content !== 'string' || b.content.length <= IA_RESULT_MAX) return b;
+  return { ...b, content: b.content.slice(0, IA_RESULT_MAX) + ' …[resultado encolhido — chame a ferramenta de novo se precisar do resto]' };
+}
 function iaAparaHist(h) {
   let x = h.slice(-40);
   while (x.length && !ehPergunta(x[0])) x.shift();
-  return x.map(m => Array.isArray(m.content) && m.content.some(b => b.type === 'image' || b.type === 'document')
-    ? { ...m, content: m.content.map(b => (b.type === 'image' || b.type === 'document') ? { type: 'text', text: b.type === 'document' ? '[documento]' : '[foto]' } : b) } : m);
+  x = x.map(m => Array.isArray(m.content) && m.content.some(b => b.type === 'image' || b.type === 'document' || b.type === 'tool_result')
+    ? { ...m, content: m.content.map(b => (b.type === 'image' || b.type === 'document') ? { type: 'text', text: b.type === 'document' ? '[documento]' : '[foto]' } : iaEncolheResultado(b)) } : m);
+  /* teto por tamanho: solta as conversas mais antigas (sempre a partir de uma pergunta dela) */
+  while (x.length > 2 && JSON.stringify(x).length > IA_HIST_MAX_CHARS) { x.shift(); while (x.length && !ehPergunta(x[0])) x.shift(); }
+  return x;
+}
+/* o histórico que fica depois de um erro no meio: nunca termina numa ação sem resposta
+   (tool_use sem tool_result dá erro 400 na próxima chamada) */
+function iaHistSeguro(h) {
+  const x = h.slice();
+  while (x.length) {
+    const u = x[x.length - 1];
+    if (u.role === 'user' && Array.isArray(u.content) && u.content.some(b => b.type === 'tool_result')) { x.pop(); continue; }
+    if (u.role === 'assistant' && Array.isArray(u.content) && u.content.some(b => b.type === 'tool_use')) { x.pop(); continue; }
+    break;
+  }
+  return x;
 }
 
-let iaOcupado = false;
+let iaOcupado = false, iaAbortar = false;
 async function iaConversa(texto, fotos) {
   fotos = !fotos ? [] : Array.isArray(fotos) ? fotos : [fotos];
   if (iaOcupado) return;
-  iaOcupado = true; iaTravado(true);
+  iaOcupado = true; iaAbortar = false; iaTravado(true);
   const hist = iaAparaHist(iaLe(IA_HIST, []));
   const refs = fotos.map(f => guardaFoto(f)).filter(Boolean).map(f => f.id);
   const nota = refs.length ? `\n\n[${refs.length > 1 ? 'fotos guardadas' : 'foto guardada'}; refs (para criativo ou capa de passeio): ${refs.join(', ')}]` : '';
@@ -1091,6 +1123,7 @@ async function iaConversa(texto, fotos) {
   try {
     for (let volta = 0; volta < IA_MAX_VOLTAS; volta++) {
       const resp = await iaChamar(hist);
+      if (iaAbortar) return;                           // ela limpou a conversa no meio: para aqui
       hist.push({ role: 'assistant', content: resp.content });
       const txt = resp.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
       if (txt) iaBolha('assistant', txt, pensando);
@@ -1102,6 +1135,8 @@ async function iaConversa(texto, fotos) {
     if (hist[hist.length - 1].role === 'user') { hist.pop(); hist.pop(); }
     iaGrava(IA_HIST, iaAparaHist(hist));
   } catch (e) {
+    /* erro no meio (rede, limite): o que já foi feito fica na conversa, sem ação pela metade */
+    if (!iaAbortar) iaGrava(IA_HIST, iaAparaHist(iaHistSeguro(hist)));
     /* acabou o limite do ao vivo: a gaveta vira demonstração e diz por quê */
     if (e.acabou) setTimeout(() => { iaAtualizaFab(); iaDesenha(); iaBolha('assistant', ia('vivoAcabou'), null, true); }, 50);
     else iaBolha('erro', e.message);
@@ -2441,7 +2476,7 @@ function iaDesenha() {
     if (!('ontouchstart' in window)) ta.focus();
   }
   corpo.querySelector('#iaConf').onchange = (e) => iaGrava(IA_CONFIRMA, e.target.checked);
-  corpo.querySelector('#iaLimpa').onclick = () => { iaGrava(IA_HIST, []); iaDesenha(); };
+  corpo.querySelector('#iaLimpa').onclick = () => { if (iaOcupado) { iaAbortar = true; iaCancelaCartaoPendente(); } iaGrava(IA_HIST, []); iaDesenha(); };
   const cn = corpo.querySelector('#iaConecta'); if (cn) cn.onclick = () => { iaMostrandoChave = true; iaDesenha(); };
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -2520,11 +2555,19 @@ function iaFechaCartao(c, sim) {
   const h = c.querySelector('h4'); h.textContent = h.textContent.replace(' — ' + ia('confirma'), '');
   c.querySelector('.bts').outerHTML = `<p class="ass">${sim ? ia('feito') : ia('cancelado')}</p>`;
 }
+/* o cartão que espera o toque dela. Se ele sumir da tela (nova conversa, painel redesenhado)
+   a espera termina como "cancelou" — antes ficava pendurada e o assistente travava para sempre */
+let iaCartaoPendente = null;
+function iaCancelaCartaoPendente() { if (iaCartaoPendente) { const p = iaCartaoPendente; iaCartaoPendente = null; p(false); } }
 function iaPedeConfirmacao(plano) {
   return new Promise((ok) => {
     const c = iaCartao(plano);
-    c.querySelector('.sim').onclick = () => { iaFechaCartao(c, true); ok(true); };
-    c.querySelector('.nao').onclick = () => { iaFechaCartao(c, false); ok(false); };
+    let fim = false;
+    const vigia = setInterval(() => { if (!fim && !c.isConnected) termina(false); }, 500);
+    const termina = (sim) => { if (fim) return; fim = true; clearInterval(vigia); iaCartaoPendente = null; if (c.isConnected) iaFechaCartao(c, sim); ok(sim); };
+    iaCartaoPendente = termina;
+    c.querySelector('.sim').onclick = () => termina(true);
+    c.querySelector('.nao').onclick = () => termina(false);
   });
 }
 function iaCartaoFeito(plano) { iaFechaCartao(iaCartao(plano), true); }

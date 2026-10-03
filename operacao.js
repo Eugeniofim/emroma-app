@@ -579,6 +579,28 @@ const Orc = {
     o.repescagens = o.repescagens.filter(y => y.data || y.resultado).sort((a, b) => a.n - b.n);
     _opSave(); return { ok: true, followups: o.repescagens };
   },
+  /* FOLLOW-UP PADRÃO (contrato de 30/09): 30, 15 e 7 dias ANTES do primeiro serviço do orçamento —
+     só as datas que ainda estão à frente; serviço perto demais → um follow-up daqui a 2 dias */
+  followUpsPadrao(o, hoje) {
+    hoje = hoje || isoToday();
+    const datas = (o.itens || []).filter(x => !x.perdido && !x.sugestao && /^\d{4}-\d{2}-\d{2}$/.test(x.data || '')).map(x => x.data).sort();
+    if (!datas.length) return [];
+    let l = [30, 15, 7].map(n => addDays(datas[0], -n)).filter(d => d > hoje);
+    if (!l.length && datas[0] > addDays(hoje, 2)) l = [addDays(hoje, 2)];
+    return l.map((data, k) => ({ n: k + 1, data }));
+  },
+  /* ao marcar "enviado" sem nenhum follow-up marcado, as datas padrão entram sozinhas (Planilha + tarefas) */
+  followUpsAuto(id) {
+    const o = Orc.get(id); if (!o || o.status !== 'enviado' || (o.repescagens || []).some(x => x.data)) return null;
+    const l = Orc.followUpsPadrao(o); if (!l.length) return null;
+    const r = Orc.followUps(id, l); return r.ok ? r.followups : null;
+  },
+  /* quantos dias do pedido até fechar (fechado) ou em aberto até hoje (contrato: "tempo até fechar") */
+  diasAteFechar(o, hoje) {
+    const c = String(o.criado || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(c)) return null;
+    const fim = o.status === 'fechado' ? (o.fechadoEm || c) : (o.status === 'perdido' && o.perdidoEm) ? o.perdidoEm : (hoje || isoToday());
+    return Math.max(0, Math.round((new Date(fim + 'T12:00:00') - new Date(c + 'T12:00:00')) / 86400000));
+  },
   /* apagar: some o orçamento E a tarefa "aguardar a resposta" dele (antes ficava pendurada) */
   remove(id) {
     DB.orcamentos = (DB.orcamentos || []).filter(o => o.id !== id);
@@ -1553,9 +1575,11 @@ const Espera = {
       chave: 'msg:' + chave + ':' + isoToday(), origem: 'app' });
   },
   orcamento(o) {
-    return Tarefas.garante({ etapa: 'aguardar', texto: `Aguardar a resposta de ${(o.cliente.nome || 'o cliente').split(' ')[0]} sobre o orçamento ${o.num}`,
+    const t = Tarefas.garante({ etapa: 'aguardar', texto: `Aguardar a resposta de ${(o.cliente.nome || 'o cliente').split(' ')[0]} sobre o orçamento ${o.num}`,
       prazo: addDays(isoToday(), 2), fechaQuando: 'orc-decidido', orcId: o.id, clienteNome: o.cliente.nome, whats: o.cliente.whats,
       clienteKey: o.clienteKey || '', chave: 'orc:' + o.id, origem: 'app' });
+    if (typeof Orc !== 'undefined' && Orc.followUpsAuto) Orc.followUpsAuto(o.id);   // o follow-up padrão 30/15/7 entra junto
+    return t;
   },
   guia(p, data, turno, b) {
     return Tarefas.garante({ etapa: 'aguardar', texto: `Aguardar a resposta de ${p.nome.split(' ')[0]} (${data.slice(8, 10)}/${data.slice(5, 7)} ${turno === 'manha' ? 'manhã' : turno === 'dia' ? 'dia inteiro' : turno})`,
@@ -1924,6 +1948,18 @@ const Parceiros = {
     const paga = (p.pagamentos || []).reduce((s, x) => s + (+x.valor || 0), 0);
     const clientes = new Set(bs.map(b => b.clienteId || chaveCliente(b))).size;
     return { reservas: bs.length, clientes, faturado, devida, paga, saldo: Math.round((devida - paga) * 100) / 100 };
+  },
+  /* TABELA DE COMISSÕES (contrato de 30/09): uma linha por reserva trazida e o total de cada parceiro.
+     Separador ; (abre certo no Excel em português) */
+  csv() {
+    const L = [['Parceiro', 'Tipo', 'Cupom', 'Comissão %', 'Data do serviço', 'Cliente', 'Serviço', 'Valor', 'Comissão', 'Pago ao parceiro', 'Saldo']];
+    const n = (v) => String(Math.round((+v || 0) * 100) / 100).replace('.', ',');
+    for (const p of Parceiros.all()) {
+      const c = Parceiros.conta(p), bs = Parceiros.reservas(p).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      for (const b of bs) L.push([p.nome, p.tipo || '', p.cupom || '', n(p.comissao), b.date || '', b.name || '', nomeDoServico(b), n(b.total), n((+b.total || 0) * (+p.comissao || 0) / 100), '', '']);
+      L.push([p.nome + ' — TOTAL', '', '', n(p.comissao), '', '', `${c.reservas} reserva(s)`, n(c.faturado), n(c.devida), n(c.paga), n(c.saldo)]);
+    }
+    return L;
   },
   paga(id, valor, data) { const p = Parceiros.get(id); if (!p || !(+valor > 0)) return null; p.pagamentos = p.pagamentos || []; p.pagamentos.push({ valor: +valor, data: data || isoToday() }); _opSave(); return p; },
 };
@@ -2569,6 +2605,22 @@ const Painel = {
     return { n: os.length, novos: conta('novo') + conta('rascunho'), enviados, fechados, perdidos,
              valorFechado: os.filter(o => o.status === 'fechado').reduce((s, o) => s + Orc.total(o), 0),
              taxa: decididos ? fechados / decididos : null };
+  },
+  /* PEDIRAM × FECHARAM por serviço e tempo até fechar (contrato de 30/09): dos orçamentos criados no período */
+  fechamento(de, ate) {
+    const os = (DB.orcamentos || []).filter(o => { const c = String(o.criado || '').slice(0, 10); return c >= de && c <= ate; });
+    const nomeDe = (x) => { const t = x.tourId && Tours.get(x.tourId); const s = t ? t.name.pt : String(x.desc || '').split(/\s+[-–]\s+/)[0]; return s.replace(/\s*\(.*$/, '').trim() || '?'; };
+    const map = new Map();
+    for (const o of os) for (const x of o.itens || []) {
+      if (x.auto || x.sugestao || !String(x.desc || '').trim()) continue;
+      const k = nomeDe(x), r = map.get(k) || { servico: k, pediram: 0, fecharam: 0, perderam: 0 };
+      r.pediram++;
+      if (o.status === 'fechado' && !x.perdido) r.fecharam++; else if (x.perdido || o.status === 'perdido') r.perderam++;
+      map.set(k, r);
+    }
+    const porServico = [...map.values()].sort((a, b) => b.pediram - a.pediram).map(r => ({ ...r, taxa: (r.fecharam + r.perderam) ? Math.round(r.fecharam / (r.fecharam + r.perderam) * 100) : null }));
+    const dias = os.filter(o => o.status === 'fechado').map(o => Orc.diasAteFechar(o)).filter(d => d != null).sort((a, b) => a - b);
+    return { porServico, diasAteFechar: { media: dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length * 10) / 10 : null, mediana: dias.length ? dias[Math.floor(dias.length / 2)] : null, fechados: dias.length } };
   },
   /* quem veio: novo ou de volta, e quem veio JUNTO (as indicacoes dela) */
   clientes(de, ate) {
