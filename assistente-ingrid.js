@@ -1133,7 +1133,7 @@ function ingDinheiroSuspeito(texto, conhecidos) {
   return out;
 }
 const _ingRoda = iaRodaFerramenta;
-iaRodaFerramenta = async function (nome, input) { const r = await _ingRoda(nome, input); try { ingColheNumeros(JSON.stringify(r)); } catch (e) {} return r; };
+iaRodaFerramenta = async function (nome, input) { ingFerrTurno++; const r = await _ingRoda(nome, input); try { ingColheNumeros(JSON.stringify(r)); } catch (e) {} return r; };
 const _ingBolha = iaBolha;
 iaBolha = function (tipo, texto, antesDe, semCopiar, foto) {
   /* o aviso interno dos anexos (⟦…⟧) e para a IA, nao para o balao dela */
@@ -1166,6 +1166,7 @@ const _ingConversa = iaConversa;
 iaConversa = async function (texto, fotos) {
   if (iaOcupado) return;                         // o motor também recusa: sem isto o anexo entrava na lista e a numeração desencontrava
   /* o vigia de dinheiro começa a conversa sabendo o que ela disse, a situação do dia, a memória e o diário */
+  ingFerrTurno = 0; ingConferiu = false;
   ingNumerosTurno = new Set(); try { for (const v of ingNumerosDoHistorico(iaLe(IA_HIST, []))) ingNumerosTurno.add(v); ingColheNumeros(texto); ingColheNumeros(iaAgora()); ingColheNumeros((Mkt.get().memoria || []).map(x => x.texto).join(' ')); if (typeof ingDiarioTexto === 'function') ingColheNumeros(ingDiarioTexto(14)); } catch (e) {}
   ingPararFala(); ingVozEspera = true;
   fotos = !fotos ? [] : Array.isArray(fotos) ? fotos : [fotos];
@@ -1926,6 +1927,33 @@ iaChamar = async function (mensagens) {
   if (r.status === 429 && corpo && corpo.error && corpo.error.type === 'limite') { marcaEsgotado('claude'); throw Object.assign(new Error(ia('vivoAcabou')), { acabou: true }); }
   if (!r.ok) throw new Error(iaTraduzErro(r.status, corpo));
   return ingCortado(corpo);
+};
+
+/* DOUBLE CHECK INTERNO (pedido do Eugênio, 05/10): antes de a resposta final aparecer, o app confere
+   duas coisas que o teste "como a Ingrid" pegou — (1) valor em € que não veio de nenhuma ferramenta
+   (o modelo somou de cabeça) e (2) "registrei/anotei/fechei…" sem ter chamado ferramenta nenhuma.
+   Se achar, devolve UMA vez ao modelo, sem ela ver, pedindo para consultar/fazer de verdade e reescrever.
+   Só custa uma chamada extra nessas respostas (não em todas). Se a 2ª também falhar, o vigia avisa. */
+let ingFerrTurno = 0, ingConferiu = false;
+const ING_DIZ_QUE_FEZ = /\b(registrei|anotei|criei|marquei|cadastrei|fechei|escalei|guardei|salvei|mudei|apaguei|gravei|atualizei|corrigi|agendei|lancei)\b/i;
+const _ingChamarBase = iaChamar;
+iaChamar = async function (mensagens) {
+  const corpo = await _ingChamarBase(mensagens);
+  if (ingConferiu || !corpo || corpo.stop_reason !== 'end_turn' || !Array.isArray(corpo.content)) return corpo;
+  const txt = corpo.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+  if (!txt.trim()) return corpo;
+  const sus = typeof ingDinheiroSuspeito === 'function' ? ingDinheiroSuspeito(txt) : [];
+  const fingiu = ingFerrTurno === 0 && ING_DIZ_QUE_FEZ.test(txt) && !/\?\s*$/.test(txt.trim());
+  if (!sus.length && !fingiu) return corpo;
+  ingConferiu = true;
+  const aviso = [
+    sus.length ? `Os valores ${sus.join(', ')} da sua resposta não vieram de nenhuma ferramenta. Chame a ferramenta certa (contas_do_cliente, ver_orcamentos, ver_contabilidade ou ver_relatorio) e use SÓ os números que ela devolver; se não precisa de valor, tire-o.` : '',
+    fingiu ? 'Você disse que fez algo, mas nenhuma ferramenta foi chamada nesta resposta — nada foi gravado. Chame a ferramenta agora (o app mostra o cartão) ou diga claramente que ainda não fez.' : '',
+  ].filter(Boolean).join(' ');
+  try {
+    const de = await _ingChamarBase(mensagens.concat([{ role: 'assistant', content: corpo.content }, { role: 'user', content: '⟦verificação interna do app — ela não vê esta mensagem⟧ ' + aviso + ' Responda de novo para ela, como se fosse a primeira resposta, sem mencionar esta verificação.' }]));
+    return de && Array.isArray(de.content) && de.content.length ? de : corpo;
+  } catch (e) { return corpo; }
 };
 
 /* =====================================================
