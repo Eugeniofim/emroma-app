@@ -2576,7 +2576,7 @@ function admTarefas(arg) {
       </article>`).join('') || '<p class="empty">Nenhuma anotação.</p>'}</div>`}`);
 
   const re = () => admTarefas();
-  const tb = $('#tfBusca'); if (tb) tb.oninput = (e) => { S.buscaT = e.target.value; re(); const el = $('#tfBusca'); if (el) { el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } };
+  const tb = $('#tfBusca'); if (tb) tb.oninput = (e) => { S.buscaT = e.target.value; clearTimeout(admTarefas._tb); admTarefas._tb = setTimeout(() => { re(); const el = $('#tfBusca'); if (el) { el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } }, 150); };
   $$('[data-tv]').forEach(b => b.onclick = () => { S.v = b.dataset.tv; re(); });
   const cliDe = (nome) => { const c = clientes.find(x => x.name.toLowerCase() === String(nome || '').trim().toLowerCase()); return { clienteKey: c ? c.key : '', clienteNome: String(nome || '').trim(), whats: c ? c.whats : '' }; };
   const tx = $('#tfTexto');

@@ -238,7 +238,7 @@ const Op = {
     const n = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     const s = n(q).trim(); if (s.length < 2) return null;
     const dig = s.replace(/\D/g, '');
-    const tem = (...vs) => vs.some(v => v && n(v).includes(s)) || (dig.length >= 4 && vs.some(v => /\d{4}/.test(String(v || '')) && String(v).replace(/\D/g, '').includes(dig)));
+    const tem = (...vs) => vs.some(v => v && n(v).includes(s)) || (dig.length >= 4 && vs.some(v => /\d{4}/.test(String(v || '')) && String(v).replace(/\D/g, '').endsWith(dig.slice(-8))));
     const T = typeof Tarefas !== 'undefined' ? Tarefas.all() : [];
     const R = {
       servicos: Op.busca(q).slice(0, 8),
@@ -258,7 +258,7 @@ const Op = {
     const dig = s.replace(/\D/g, '');
     return DB.bookings.filter(b => {
       if ([b.name, b.code, b.voo, b.origem, b.destino, b.email].some(v => n(v).includes(s))) return true;
-      if (dig.length >= 4 && String(b.whats || '').replace(/\D/g, '').includes(dig)) return true;
+      if (dig.length >= 4 && String(b.whats || '').replace(/\D/g, '').endsWith(dig.slice(-8))) return true;   // 4 últimos números do telefone
       return (b.group || []).some(g => n(g.nome).includes(s));
     }).sort((a, b) => Math.abs(new Date(a.date) - new Date(isoToday())) - Math.abs(new Date(b.date) - new Date(isoToday())));
   },
@@ -1481,7 +1481,7 @@ const Tarefas = {
     const s = n(q).trim(); if (!s) return true;
     const dig = s.replace(/\D/g, '');
     if ([t.texto, t.detalhe, t.nota, t.clienteNome, t.obsFim].some(v => v && n(v).includes(s))) return true;
-    return dig.length >= 4 && String(t.whats || '').replace(/\D/g, '').includes(dig);
+    return dig.length >= 4 && String(t.whats || '').replace(/\D/g, '').endsWith(dig.slice(-8));
   },
   notas(busca) {
     const n = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
