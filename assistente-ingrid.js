@@ -1859,6 +1859,13 @@ function ingSemPensamento(ms) {
 }
 /* resposta cortada no meio (max_tokens): nunca roda ação pela metade nem deixa tool_use sem resposta */
 function ingCortado(corpo) {
+  /* o modelo forte (Fable/Opus 5.5) pode recusar por filtro de segurança: HTTP 200, stop_reason "refusal",
+     às vezes sem texto. Sem isto a resposta sumia (balão vazio) e o histórico guardava um turno vazio. */
+  if (corpo && corpo.stop_reason === 'refusal') {
+    const txt = (corpo.content || []).filter(b => b.type === 'text' && b.text.trim());
+    corpo.content = txt.length ? txt : [{ type: 'text', text: 'Não consegui responder esse pedido do jeito que veio. Pode reformular em outras palavras?' }];
+    corpo.stop_reason = 'end_turn'; return corpo;
+  }
   if (corpo && Array.isArray(corpo.content) && corpo.content.some(ingEhPensamento)) corpo.content = corpo.content.filter(b => !ingEhPensamento(b));
   if (corpo && Array.isArray(corpo.content) && !corpo.content.length) corpo.content = [{ type: 'text', text: 'Não consegui formular a resposta desta vez — pode repetir a pergunta?' }];
   if (!corpo || corpo.stop_reason !== 'max_tokens' || !Array.isArray(corpo.content)) return corpo;
