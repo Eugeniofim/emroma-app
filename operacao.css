@@ -838,3 +838,9 @@ a.orc-row:hover .tinfo b{text-decoration:underline}
 /* botão Tutorial: na barra lateral (tela larga) e no topo (celular) */
 .at-tut{display:none}
 @media(max-width:820px){.at-tut{display:inline-flex}}
+/* limpar testes (06/10) */
+.cl-row.cl-sel{grid-template-columns:28px minmax(180px,2fr) minmax(90px,.8fr) auto;cursor:pointer}
+.cl-row.cl-sel input{width:20px;height:20px;accent-color:var(--bad,#b3261e)}
+.cl-row.cl-sel.on{background:var(--accent-wash)}
+.cl-limpa .btnrow{margin-top:8px}
+.cl-limpa details{margin-top:8px}

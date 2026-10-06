@@ -753,9 +753,15 @@ function fupListaHtml(lista, resumo, hoje) {
 /* =====================================================
    CLIENTES — o dashboard (quem sao, de onde vem, quem indica)
 ===================================================== */
+function clLimpaBarra(S) {
+  const lixo = Limpeza.lixeira();
+  return `<div class="alert warn cl-limpa">🧹 <b>Limpar testes:</b> marque só os clientes de TESTE e toque em apagar. Nada some sem você confirmar.
+    <div class="btnrow"><button class="cta sm bad" id="clLimpaOk" ${S.sel.size ? '' : 'disabled'}>Apagar ${S.sel.size || ''} ${S.sel.size === 1 ? 'selecionado' : 'selecionados'}</button></div>
+    ${lixo.length ? `<details><summary>Lixeira (${lixo.length})</summary>${lixo.map(x => `<div class="deprow"><span>${esc(x.nomes.join(', '))} <small>${new Date(x.em).toLocaleString('pt-BR')}</small></span><button class="mini" data-desfaz="${x.id}">↩️ desfazer</button></div>`).join('')}</details>` : ''}</div>`;
+}
 function admClientes() {
   if (typeof Orc !== 'undefined' && Orc.garanteFichas) Orc.garanteFichas();
-  const S = admClientes._s = admClientes._s || { q: '', f: 'todos' };
+  const S = admClientes._s = admClientes._s || { q: '', f: 'todos' }; S.sel = S.sel || new Set();
   const hoje = isoToday(), mes = +hoje.slice(5, 7), mesIso = hoje.slice(0, 7);
   const todos = Cadastro.all();
   const resumo = new Map(todos.map(c => [c.id, Cadastro.resumo(c, hoje)]));
@@ -781,7 +787,8 @@ function admClientes() {
   const maxO = Math.max(1, ...origens.map(o => o.n));
   admShell('clients', `${cliTopo('clientes')}
     <div class="pagehead"><h1 class="pageh">Clientes</h1>
-      <div class="chips"><button class="mini strong" id="clNovo">+ novo cliente</button><button class="mini" id="clCsv">baixar planilha</button></div></div>
+      <div class="chips"><button class="mini strong" id="clNovo">+ novo cliente</button><button class="mini" id="clCsv">baixar planilha</button><button class="mini ${S.limpa ? 'strong' : ''}" id="clLimpa">${S.limpa ? '✕ sair da limpeza' : '🧹 limpar testes'}</button></div></div>
+    ${S.limpa ? clLimpaBarra(S) : ''}
     <div class="rp-tiles cl-tiles">
       ${rpTile('Clientes', String(todos.length), `<span class="rp-d n">${compradores.length} compraram · ${todos.length - compradores.length} vieram junto</span>`, '', '')}
       ${rpTile('Novos este mês', String(novos), '', '', 'cadastros feitos este mês')}
@@ -809,6 +816,9 @@ function admClientes() {
     </div>
     <section class="card cl-lista">
       ${S.f === 'followup' ? fupListaHtml(lista, resumo, hoje) : lista.length ? lista.slice(0, 200).map(c => { const r = resumo.get(c.id), dono = c.grupoDe ? Cadastro.get(c.grupoDe) : null;
+        if (S.limpa) return `<label class="cl-row cl-sel ${S.sel.has(c.id) ? 'on' : ''}"><input type="checkbox" data-sel="${c.id}" ${S.sel.has(c.id) ? 'checked' : ''}>
+          <span class="cl-nome"><b>${esc(c.nome)}</b><small>${dono ? 'veio com ' + esc(dono.nome) + ' · ' : ''}${c.criado ? 'cadastrado em ' + crmData(String(c.criado).slice(0, 10)) : ''}</small></span>
+          <span class="cl-num"><small>${r.reservas} passeio(s)</small><b>${eur(r.gasto)}</b></span><span></span></label>`;
         return `<a class="cl-row" href="${fichaHref(c)}">
           <span class="cl-nome"><b>${esc(c.nome)}</b><small>${c.veioPor ? esc(veioPorNome(c.veioPor)) + (c.indicadoNome ? ' — ' + esc(c.indicadoNome) : '') : 'veio por: ?'}${dono ? ' · veio com ' + esc(dono.nome) : ''}${idadeDe(c.nasc) != null ? ' · ' + idadeDe(c.nasc) + ' anos' : ''}</small></span>
           <span class="cl-prox">${r.prox ? `<small>próximo</small><b>${crmData(r.prox.date)} · ${esc(nomeDoServico(r.prox).slice(0, 34))}</b>` : r.ultima ? `<small>último</small><b>${crmData(r.ultima)}/${r.ultima.slice(2, 4)}</b>` : '<small>sem serviço</small>'}</span>
@@ -823,6 +833,21 @@ function admClientes() {
       <datalist id="clClis">${todos.map(x => `<option value="${esc(x.nome)}">`).join('')}</datalist>
       <button class="cta sm" id="ncSalva">Cadastrar</button></details>`);
   const re = () => admClientes();
+  $('#clLimpa').onclick = () => { S.limpa = !S.limpa; S.sel = new Set(); if (S.f === 'followup') S.f = 'todos'; re(); };
+  $$('[data-sel]').forEach(cb => cb.onchange = () => { cb.checked ? S.sel.add(cb.dataset.sel) : S.sel.delete(cb.dataset.sel); re(); });
+  $('#clLimpaOk')?.addEventListener('click', () => {
+    const ids = [...S.sel]; if (!ids.length) return;
+    const t = Limpeza.resumo(ids), nomes = ids.map(i => (Cadastro.get(i) || {}).nome).filter(Boolean);
+    const d = opJanela('🧹 Apagar ' + (ids.length === 1 ? 'este cliente' : 'estes ' + ids.length + ' clientes') + '?', `
+      <p><b>${nomes.map(esc).join(', ')}</b></p>
+      <p>Sai junto: ${t.clientes} ficha(s) (com quem veio junto) · ${t.reservas} reserva(s) · ${t.orcamentos} orçamento(s) · ${t.tarefas} tarefa(s) · ${t.arquivos} arquivo(s).</p>
+      ${t.pagos ? `<div class="alert warn">⚠️ Tem <b>${eur(t.pagos)}</b> em pagamentos registrados aqui. Se for cliente de verdade, NÃO apague.</div>` : ''}
+      <p class="why">Errou? Fica na lixeira por 30 dias neste aparelho — é só tocar em <b>desfazer</b>.</p>
+      <div class="btnrow"><button class="cta sm bad" id="clLimpaSim">Sim, apagar</button><button class="mini" id="clLimpaNao">Cancelar</button></div>`);
+    d.querySelector('#clLimpaNao').onclick = () => d.close();
+    d.querySelector('#clLimpaSim').onclick = () => { const r = Limpeza.apaga(ids); d.close(); S.sel = new Set(); if (typeof Tarefas !== 'undefined' && Tarefas.sincroniza) Tarefas.sincroniza(); toast(`🧹 ${r.clientes} ficha(s) apagada(s) · dá para desfazer na lixeira`); re(); };
+  });
+  $$('[data-desfaz]').forEach(b => b.onclick = () => { const l = Limpeza.desfaz(b.dataset.desfaz); toast(l ? '↩️ Voltou: ' + l.nomes.join(', ') : 'Não achei na lixeira'); re(); });
   $$('[data-f]').forEach(b => b.onclick = () => { S.f = S.f === b.dataset.f && b.classList.contains('cl-orig') ? 'todos' : b.dataset.f; re(); });
   $('#clQ').oninput = (e) => { S.q = e.target.value; clearTimeout(admClientes._t); admClientes._t = setTimeout(() => { re(); const i2 = $('#clQ'); if (i2) { i2.focus(); i2.setSelectionRange(i2.value.length, i2.value.length); } }, 250); };
   $('#clNovo').onclick = () => { const d = $('#clNovoBox'); d.open = true; d.scrollIntoView({ block: 'center' }); $('#ncNome').focus(); };

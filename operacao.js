@@ -1974,6 +1974,70 @@ function cadastroDaReserva(b) {
 
 /* reserva que chegou da nuvem (o cliente reservou pelo site) ainda nao tem
    cadastro neste aparelho: completa aqui, antes de desenhar o painel */
+/* LIMPAR OS TESTES (pedido da Ingrid, 06/10: "a gente tem que deixar ele so coisa
+   real... eu vou selecionar qual tem que apagar"). Apagar um cliente leva junto
+   TUDO dele: reservas, orcamentos, tarefas, arquivos, anotacoes e quem veio junto.
+   A reserva na nuvem nao some (o banco nao deixa apagar): ela vira apagado:true +
+   cancelada, e o app nunca mais a traz de volta. */
+const Limpeza = {
+  doCliente(c) {
+    const junto = Cadastro.all().filter(x => x.grupoDe === c.id);
+    const ids = new Set([c.id, ...junto.map(x => x.id)]);
+    const reservas = DB.bookings.filter(b => ids.has(b.clienteId));
+    const rIds = new Set(reservas.map(b => b.id));
+    const orcs = (DB.orcamentos || []).filter(o => ids.has(o.clienteId));
+    const oIds = new Set(orcs.map(o => o.id)), nome = _nomeN(c.nome);
+    const tarefas = (DB.tarefas || []).filter(t => oIds.has(t.orcId) || rIds.has(t.bookingId) || (nome && _nomeN(t.clienteNome || t.cliente || '') === nome));
+    const arquivos = (DB.arquivos || []).filter(a => ids.has(a.clienteId) || rIds.has(a.bookingId));
+    return { cliente: c, junto, reservas, orcs, tarefas, arquivos };
+  },
+  /* o que vai sumir, para o cartao de confirmacao */
+  resumo(clienteIds) {
+    const t = { clientes: 0, reservas: 0, orcamentos: 0, tarefas: 0, arquivos: 0, pagos: 0 };
+    for (const id of clienteIds) { const c = Cadastro.get(id); if (!c) continue; const d = Limpeza.doCliente(c);
+      t.clientes += 1 + d.junto.length; t.reservas += d.reservas.length; t.orcamentos += d.orcs.length; t.tarefas += d.tarefas.length; t.arquivos += d.arquivos.length;
+      t.pagos += d.reservas.reduce((s, b) => s + (b.payments || []).reduce((x, p) => x + (+p.amount || 0), 0), 0); }
+    return t;
+  },
+  /* LIXEIRA: tudo o que sai fica guardado aqui (30 dias) e volta com "desfazer" */
+  lixeira() { try { return JSON.parse(localStorage.getItem('emroma_lixeira') || '[]'); } catch (e) { return []; } },
+  _guardaLixo(l) { try { localStorage.setItem('emroma_lixeira', JSON.stringify(l)); } catch (e) {} },
+  desfaz(loteId) {
+    const l = Limpeza.lixeira(), lote = l.find(x => x.id === loteId); if (!lote) return null;
+    const volta = (col, itens) => { DB[col] = DB[col] || []; const tem = new Set(DB[col].map(x => x.id)); for (const x of itens) if (!tem.has(x.id)) DB[col].push(x); };
+    for (const b of lote.reservas) { b.apagado = false; b.status = b._statusAntes || 'confirmed'; delete b._statusAntes; if (typeof cloudUpdateBooking === 'function' && b.naNuvem) cloudUpdateBooking(b); }
+    volta('bookings', lote.reservas); volta('orcamentos', lote.orcs); volta('tarefas', lote.tarefas); volta('arquivos', lote.arquivos); volta('clientes', lote.clientes);
+    DB.fichas = DB.fichas || {}; Object.assign(DB.fichas, lote.fichas || {});
+    Limpeza._guardaLixo(l.filter(x => x.id !== loteId)); _opSave();
+    return lote;
+  },
+  apaga(clienteIds) {
+    const t = Limpeza.resumo(clienteIds);
+    const lote = { id: uid(), em: new Date().toISOString(), nomes: [], clientes: [], reservas: [], orcs: [], tarefas: [], arquivos: [], fichas: {} };
+    for (const id of clienteIds) {
+      const c = Cadastro.get(id); if (!c) continue; const d = Limpeza.doCliente(c);
+      lote.nomes.push(c.nome); lote.clientes.push(c, ...d.junto); lote.orcs.push(...d.orcs); lote.tarefas.push(...d.tarefas); lote.arquivos.push(...d.arquivos);
+      for (const b of d.reservas) b._statusAntes = b.status;
+      lote.reservas.push(...d.reservas);
+      for (const x of [c, ...d.junto]) { try { const k = chaveFicha(x); if (k && DB.fichas && DB.fichas[k]) lote.fichas[k] = DB.fichas[k]; } catch (e) {} }
+      const chaves = [c, ...d.junto].map(x => { try { return chaveFicha(x); } catch (e) { return ''; } });
+      for (const b of d.reservas) { b.apagado = true; b.status = 'cancelled'; if (typeof cloudUpdateBooking === 'function' && b.naNuvem) cloudUpdateBooking(b); }
+      const rIds = new Set(d.reservas.map(b => b.id)), oIds = new Set(d.orcs.map(o => o.id)), tIds = new Set(d.tarefas.map(x => x.id)), aIds = new Set(d.arquivos.map(a => a.id));
+      const cIds = new Set([c.id, ...d.junto.map(x => x.id)]);
+      DB.bookings = DB.bookings.filter(b => !rIds.has(b.id));
+      DB.orcamentos = (DB.orcamentos || []).filter(o => !oIds.has(o.id));
+      DB.tarefas = (DB.tarefas || []).filter(x => !tIds.has(x.id));
+      DB.arquivos = (DB.arquivos || []).filter(a => !aIds.has(a.id));
+      DB.clientes = Cadastro.all().filter(x => !cIds.has(x.id));
+      if (DB.fichas) for (const k of chaves) if (k && DB.fichas[k]) delete DB.fichas[k];
+      for (const b of DB.bookings) if (Array.isArray(b.group)) for (const g of b.group) if (cIds.has(g.clienteId)) g.clienteId = '';
+    }
+    const corte = new Date(Date.now() - 30 * 864e5).toISOString();
+    Limpeza._guardaLixo([JSON.parse(JSON.stringify(lote)), ...Limpeza.lixeira().filter(x => x.em > corte)].slice(0, 20));
+    _opSave();
+    return { ...t, lote: lote.id };
+  },
+};
 /* a chave das anotacoes (Fichas) de um cadastro */
 function chaveFicha(c) { const b = DB.bookings.find(x => x.clienteId === c.id); return b ? chaveCliente(b) : String(c.email || c.whats || c.nome || '').toLowerCase(); }
 function cadastroEmDia() {

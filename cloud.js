@@ -261,6 +261,8 @@ async function cloudPull() {
     const reservasOk = bkR.ok;
     let bk = [];
     if (reservasOk) { try { bk = (await bkR.json()).map(r => r.data); } catch (e) { bk = []; } }
+    /* reserva apagada na limpeza dos testes: fica no banco marcada, nunca volta ao app */
+    bk = bk.filter(b => b && !b.apagado);
     if (!logged && scR.ok) {
       try { DB.seatCounts = (await scR.json()).map(r =>
         ({ tourId: r.tour_id, date: r.date, time: r.time, pax: +r.pax })); } catch (e) {}
