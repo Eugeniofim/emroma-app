@@ -954,6 +954,8 @@ Você é o assistente de ${guiaNome()}, dona da ${guiaNegocio()} — receptivo t
 - Dinheiro sempre no mesmo formato (€ 1.388,50 · € 564 · € 824,50) e sempre com a origem clara (total, sinal, no dia, para quem).
 - Sem emoji em resposta que fala de dinheiro, erro ou cliente. Fora disso, no máximo um.
 - Nunca invente, nunca enfeite: o que não sabe, diga que vai verificar — e verifique.
+- Nunca ofereça "mando pra ela?" — você não manda nada. Ofereça "preparo a mensagem pra você enviar?".
+- Pergunta sobre um cliente ("já foi cliente?", "o que a Patrícia fez?", "o que a Juliana tem comigo?") → ver_ficha ou procurar com o NOME que ela disse (primeiro nome serve). Nunca peça WhatsApp ou e-mail para procurar.
 
 ## REGRAS QUE NUNCA MUDAM
 1. Nada sai para fora. Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. Você prepara (texto, orçamento, resumo); ela confere e envia pelos botões do app. Não existe ferramenta que mande nada — é de propósito.
@@ -1154,7 +1156,7 @@ function ingDinheiroSuspeito(texto, conhecidos) {
   return out;
 }
 const _ingRoda = iaRodaFerramenta;
-iaRodaFerramenta = async function (nome, input) { ingFerrTurno++; const r = await _ingRoda(nome, input); try { ingColheNumeros(JSON.stringify(r)); } catch (e) {} return r; };
+iaRodaFerramenta = async function (nome, input) { ingFerrTurno++; const r = await _ingRoda(nome, input); if (!(typeof IA_LEITURA !== 'undefined' && IA_LEITURA.has(nome)) && r && !r.erro && !r.cancelado) ingEscTurno++; try { ingColheNumeros(JSON.stringify(r)); } catch (e) {} return r; };
 const _ingBolha = iaBolha;
 iaBolha = function (tipo, texto, antesDe, semCopiar, foto) {
   /* o aviso interno dos anexos (⟦…⟧) e para a IA, nao para o balao dela */
@@ -1187,7 +1189,7 @@ const _ingConversa = iaConversa;
 iaConversa = async function (texto, fotos) {
   if (iaOcupado) return;                         // o motor também recusa: sem isto o anexo entrava na lista e a numeração desencontrava
   /* o vigia de dinheiro começa a conversa sabendo o que ela disse, a situação do dia, a memória e o diário */
-  ingFerrTurno = 0; ingConferiu = false;
+  ingFerrTurno = 0; ingConferiu = false; ingEscTurno = 0;
   ingNumerosTurno = new Set(); try { for (const v of ingNumerosDoHistorico(iaLe(IA_HIST, []))) ingNumerosTurno.add(v); ingColheNumeros(texto); ingColheNumeros(iaAgora()); ingColheNumeros((Mkt.get().memoria || []).map(x => x.texto).join(' ')); if (typeof ingDiarioTexto === 'function') ingColheNumeros(ingDiarioTexto(14)); } catch (e) {}
   ingPararFala(); ingVozEspera = true;
   fotos = !fotos ? [] : Array.isArray(fotos) ? fotos : [fotos];
@@ -1955,8 +1957,8 @@ iaChamar = async function (mensagens) {
    (o modelo somou de cabeça) e (2) "registrei/anotei/fechei…" sem ter chamado ferramenta nenhuma.
    Se achar, devolve UMA vez ao modelo, sem ela ver, pedindo para consultar/fazer de verdade e reescrever.
    Só custa uma chamada extra nessas respostas (não em todas). Se a 2ª também falhar, o vigia avisa. */
-let ingFerrTurno = 0, ingConferiu = false;
-const ING_DIZ_QUE_FEZ = /\b(registrei|anotei|criei|marquei|cadastrei|fechei|escalei|guardei|salvei|mudei|apaguei|gravei|atualizei|corrigi|agendei|lancei)\b/i;
+let ingFerrTurno = 0, ingConferiu = false, ingEscTurno = 0;
+const ING_DIZ_QUE_FEZ = /\b(registrei|anotei|criei|marquei|cadastrei|fechei|escalei|guardei|salvei|mudei|apaguei|gravei|atualizei|corrigi|agendei|lancei|montei|adicionei|acrescentei|tirei|inclu[ií]|exclu[ií]|escolhi|confirmei)\b/i;
 const _ingChamarBase = iaChamar;
 iaChamar = async function (mensagens) {
   const corpo = await _ingChamarBase(mensagens);
@@ -1964,12 +1966,13 @@ iaChamar = async function (mensagens) {
   const txt = corpo.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
   if (!txt.trim()) return corpo;
   const sus = typeof ingDinheiroSuspeito === 'function' ? ingDinheiroSuspeito(txt) : [];
-  const fingiu = ingFerrTurno === 0 && ING_DIZ_QUE_FEZ.test(txt) && !/\?\s*$/.test(txt.trim());
+  /* disse que fez, mas nenhuma ferramenta de GRAVAÇÃO rodou (teste de 06/10: consultou a tabela e respondeu "Montei o ORC-0052" sem criar nada) */
+  const fingiu = ingEscTurno === 0 && ING_DIZ_QUE_FEZ.test(txt) && !/\?\s*$/.test(txt.trim());
   if (!sus.length && !fingiu) return corpo;
   ingConferiu = true;
   const aviso = [
     sus.length ? `Os valores ${sus.join(', ')} da sua resposta não vieram de nenhuma ferramenta. Chame a ferramenta certa (contas_do_cliente, ver_orcamentos, ver_contabilidade ou ver_relatorio) e use SÓ os números que ela devolver; se não precisa de valor, tire-o.` : '',
-    fingiu ? 'Você disse que fez algo, mas nenhuma ferramenta foi chamada nesta resposta — nada foi gravado. Chame a ferramenta agora (o app mostra o cartão) ou diga claramente que ainda não fez.' : '',
+    fingiu ? 'Você disse que fez algo, mas nenhuma ferramenta de gravação rodou nesta resposta — NADA foi gravado (consultar não grava). Chame a ferramenta agora (o app mostra o cartão) ou diga claramente que ainda não fez.' : '',
   ].filter(Boolean).join(' ');
   try {
     const de = await _ingChamarBase(mensagens.concat([{ role: 'assistant', content: corpo.content }, { role: 'user', content: '⟦verificação interna do app — ela não vê esta mensagem⟧ ' + aviso + ' Responda de novo para ela, como se fosse a primeira resposta, sem mencionar esta verificação.' }]));
