@@ -1386,9 +1386,10 @@ iaFecha = function () { ingPararFala(); if (ingOuvindo) ingOuvDescarta(); return
    empurra o conteúdo (não cobre a tela) e ela mexe nas abas com ele aberto.
    "›" recolhe; o botão "Assistente" traz de volta; o app lembra (só neste
    aparelho). Celular e tela menor: a gaveta de sempre.
-   A MEMÓRIA DELA NÃO MUDA: histórico (guia_ia_hist), o que ela ensinou
-   (guia_mkt → memoria), "perguntar antes" (guia_ia_confirma) e a voz
-   (ingrid_voz_v1) continuam nas mesmas chaves. Chave nova: ingrid_ia_dock.
+   A MEMÓRIA DELA NÃO MUDA: histórico (ingrid_ia_hist), o que ela ensinou
+   (ingrid_mkt → memoria), "perguntar antes" (ingrid_ia_confirma) e a voz
+   (ingrid_voz_v1). Até 06/10 eram guia_ia_hist/guia_mkt/guia_ia_confirma: o motor
+   muda de chave sozinho na 1ª abertura (iaMudaChavesAntigas). Chave nova: ingrid_ia_dock.
 ===================================================== */
 const ING_DOCK_KEY = 'ingrid_ia_dock', ING_DOCK_MIN = 1280;
 /* o app DELA (dados reais, semExemplos): o "ao vivo" é o trabalho de verdade — nada de "protótipo"

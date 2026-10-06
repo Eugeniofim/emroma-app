@@ -26,10 +26,32 @@
    para fora: o assistente escreve, quem envia é o guia. */
 'use strict';
 
-const IA_CHAVE = 'guia_ia_chave';
-const IA_HIST = 'guia_ia_hist';
-const IA_GASTO = 'guia_ia_gasto';
-const IA_CONFIRMA = 'guia_ia_confirma';
+/* Nome próprio de tudo que o assistente guarda no navegador. O endereço
+   guia.eugeniofim.com é dividido entre vários apps (a demo, a Ingrid, a Foto,
+   a Leda, a Carol, a Dulcineia, a Mari…): com o prefixo fixo 'guia_', a conversa,
+   a memória e a chave de IA de um apareciam no outro no mesmo navegador.
+   O prefixo sai do DB_KEY (foto_db_v1 → foto_), igual na Carol e na Mari. */
+const IA_NS = (typeof DB_KEY !== 'undefined' ? String(DB_KEY).replace(/_db_v\d+$/, '') : 'guia') + '_';
+const IA_CHAVE = IA_NS + 'ia_chave';
+const IA_HIST = IA_NS + 'ia_hist';
+const IA_GASTO = IA_NS + 'ia_gasto';
+const IA_CONFIRMA = IA_NS + 'ia_confirma';
+/* Migração de uma vez (06/10/2026): quem já usava não perde chave, conversa,
+   gasto, "perguntar antes", memória (mkt) nem a chave do Gemini. Se a chave nova
+   está vazia e a antiga existe, copia; a antiga só sai depois que a cópia confere.
+   Mover e não duplicar: o mkt guarda fotos e, em dobro, estourava o espaço do
+   navegador (e aí o save() dos dados do app falha). */
+(function iaMudaChavesAntigas() {
+  if (IA_NS === 'guia_') return;
+  try {
+    for (const k of ['ia_chave', 'ia_hist', 'ia_gasto', 'ia_confirma', 'mkt', 'gemini_chave']) {
+      const velho = localStorage.getItem('guia_' + k);
+      if (velho === null) continue;
+      if (localStorage.getItem(IA_NS + k) === null) localStorage.setItem(IA_NS + k, velho);
+      if (localStorage.getItem(IA_NS + k) === velho) localStorage.removeItem('guia_' + k);
+    }
+  } catch (e) {}
+})();
 const IA_MODELO = 'claude-haiku-4-5';
 const IA_PRECO = { in: 1, out: 5, cacheW: 1.25, cacheR: 0.10 };  /* US$ por milhão de tokens */
 const IA_MAX_VOLTAS = 10;
@@ -56,7 +78,7 @@ const COFRE = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.cofre) || '';
    escreveria por cima do treino do demo — um cliente apagaria o outro. */
 const CLIENTE_COFRE = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.clienteCofre) || 'demo';
 const urlEnsino = () => COFRE + '/api/ensino?cliente=' + encodeURIComponent(CLIENTE_COFRE);
-const COFRE_FIM = 'guia_cofre_fim';
+const COFRE_FIM = IA_NS + 'cofre_fim';
 let cofreEstado = { claude: false, imagem: false, instagram: false, whatsapp: false };
 const cofreEsgotado = (tipo) => { try { return sessionStorage.getItem(COFRE_FIM + tipo) === new Date().toISOString().slice(0, 10); } catch (e) { return false; } };
 const marcaEsgotado = (tipo) => { try { sessionStorage.setItem(COFRE_FIM + tipo, new Date().toISOString().slice(0, 10)); } catch (e) {} };
@@ -342,7 +364,7 @@ const naLingua = (lang, fn) => { const a = LANG; LANG = lang; try { return fn();
 /* ---------- dados do marketing e do atendimento ----------
    Protótipo: guardados neste navegador. No app de um cliente viram linhas
    no Supabase dele, para celular e laptop verem o mesmo. */
-const MKT_KEY = 'guia_mkt';
+const MKT_KEY = IA_NS + 'mkt';
 const KIT_PADRAO = { cores: { principal: '#E8A33D', destaque: '#C4553B', escura: '#1E3A4C', neutra: '#6B6B73' },
   voz: '', frases: '', proibidas: 'imperdível, incrível, experiência única, o melhor', hashtags: '' };
 const Mkt = {
@@ -414,7 +436,7 @@ function guardaFoto(src, nome) {
 }
 
 /* ---------- imagem por IA: Gemini, com a chave do guia (fica só no aparelho) ---------- */
-const IMG_CHAVE = 'guia_gemini_chave';
+const IMG_CHAVE = IA_NS + 'gemini_chave';
 const IMG_MODELOS = ['gemini-2.5-flash-image', 'gemini-2.5-flash-image-preview'];
 const PROPORCAO = { story: '9:16', post: '1:1', flyer: '4:5' };
 const imgChave = () => { try { return (localStorage.getItem(IMG_CHAVE) || '').trim(); } catch (e) { return ''; } };
@@ -683,6 +705,9 @@ function iaPlano(nome, i) {
       fazer: () => { const b = Bookings.criarManual({ tourId: x.id, date: i.data, time: hora, name: i.nome, whats: i.whats || '', email: i.email || '',
         pax, total, recebido, metodo: i.metodo || 'pix' }); return { ok: true, codigo: b.code }; } };
   }
+  /* reserva que JÁ EXISTE sobe como atualização (PATCH, igual Bookings.payBalance/cancel).
+     O POST de reserva nova levava 409, o cloud.js trata 409 como sucesso e a mudança ou o
+     pagamento nunca chegava na nuvem — sumia no próximo cloudPull. Vale para registrar_pagamento. */
   if (nome === 'alterar_reserva') {
     const b = Bookings.byCode(String(i.codigo || '').toUpperCase()); if (!b) return E_('reserva não encontrada — use ver_reservas');
     const x = Tours.get(b.tourId), muda = {}, linhas = [[ia('cCliente'), b.name], [ia('cCodigo'), b.code]];
@@ -697,7 +722,7 @@ function iaPlano(nome, i) {
     if (muda.pax) { const novo = Bookings.precoDe(x, b.tourId, muda.date || b.date, muda.time || b.time, muda.pax).total;
       muda.total = novo; assumiu.push(`${ia('cTotal')} ${eur(novo)}`); }
     return { titulo: ia('cAlterarReserva'), assumiu, linhas,
-      fazer: () => { Object.assign(b, muda); save(); if (typeof cloudPushBooking === 'function') cloudPushBooking(b); return { ok: true }; } };
+      fazer: () => { Object.assign(b, muda); save(); if (typeof cloudUpdateBooking === 'function') cloudUpdateBooking(b); return { ok: true }; } };
   }
   if (nome === 'cancelar_reserva') {
     const b = Bookings.byCode(String(i.codigo || '').toUpperCase()); if (!b) return E_('reserva não encontrada');
@@ -717,7 +742,7 @@ function iaPlano(nome, i) {
       linhas: [[ia('cCliente'), b.name], [ia('cCodigo'), b.code], [ia('cValor'), eur(valor)], [ia('cComo'), metodo],
         [ia('cFalta'), eur(Math.max(0, falta - valor))]],
       fazer: () => { b.payments.push({ amount: valor, date: hojeIso(), method: metodo, kind: Bookings.paid(b) ? 'balance' : 'deposit' });
-        save(); if (typeof cloudPushBooking === 'function') cloudPushBooking(b); return { ok: true }; } };
+        save(); if (typeof cloudUpdateBooking === 'function') cloudUpdateBooking(b); return { ok: true }; } };
   }
   /* ---- perfil do guia ---- */
   if (nome === 'alterar_ajustes') {
@@ -2030,7 +2055,7 @@ function ensAplicarCartao() {
   const conta = typeof APP_CONFIG !== 'undefined' && APP_CONFIG.agenteInstagram;
   ensSondaCodigo();
   if (!COFRE || !conta || !cofreEstado.instagram || !ensCofreTemCodigo) return '';
-  let cod = ''; try { cod = sessionStorage.getItem('guia_admin_codigo') || ''; } catch (e) {}
+  let cod = ''; try { cod = sessionStorage.getItem(IA_NS + 'admin_codigo') || ''; } catch (e) {}
   return `<section class="ensCard ensApl"><h3>📲 ${ia('ensAplTit')}</h3><p class="ensSub">${esc(ia('ensAplTxt').replace('{c}', conta))}</p>
     <form id="ensAplForm" class="ensAplLinha"><input type="password" id="ensCodigo" value="${esc(cod)}" placeholder="${ia('ensCodigo')}" autocomplete="current-password" aria-label="${ia('ensCodigo')}">
       <button class="ibBt" type="submit">${ia('ensAplBt')}</button></form>
@@ -2038,12 +2063,12 @@ function ensAplicarCartao() {
     ${ensAplMsg ? `<p class="ensAplMsg">${ensAplMsg}</p>` : ''}</section>`;
 }
 async function ensAplicar(codigo) {
-  try { sessionStorage.setItem('guia_admin_codigo', codigo); } catch (e) {}
+  try { sessionStorage.setItem(IA_NS + 'admin_codigo', codigo); } catch (e) {}
   const e = ensino();
   let r; try { r = await fetch(urlEnsino(), { method: 'POST', headers: { 'content-type': 'application/json', 'x-codigo': codigo }, body: JSON.stringify({ ensino: e }) }); } catch (x) { r = null; }
   const hora = new Date().toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
   ensAplMsg = r && r.ok ? '✓ ' + ia('ensAplOk') + ' (' + hora + ')' : r && r.status === 401 ? '⚠ ' + ia('ensAplErro') : r && r.status === 503 ? '⚠ ' + ia('ensAplSem') : '⚠ ' + ia('ensAplFalhou');
-  if (r && r.status === 401) try { sessionStorage.removeItem('guia_admin_codigo'); } catch (x) {}
+  if (r && r.status === 401) try { sessionStorage.removeItem(IA_NS + 'admin_codigo'); } catch (x) {}
   admEnsinar();
 }
 async function ensTrazer() {
