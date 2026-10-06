@@ -346,7 +346,7 @@ const ING_LER = {
   ver_backup() {
     const u = Backup.ultimo();
     return { ultimo: u.em || 'nunca', onde: u.onde === 'pasta' ? 'na pasta ' + u.arquivo : u.onde === 'download' ? 'baixado no computador' : '—', o_de_hoje_ja_foi: Backup.feitoHoje(),
-      como_ligar_o_drive: 'Ajustes → Backup automático: instalar o Google Drive para computador e escolher a pasta Backup EmRoma' };
+      como_ligar_o_drive: 'Tocar no botão 📁 Google Drive (no topo) → Conectar Google Drive → entrar com a conta Google. Funciona no celular e no computador; o app cria a pasta EmRoma sozinho.' };
   },
   ver_clientes(i) {
     const hoje = hojeIso(), mes = +hoje.slice(5, 7);

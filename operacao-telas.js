@@ -2705,7 +2705,122 @@ async function arqIdb(modo, id, valor) {
 const DRV_BACKUPS = 'Backups', DRV_CRM = 'CRM', DRV_CLIENTES = 'Clientes';
 function drvNome(t) { return String(t || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Sem nome'; }
 /* a pasta, com a permissao do Chrome. comToque = veio de um clique (pode pedir) */
+/* GOOGLE DRIVE DIRETO (06/10): o botao "Conectar Google Drive" entra com a conta
+   Google dela (janelinha do Google) e o app grava na pasta EmRoma do Drive pela
+   internet — no celular tambem, sem instalar nada. Permissao drive.file: o app
+   so enxerga o que ele mesmo criou. O "GDrive" imita a pasta do Chrome
+   (getDirectoryHandle/getFileHandle/entries/removeEntry), entao backup, planilha
+   e comprovantes usam o mesmo caminho de antes. */
+const GD_CLIENTE = '1086489042405-mst3shdj5oo47tmg7ocu4a47no0gd0ta.apps.googleusercontent.com';
+const GD_ESCOPO = 'https://www.googleapis.com/auth/drive.file', GD_PASTA = 'EmRoma', GD_CHAVE = 'emroma_gdrive';
+const GD_PASTA_MIME = 'application/vnd.google-apps.folder';
+function gdLe() { try { return JSON.parse(localStorage.getItem(GD_CHAVE) || 'null') || {}; } catch (e) { return {}; } }
+function gdGuarda(o) { try { o ? localStorage.setItem(GD_CHAVE, JSON.stringify(o)) : localStorage.removeItem(GD_CHAVE); } catch (e) {} }
+const gdLigado = () => !!gdLe().ligado;
+const gdTokenVale = () => { const g = gdLe(); return !!(g.token && g.exp > Date.now() + 60000); };
+let gdScript = null;
+function gdCarrega() {
+  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve(true);
+  if (!gdScript) gdScript = new Promise((ok) => { const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.onload = () => ok(true); s.onerror = () => { gdScript = null; ok(false); }; document.head.appendChild(s); });
+  return gdScript;
+}
+setTimeout(() => { if (gdLigado()) gdCarrega(); }, 1500);   // deixa pronto para o toque abrir a janela na hora
+/* pede a permissao (janelinha do Google). So de um toque. */
+async function gdConecta() {
+  if (!await gdCarrega()) return { erro: 'Não consegui falar com o Google. Confira a internet.' };
+  return new Promise((ok) => {
+    let feito = false;
+    const cli = google.accounts.oauth2.initTokenClient({ client_id: GD_CLIENTE, scope: GD_ESCOPO,
+      callback: (r) => { feito = true;
+        if (!r || r.error || !r.access_token) return ok({ erro: r && r.error === 'access_denied' ? 'Você não liberou o acesso.' : 'O Google não liberou.' });
+        if (google.accounts.oauth2.hasGrantedAllScopes && !google.accounts.oauth2.hasGrantedAllScopes(r, GD_ESCOPO)) return ok({ erro: 'Marque a caixinha do Google Drive na janela do Google.' });
+        gdGuarda({ ...gdLe(), ligado: true, token: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000 }); ok({ ok: true }); },
+      error_callback: (e) => { feito = true; ok({ erro: e && e.type === 'popup_closed' ? 'A janela do Google foi fechada.' : 'O navegador bloqueou a janela do Google. Toque de novo.' }); } });
+    cli.requestAccessToken({ prompt: gdLigado() ? '' : 'consent', login_hint: gdLe().email || undefined });
+    setTimeout(() => { if (!feito) ok({ erro: 'O Google não respondeu.' }); }, 120000);
+  });
+}
+function gdDesconecta() {
+  const g = gdLe();
+  try { if (g.token && window.google && google.accounts) google.accounts.oauth2.revoke(g.token, () => {}); } catch (e) {}
+  gdGuarda(null); gdIds.clear();
+}
+async function gdApi(url, opts = {}) {
+  const g = gdLe(); if (!gdTokenVale()) throw new Error('gd-token');
+  const r = await fetch(url.startsWith('http') ? url : 'https://www.googleapis.com/drive/v3/' + url, { ...opts, headers: { Authorization: 'Bearer ' + g.token, ...(opts.headers || {}) } });
+  if (r.status === 401) { gdGuarda({ ...g, token: '', exp: 0 }); throw new Error('gd-token'); }
+  if (!r.ok) throw new Error('gd-' + r.status);
+  return r.status === 204 ? null : r.json();
+}
+const gdQ = (s) => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+async function gdAcha(pai, nome, pasta) {
+  const q = `name='${gdQ(nome)}' and '${pai}' in parents and trashed=false` + (pasta ? ` and mimeType='${GD_PASTA_MIME}'` : ` and mimeType!='${GD_PASTA_MIME}'`);
+  const r = await gdApi('files?fields=files(id,name)&pageSize=10&q=' + encodeURIComponent(q));
+  return (r.files || [])[0] || null;
+}
+const gdIds = new Map();   // "pai/nome" -> id da pasta (nao procura de novo a cada arquivo)
+function gdPasta(id, name) {
+  return {
+    kind: 'directory', name, id,
+    async getDirectoryHandle(nome, o = {}) {
+      const k = id + '/' + nome; let fid = gdIds.get(k);
+      if (!fid) {
+        const f = await gdAcha(id, nome, true);
+        if (f) fid = f.id;
+        else if (o.create) fid = (await gdApi('files?fields=id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nome, mimeType: GD_PASTA_MIME, parents: [id] }) })).id;
+        else { const e = new Error('NotFound'); e.name = 'NotFoundError'; throw e; }
+        gdIds.set(k, fid);
+      }
+      return gdPasta(fid, nome);
+    },
+    async getFileHandle(nome) {
+      return { kind: 'file', name: nome, async createWritable() {
+        let dado = '';
+        return { async write(c) { dado = c; }, async close() { await gdSobe(id, nome, dado); } };
+      } };
+    },
+    async *entries() {
+      let tok = '';
+      do {
+        const r = await gdApi('files?fields=nextPageToken,files(name,mimeType)&pageSize=200&q=' + encodeURIComponent(`'${id}' in parents and trashed=false`) + (tok ? '&pageToken=' + tok : ''));
+        for (const f of r.files || []) yield [f.name, { kind: f.mimeType === GD_PASTA_MIME ? 'directory' : 'file', name: f.name }];
+        tok = r.nextPageToken || '';
+      } while (tok);
+    },
+    async removeEntry(nome) { const f = await gdAcha(id, nome, false); if (f) await gdApi('files/' + f.id, { method: 'DELETE' }); },
+  };
+}
+/* grava o arquivo: se ja existe com esse nome na pasta, troca o conteudo (a planilha do dia, o backup refeito) */
+async function gdSobe(pai, nome, dado) {
+  const blob = dado instanceof Blob ? dado : new Blob([dado], { type: /\.json$/i.test(nome) ? 'application/json' : /\.csv$/i.test(nome) ? 'text/csv' : 'text/plain' });
+  const tipo = blob.type || 'application/octet-stream';
+  const ja = await gdAcha(pai, nome, false);
+  if (ja) return gdApi('https://www.googleapis.com/upload/drive/v3/files/' + ja.id + '?uploadType=media&fields=id', { method: 'PATCH', headers: { 'Content-Type': tipo }, body: blob });
+  const fd = new FormData();
+  fd.append('metadata', new Blob([JSON.stringify({ name: nome, parents: [pai] })], { type: 'application/json' }));
+  fd.append('file', blob, nome);
+  return gdApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', body: fd });
+}
+/* a pasta EmRoma do Drive dela (cria na primeira vez) */
+async function gdRaiz() {
+  let id = gdLe().raiz;
+  if (id) { try { const f = await gdApi('files/' + id + '?fields=id,trashed'); if (f.trashed) id = ''; } catch (e) { if (e.message === 'gd-token') throw e; id = ''; } }
+  if (!id) {
+    const f = await gdAcha('root', GD_PASTA, true);
+    id = f ? f.id : (await gdApi('files?fields=id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: GD_PASTA, mimeType: GD_PASTA_MIME }) })).id;
+    gdGuarda({ ...gdLe(), raiz: id });
+  }
+  const h = gdPasta(id, 'Google Drive › ' + GD_PASTA); h.name = 'Google Drive › ' + GD_PASTA; return h;
+}
 async function drvLiberada(comToque) {
+  /* conectado pelo botao do Google: vale em qualquer aparelho. A permissao dura 1 hora;
+     depois, sem toque, fica "pede um toque" (o aviso do Hoje / o botao do Drive resolvem) */
+  if (gdLigado()) {
+    if (!gdTokenVale() && comToque) await gdConecta();
+    if (!gdTokenVale()) return drvMarca({ erro: 'precisa-toque', pasta: 'Google Drive › ' + GD_PASTA, google: true });
+    try { const h = await gdRaiz(); return drvMarca({ h, pasta: h.name, google: true }); }
+    catch (e) { return drvMarca({ erro: e.message === 'gd-token' ? 'precisa-toque' : 'sem-internet', pasta: 'Google Drive › ' + GD_PASTA, google: true }); }
+  }
   const h = await bkpPasta(); if (!h) return drvMarca({ erro: 'sem-pasta' });
   let perm = 'prompt';
   try { perm = await h.queryPermission({ mode: 'readwrite' }); } catch (e) {}
@@ -2753,7 +2868,7 @@ const Arquivos = {
   async paraDrive(a, comToque) {
     const l = await drvLiberada(comToque); if (l.erro) return l;
     const b = await arqIdb('get', a.id); if (!b) return { erro: 'nao-esta-aqui' };
-    a.drive = await drvGrava(l.h, [DRV_CLIENTES, a.clienteNome || 'Sem cliente'], a.nome, b);
+    try { a.drive = await drvGrava(l.h, [DRV_CLIENTES, a.clienteNome || 'Sem cliente'], a.nome, b); } catch (e) { return { erro: 'nao-gravou' }; }
     _opSave();
     return { ok: true, caminho: a.drive };
   },
@@ -2794,7 +2909,8 @@ async function bkpEscolherPasta() {
 async function bkpNaPasta(comToque) {
   const l = await drvLiberada(comToque); if (l.erro) return l;
   const h = l.h, nome = Backup.nome();
-  const caminho = await drvGrava(h, [DRV_BACKUPS], nome, JSON.stringify(pacoteBackup(), null, 2));
+  let caminho;
+  try { caminho = await drvGrava(h, [DRV_BACKUPS], nome, JSON.stringify(pacoteBackup(), null, 2)); } catch (e) { return { erro: 'nao-gravou', pasta: h.name }; }
   /* a planilha dela, sempre a mais nova, pronta para abrir no Google Planilhas */
   try { await drvGrava(h, [DRV_CRM], 'CRM-EmRoma.csv', '\ufeff' + crmCsv(crmLinhas())); } catch (e) {}
   /* guarda os ultimos 60 dias; o resto sai para a pasta nao crescer para sempre */
@@ -2834,8 +2950,8 @@ async function bkpDoDia() {
   const el = document.createElement('div');
   el.id = 'bkpAviso'; el.className = 'alert warn bkp-aviso';
   el.innerHTML = r.erro === 'precisa-toque'
-    ? `💾 Backup de hoje: o Chrome pede um toque para usar a pasta "${esc(r.pasta)}". <button class="mini strong" id="bkpToque">Salvar agora</button>`
-    : `💾 Você ainda não fez o backup de hoje. <button class="mini strong" id="bkpToque">Salvar agora</button> <a class="mini" href="#/adm/settings">escolher a pasta do Drive</a>`;
+    ? `💾 Backup de hoje: ${r.google ? 'o Google pede um toque para continuar ligado' : `o Chrome pede um toque para usar a pasta "${esc(r.pasta)}"`}. <button class="mini strong" id="bkpToque">Salvar agora</button>`
+    : `💾 Você ainda não fez o backup de hoje. <button class="mini strong" id="bkpToque">Salvar agora</button> <button class="mini" data-at="drive">conectar o Google Drive</button>`;
   const ph = st.querySelector('.pagehead'); if (ph) ph.after(el); else st.prepend(el);
   el.querySelector('#bkpToque').onclick = async () => { const x = await bkpAgora(true); el.remove(); toast(x.ok ? `💾 Backup salvo${x.pasta ? ' em ' + x.pasta : ' (baixado)'}` : 'Não salvou — tente em Ajustes'); };
 }
@@ -2846,11 +2962,7 @@ function bkpAjustesHtml() {
     <h3>Backup automático · computador e Google Drive</h3>
     <p class="why">Todo dia, na primeira vez que você abre o painel, o app salva tudo (clientes, reservas, pagamentos, guias, orçamentos, tarefas) na pasta <b>EmRoma</b> do seu Google Drive: o backup em <b>Backups</b>, a planilha em <b>CRM</b> e os comprovantes em <b>Clientes</b>.</p>
     <button class="mini strong" data-at="drive">📁 Abrir o painel do Google Drive</button>
-    <ol class="bkp-passos">
-      <li>No computador, instale o <b>Google Drive para computador</b> (google.com/drive/download) e entre com a sua conta.</li>
-      <li>No Drive, crie a pasta <b>EmRoma</b>.</li>
-      <li>Toque em <b>Escolher a pasta</b> e escolha: Google Drive › Meu Drive › EmRoma.</li>
-    </ol>
+    <p class="why">${gdLigado() ? '✓ Conectado ao Google Drive (pasta EmRoma).' : 'Para ligar: abra o painel do Google Drive acima e toque em <b>Conectar Google Drive</b> — entra com a sua conta Google, no celular ou no computador.'}</p>
     <p class="bkp-estado" id="bkpEstado">${u.em ? `✓ Último backup: <b>${new Date(u.em).toLocaleString('pt-BR')}</b> · ${u.onde === 'pasta' ? 'na pasta ' + esc(u.arquivo) : 'baixado (' + esc(u.arquivo) + ')'}` : 'Nenhum backup ainda.'}</p>
     <div class="btnrow">
       ${bkpTemPasta() ? '<button class="cta sm" id="bkpPastaBt">Escolher a pasta</button>' : ''}
@@ -3137,16 +3249,16 @@ const ATALHO = {
   },
   async drive() {
     const u = Backup.ultimo(), temPasta = bkpTemPasta(), fila = Arquivos.pendentes().length;
-    const l = await drvLiberada(false);
+    const l = await drvLiberada(false), g = !!l.google;
     const d = opJanela('📁 Google Drive e backup', `
-      <div class="drv-estado ${l.h ? 'ok' : l.pasta ? 'warn' : ''}">${l.h ? `✓ Ligado à pasta <b>${esc(l.pasta)}</b> do seu Google Drive` : l.pasta ? `A pasta <b>${esc(l.pasta)}</b> está escolhida, mas o Chrome pede um toque para usar.` : temPasta ? 'O Google Drive ainda não está ligado.' : 'Neste aparelho não dá para ligar pasta (celular, Safari). Os arquivos ficam guardados no app; ligue o Drive no computador, pelo Chrome.'}</div>
+      <div class="drv-estado ${l.h ? 'ok' : l.pasta ? 'warn' : ''}">${l.h ? `✓ Ligado: <b>${esc(l.pasta)}</b>` : g ? (l.erro === 'sem-internet' ? 'Sem internet agora — os arquivos esperam no app e sobem depois.' : 'O Google pede um toque para continuar ligado (vale por 1 hora; depois ele pede de novo).') : l.pasta ? `A pasta <b>${esc(l.pasta)}</b> está escolhida, mas o Chrome pede um toque para usar.` : 'O Google Drive ainda não está ligado. Toque em <b>Conectar Google Drive</b> e entre com a sua conta Google — funciona no celular e no computador.'}</div>
       <p class="drv-ultimo">${u.em ? `💾 Último backup: <b>${new Date(u.em).toLocaleString('pt-BR')}</b><br><small>${esc(u.onde === 'pasta' ? u.arquivo : 'baixado: ' + u.arquivo)}</small>` : '💾 Nenhum backup ainda.'}</p>
       <div class="btnrow">
-        ${temPasta ? (l.h ? '' : l.pasta ? '<button class="cta sm" id="drvToque">Liberar a pasta</button>' : '<button class="cta sm" id="drvLiga">Ligar o Google Drive</button>') : ''}
+        ${g ? (l.h ? '' : '<button class="cta sm" id="drvGoogle">Continuar ligado</button>') : l.pasta && temPasta ? (l.h ? '' : '<button class="cta sm" id="drvToque">Liberar a pasta</button>') : '<button class="cta sm" id="drvGoogle">Conectar Google Drive</button>'}
         <button class="mini strong" id="drvJa">Fazer backup agora</button>
         ${fila && l.h ? `<button class="mini" id="drvFila">Mandar ${fila} ${fila === 1 ? 'arquivo' : 'arquivos'} que ficaram na fila</button>` : ''}
         <a class="mini" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noopener">Abrir o Google Drive ↗</a>
-        ${temPasta && l.pasta ? '<button class="mini ghost" id="drvTroca">trocar a pasta</button>' : ''}
+        ${g ? '<button class="mini ghost" id="drvSai">desconectar</button>' : temPasta && l.pasta ? '<button class="mini ghost" id="drvTroca">trocar a pasta</button>' : ''}
       </div>
       <h3>O que vai para lá</h3>
       <ul class="drv-arvore">
@@ -3156,15 +3268,20 @@ const ATALHO = {
             <li>📁 <b>Clientes</b> › <i>nome do cliente</i> — comprovantes e documentos que você manda pelo assistente ou pelo 💶 Pagamento</li></ul></li>
       </ul>
       ${fila ? `<p class="why">⏳ ${fila} ${fila === 1 ? 'arquivo ainda não subiu' : 'arquivos ainda não subiram'} para o Drive — ${fila === 1 ? 'está guardado' : 'estão guardados'} no app e ${fila === 1 ? 'sobe' : 'sobem'} quando a pasta estiver ligada.</p>` : ''}
-      ${l.h ? '' : `<details ${temPasta && !l.pasta ? 'open' : ''}><summary><b>Como ligar (uma vez só, no computador)</b></summary><ol class="bkp-passos">
-        <li>Instale o <b>Google Drive para computador</b> (google.com/drive/download) e entre com a sua conta.</li>
-        <li>No Drive, crie a pasta <b>EmRoma</b> (em Meu Drive).</li>
-        <li>Aqui, toque em <b>Ligar o Google Drive</b> e escolha: Google Drive › Meu Drive › EmRoma.</li></ol></details>`}
+      ${l.h || g ? '' : `<details open><summary><b>Como ligar (uma vez só)</b></summary><ol class="bkp-passos">
+        <li>Toque em <b>Conectar Google Drive</b>.</li>
+        <li>Na janela do Google, escolha a sua conta e toque em <b>Continuar</b> (o app só vê o que ele mesmo cria — nada mais do seu Drive).</li>
+        <li>Pronto: o app cria a pasta <b>EmRoma</b> no seu Drive e começa a guardar.</li></ol>
+        ${temPasta ? '<p class="why">Prefere usar uma pasta do computador (Google Drive para computador)? <button class="mini ghost" id="drvLiga">escolher pasta do computador</button></p>' : ''}</details>`}
       <h3>☁️ Nuvem (celular e computador juntos)</h3>
       <p class="why">${temNuvem() ? '✓ Ligada: o que você faz num aparelho aparece no outro sozinho.' : 'Ainda desligada: cada aparelho guarda o seu. Liga quando o banco de dados da EmRoma for criado — aí celular e computador ficam sempre iguais, sem fazer nada.'}</p>`);
     const re = () => { d.close(); setTimeout(() => ATALHO.drive(), 50); };
     const liga = async () => { const p = await bkpEscolherPasta(); if (!p) return; const r = await bkpNaPasta(true); toast(r.ok ? `📁 Ligado à pasta "${p.name}" · backup de hoje salvo` : 'Pasta escolhida'); re(); };
     d.querySelector('#drvLiga')?.addEventListener('click', liga);
+    d.querySelector('#drvGoogle')?.addEventListener('click', async () => {
+      const c = await gdConecta(); if (c.erro) return toast(c.erro);
+      const r = await bkpNaPasta(false); toast(r.ok ? '📁 Google Drive ligado · backup de hoje salvo na pasta EmRoma' : '📁 Google Drive ligado'); re(); });
+    d.querySelector('#drvSai')?.addEventListener('click', () => { gdDesconecta(); toast('Google Drive desconectado deste aparelho'); re(); });
     d.querySelector('#drvTroca')?.addEventListener('click', liga);
     d.querySelector('#drvToque')?.addEventListener('click', async () => { const r = await bkpNaPasta(true); toast(r.ok ? '📁 Pasta liberada · backup de hoje salvo' : 'O Chrome não liberou'); re(); });
     d.querySelector('#drvJa').onclick = async () => { const r = await bkpAgora(true); toast(r.ok ? (r.caminho ? '💾 Salvo em ' + r.caminho : '💾 Backup baixado') : 'Não salvou'); re(); };
