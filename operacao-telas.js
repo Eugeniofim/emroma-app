@@ -1815,7 +1815,9 @@ function opDocVoucher(id) {
   const contas = bs.map(vchContaDe), T = contas.reduce((a, k) => ({ total: a.total + k.total, sinal: a.sinal + k.sinal, dia: a.dia + k.dia }), { total: 0, sinal: 0, dia: 0 });
   const r2 = (n) => Math.round(n * 100) / 100;
   const blocos = voucherBlocosViagem(bs);
+  const falta = typeof voucherFalta === 'function' ? voucherFalta(bs) : [];
   const corpo = `
+    ${falta.length ? `<div class="nao-imprime alert warn vch-falta"><b>Antes de mandar este voucher, falta:</b> ${falta.map(esc).join(' · ')}. <small>Preencha em "✏️ Editar este voucher" (dados do transfer) ou na ficha do cliente.</small></div>` : ''}
     <table class="doc-cli"><tbody>
       <tr><th>Nome:</th><td>${esc(b.name)}</td></tr>
       <tr><th>Whatsapp:</th><td>${esc(b.whats || (c && c.whats) || '')}</td></tr>
@@ -1830,7 +1832,8 @@ function opDocVoucher(id) {
     <div class="vch-bloco"><h4 class="vch-h">ONDE E QUANDO</h4>
       ${bs.map(x => { const ops = !ehTransfer(x) ? Pontos.doPasseio(x.tourId) : [], at = vchEncontro(x).ponto;
         return `<div class="vch-serv"><p class="vch-sub">${crmDataSem(x.date)} · ${esc(x.time || '')} — ${esc(opNomeServ(x))}</p>
-          <p>Encontro: ${vchEncontroHtml(x)}</p>${x.destino ? `<p>Destino: ${esc(x.destino)}</p>` : ''}
+          ${(() => { const nm = _nomeN(opNomeServ(x)), ja = (t) => t && nm.includes(_nomeN(String(t).split(/[,(]/)[0]));
+            return `${ehTransfer(x) && ja(x.origem) ? '' : `<p>Encontro: ${vchEncontroHtml(x)}</p>`}${x.destino && !ja(x.destino) ? `<p>Destino: ${esc(x.destino)}</p>` : ''}`; })()}
           ${ops.length ? `<label class="nao-imprime vch-pt">ponto deste passeio <select data-pt="${esc(x.id)}"><option value="">— escolher —</option>${ops.map(p => `<option value="${esc(p.id)}" ${at && at.id === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>` : ''}</div>`; }).join('')}
     </div>
     ${blocos.filter(k => !fora.has(k) && k !== 'fechamento').map(k => { const t = voucherBlocoTxt(k); return t ? `<div class="vch-bloco">${vchFmt(t)}</div>` : ''; }).join('')}
@@ -1840,6 +1843,10 @@ function opDocVoucher(id) {
     <details class="nao-imprime vch-edita"><summary>✏️ Editar este voucher</summary>
       <p class="why">Tire o que não serve pra este cliente e escreva uma observação só dele. Os textos padrão você muda na aba Voucher.</p>
       <div class="vch-blks">${blocos.map(k => `<label><input type="checkbox" data-vblk="${k}" ${fora.has(k) ? '' : 'checked'}> ${esc((VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome)}</label>`).join('')}</div>
+      ${bs.filter(ehTransfer).map(x => `<fieldset class="vch-tr"><legend>${crmDataSem(x.date)} · ${esc(x.time || '')} — ${esc(opNomeServ(x)).slice(0, 60)}</legend>
+        <div class="frow"><label class="fld sm">Voo/trem<input data-vtr="${esc(x.id)}" data-campo="voo" value="${esc(x.voo || '')}"></label>
+        <label class="fld grow">Buscar em<input data-vtr="${esc(x.id)}" data-campo="origem" value="${esc(x.origem || '')}" placeholder="aeroporto (FCO/CIA) ou endereço do hotel"></label>
+        <label class="fld grow">Levar para<input data-vtr="${esc(x.id)}" data-campo="destino" value="${esc(x.destino || '')}" placeholder="endereço do hotel ou aeroporto"></label></div></fieldset>`).join('')}
       <label class="fld">Observação deste voucher (sai antes da assinatura)<textarea id="vchNota" rows="3">${esc(nota)}</textarea></label>
       <button class="cta sm" id="vchSalva">salvar este voucher</button>
     </details>`;
@@ -1849,6 +1856,7 @@ function opDocVoucher(id) {
   const vs = $('#vchSalva'); if (vs) vs.onclick = () => {
     const f = $$('[data-vblk]').filter(i => !i.checked).map(i => i.dataset.vblk), n = $('#vchNota').value.trim();
     for (const x of bs) { x.voucherFora = f; x.voucherNota = n; _opSaveBooking(x); }
+    for (const inp of $$('[data-vtr]')) { const x = bs.find(b => b.id === inp.dataset.vtr); if (!x) continue; const v = inp.value.trim(); if ((x[inp.dataset.campo] || '') !== v) { const d = {}; d[inp.dataset.campo] = v; Op.detalhes(x.id, d); } }
     toast('Voucher salvo'); opDocVoucher(id);
   };
   /* mandou: o lembrete "mandar o voucher" some sozinho (de todos os serviços da viagem) */
@@ -2516,7 +2524,8 @@ function admTarefas(arg) {
   const G = { atrasadas: F(G0.atrasadas), hoje: F(G0.hoje), semana: F(G0.semana), depois: F(G0.depois), semData: F(G0.semData), feitas: F(G0.feitas) };
   const abertas = G.atrasadas.length + G.hoje.length + G.semana.length + G.depois.length + G.semData.length;
   const notas = Tarefas.notas(S.busca);
-  const clientes = Clients.all().filter(c => !c.acompanhante);
+  /* a lista de clientes vem do CADASTRO (Doc 06/10: "não consegue puxar a cliente para as tarefas" — antes só quem já tinha reserva) */
+  const clientes = (typeof Cadastro !== 'undefined' ? Cadastro.all().filter(c => !c.grupoDe).map(c => ({ name: c.nome })) : Clients.all().filter(c => !c.acompanhante));
   const grupo = (tit, lista, cls) => lista.length ? `<section class="card tf-grupo ${cls || ''}"><h3>${tit} <span class="tf-n">${lista.length}</span></h3>${lista.map(t => tfLinha(t, hoje)).join('')}</section>` : '';
   const recentes = Tarefas.all().filter(t => t.feita && /sozinha/.test(t.obsFim || '') && t.feitaEm && t.feitaEm.slice(0, 10) >= addDays(hoje, -1));
 

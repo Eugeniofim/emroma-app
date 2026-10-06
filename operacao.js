@@ -1115,6 +1115,9 @@ function voucherTipoTransfer(b) {
   const AERO = /\b(fco|cia)\b|fiumicino|ciampino|aeroport/i, PORTO = /civitavecchia|\bporto\b|navio|cruzeiro|\bcais\b/i, TREM = /termini|tiburtina|stazione|esta[cç][aã]o|\btrem\b|\btreno\b|centrale/i;
   const dest = String(b.destino || '').toLowerCase();
   if (AERO.test(dest) || PORTO.test(dest) || TREM.test(dest)) return 'partida';
+  /* a descrição já diz o sentido ("Centro → FCO" = partida) — Doc dela de 06/10: a partida não era reconhecida */
+  const nm = String((typeof nomeDoServico === 'function' ? nomeDoServico(b) : '') || b.servicoTxt || ''), seta = nm.indexOf('→');
+  if (seta > 0) { const depois = nm.slice(seta + 1).split(' - ')[0]; if (AERO.test(depois) || PORTO.test(depois) || TREM.test(depois)) return 'partida'; }
   const txt = [b.origem, b.servicoTxt, (typeof nomeDoServico === 'function' ? nomeDoServico(b) : '')].filter(Boolean).join(' ');
   if (PORTO.test(txt)) return 'porto';
   if (TREM.test(txt)) return 'trem';
@@ -1123,10 +1126,39 @@ function voucherTipoTransfer(b) {
 /* O VOUCHER DA VIAGEM (o modelo dela): um documento por cliente com TODOS os
    serviços da viagem — as reservas não canceladas do mesmo cliente até 30 dias
    antes/depois desta — em ordem de data e hora. */
+/* REGRA DELA PARA O VOUCHER (Doc 06/10) — chegada de aeroporto: só depois do print/PDF do pagamento e com
+   nome, WhatsApp, quantidade e tamanho das malas, aeroporto, número do voo e endereço do hotel. Devolve o que FALTA. */
+function voucherFalta(bs) {
+  const out = [];
+  if (!bs || !bs.length) return out;
+  const b = bs[0], c = b.clienteId && typeof Cadastro !== 'undefined' ? Cadastro.get(b.clienteId) : null;
+  const orc = bs.map(x => x.orcamentoId && typeof Orc !== 'undefined' && Orc.get(x.orcamentoId)).find(Boolean) || null;
+  const bagagem = (orc && orc.bagagem) || (c && c.viagem && c.viagem.bagagem) || bs.map(x => x.malas).filter(Boolean)[0] || '';
+  const pago = bs.some(x => (x.payments || []).some(p => +p.amount > 0 && p.conta !== (typeof CONTA_PRESTADOR !== 'undefined' ? CONTA_PRESTADOR : 'prestador')));
+  const chegadas = bs.filter(x => typeof ehTransfer === 'function' && ehTransfer(x) && voucherTipoTransfer(x) === 'aeroporto');
+  if (!pago) out.push('o comprovante do pagamento (print ou PDF) — registre o pagamento antes');
+  if (!String(b.name || '').trim()) out.push('nome');
+  if (!String(b.whats || (c && c.whats) || '').replace(/\D/g, '')) out.push('WhatsApp');
+  if (chegadas.length) {
+    if (!/\d/.test(bagagem) || !/mala/i.test(bagagem)) out.push('quantidade e tamanho das malas');
+    for (const x of chegadas) {
+      const quando = (x.date || '').slice(8, 10) + '/' + (x.date || '').slice(5, 7);
+      if (!/\b(fco|cia)\b|fiumicino|ciampino|aeroport/i.test((x.origem || '') + ' ' + nomeDoServico(x))) out.push(`aeroporto da chegada (${quando})`);
+      if (!String(x.voo || '').trim()) out.push(`número do voo (${quando})`);
+      if (!String(x.destino || '').trim() || /^centro$/i.test(String(x.destino).trim())) out.push(`endereço do hotel (${quando})`);
+    }
+  }
+  /* partida: o motorista precisa saber de onde buscar (endereço do hotel) */
+  for (const x of bs.filter(x => typeof ehTransfer === 'function' && ehTransfer(x) && voucherTipoTransfer(x) === 'partida')) {
+    const quando = (x.date || '').slice(8, 10) + '/' + (x.date || '').slice(5, 7);
+    if (!String(x.origem || '').trim() || /^centro$/i.test(String(x.origem).trim())) out.push(`endereço do hotel de onde sai (${quando})`);
+  }
+  return out;
+}
 function voucherViagem(b) {
   if (!b) return [];
   const dig = (w) => String(w || '').replace(/\D/g, '');
-  const mesmo = (x) => b.clienteId ? x.clienteId === b.clienteId : ((dig(b.whats).length >= 6 && dig(x.whats) === dig(b.whats)) || _nomeN(x.name) === _nomeN(b.name));
+  const mesmo = (x) => (b.clienteId && x.clienteId === b.clienteId) || (dig(b.whats).length >= 6 && dig(x.whats) === dig(b.whats)) || (_nomeN(x.name) && _nomeN(x.name) === _nomeN(b.name));
   return (DB.bookings || []).filter(x => x.status !== 'cancelled' && (x.id === b.id || (mesmo(x) && Math.abs(_dias(b.date, x.date)) <= 30)))
     .sort((a, c) => (a.date + (a.time || '')).localeCompare(c.date + (c.time || '')));
 }

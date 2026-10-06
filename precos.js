@@ -218,6 +218,15 @@ const Precos = {
     return `${c.pax}${comp ? ' · ' + comp : ''} — ${_prEur(c.preco)}`;
   },
   /* um item de orçamento a partir de "tabId|secId|linId" */
+  /* REGRA DELA (Doc 06/10): o aeroporto que o cliente disse vira só a SIGLA, e a rota sai na ORDEM certa —
+     chegada "FCO → Centro", partida "Centro → FCO" (a Nery pediu partida e saiu "Aeroporto ↔ Centro") */
+  rotaSentido(desc, aeroporto, sentido) {
+    const d = String(desc || ''); const i = d.indexOf(' ↔ '); if (i < 0 || (!aeroporto && !sentido)) return d;
+    const fim = d.indexOf(' - ', i); const a0 = d.slice(0, i), b0 = fim > 0 ? d.slice(i + 3, fim) : d.slice(i + 3), resto = fim > 0 ? d.slice(fim) : '';
+    const ap = String(aeroporto || '').toUpperCase();
+    const A = ap && /aeroporto|fiumicino|ciampino|fco|cia/i.test(a0) ? ap : a0;
+    return (sentido === 'partida' ? `${b0} → ${A}` : `${A} → ${b0}`) + resto;
+  },
   itemOrc(ref, extra) {
     const p = String(ref || '').split('|'); const t = Precos.get(p[0]); if (!t) return null;
     const b = Precos.base(t), f = Precos.fator(t);
@@ -230,7 +239,8 @@ const Precos = {
     const valor = _prR2(c.preco + extraNot), custo = _prR2(c.custo + extraNot);
     /* tabela com desconto (Transfer Roma 5%): guarda o valor cheio pra mostrar a economia */
     const cheio = t.derivaDe ? _prR2(Precos.calc(b.tipo, l, 1).preco + extraNot) : 0;
-    return Object.assign({ desc: Precos.descLinha(t, s, c, not), pax: c.paxN, valor, custo, sinal: _prR2(valor - custo),
+    const desc0 = Precos.descLinha(t, s, c, not), desc = extra && (extra.aeroporto || extra.sentido) ? Precos.rotaSentido(desc0, extra.aeroporto, extra.sentido) : desc0;
+    return Object.assign({ desc, pax: c.paxN, valor, custo, sinal: _prR2(valor - custo),
       obs: '', precoRef: ref,
       turno: b.tipo === 'transfer' ? (not ? 'noturno' : 'diurno') : '', valorCheio: cheio > valor ? cheio : 0, descontoPct: cheio > valor ? Precos.descontoPct(t) : 0 }, extra || {});
   },

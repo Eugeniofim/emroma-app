@@ -296,6 +296,9 @@ function route() {
   /* redesenho da MESMA tela (nuvem chegou, relógio virou, dado mudou): fica onde ela estava.
      Antes todo redesenho dava scrollTo(0,0) — "a aba de tarefas volta pra cima" (Ingrid, 03/10). */
   const mesmaTela = route._tela === location.hash, yAntes = window.scrollY || 0;
+  /* e as CAIXAS que rolam por dentro (a Planilha, a lista de conversas…): Doc 06/10, "a planilha volta para o início" */
+  const ROLAM = '.crm-plan-wrap, .cv-lista, .cv-hist, .at-lista, .doc-tblwrap, [data-rola]';
+  const rolagens = mesmaTela ? [...document.querySelectorAll(ROLAM)].map(el => [el.scrollTop, el.scrollLeft]) : [];
   route._tela = location.hash;
   const h = location.hash.slice(2) || '';
   const p = h.split('/');
@@ -320,7 +323,7 @@ function route() {
   document.body.classList.toggle('em-adm', p[0] === 'adm');
   cestaBarra(p[0]);
   faixaAcimaDaBarra();
-  if (mesmaTela) requestAnimationFrame(() => scrollTo(0, yAntes)); else scrollTo(0, 0);
+  if (mesmaTela) requestAnimationFrame(() => { scrollTo(0, yAntes); const els = document.querySelectorAll(ROLAM); rolagens.forEach(([t, l], k) => { if (els[k]) { els[k].scrollTop = t; els[k].scrollLeft = l; } }); }); else scrollTo(0, 0);
 }
 
 /* A faixa do rodape (proposta / demonstracao) e a barra de abas do painel
