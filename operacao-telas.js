@@ -754,6 +754,7 @@ function fupListaHtml(lista, resumo, hoje) {
    CLIENTES — o dashboard (quem sao, de onde vem, quem indica)
 ===================================================== */
 function admClientes() {
+  if (typeof Orc !== 'undefined' && Orc.garanteFichas) Orc.garanteFichas();
   const S = admClientes._s = admClientes._s || { q: '', f: 'todos' };
   const hoje = isoToday(), mes = +hoje.slice(5, 7), mesIso = hoje.slice(0, 7);
   const todos = Cadastro.all();
@@ -1161,6 +1162,7 @@ function admPrecos(sub) {
 /* modo 'planilha' = a aba Planilha: a planilha dela, para preencher celula por
    celula. Sem modo = a aba Orcamentos: o painel e os cartoes com a proxima acao. */
 function admConsulta(arg, modo) {
+  if (typeof Orc !== 'undefined' && Orc.garanteFichas) Orc.garanteFichas();
   if (arg) return admOrcEditor(arg);
   const P = modo === 'planilha';
   let colsSalvas = []; try { colsSalvas = JSON.parse(localStorage.getItem('emroma_crm_cols') || '[]'); } catch (e) {}

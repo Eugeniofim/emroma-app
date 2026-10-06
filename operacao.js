@@ -416,7 +416,23 @@ const Orc = {
       pax: +d.pax || 0, datas: d.datas || [],
       termos: d.termos !== false, bookingIds: [],
     };
+    Orc._fichaDo(o);   // pedido da Ingrid (06/10): orçamento já cria/acha a ficha do cliente na aba Clientes
     DB.orcamentos.push(o); _opSave(); return o;
+  },
+  /* a FICHA do cliente do orçamento: acha pelo WhatsApp, e-mail ou nome (cliente que volta = mesma ficha)
+     e cria se não existir — antes a ficha só nascia quando o orçamento virava reserva */
+  _fichaDo(o) {
+    if (!o || !o.cliente || !String(o.cliente.nome || '').trim() || typeof Cadastro === 'undefined') return null;
+    const c = Cadastro.garante({ nome: o.cliente.nome, whats: o.cliente.whats, email: o.cliente.email, criado: o.criado, veioPor: o.veioPor || '' });
+    if (c) { o.clienteId = c.id; if (!o.cliente.whats && c.whats) o.cliente.whats = c.whats; if (!o.cliente.email && c.email) o.cliente.email = c.email; }
+    return c;
+  },
+  /* orçamentos antigos sem ficha ganham a ficha (uma vez por abertura de tela; barato) */
+  garanteFichas() {
+    let n = 0;
+    for (const o of DB.orcamentos || []) if (o.cliente && o.cliente.nome && (!o.clienteId || !Cadastro.get(o.clienteId))) { if (Orc._fichaDo(o)) n++; }
+    if (n) _opSave();
+    return n;
   },
   _item(i) {
     return { id: i.id || uid(), tourId: i.tourId || '', desc: String(i.desc || '').trim(),
@@ -560,6 +576,7 @@ const Orc = {
   salva(o) {
     const x = Orc.get(o.id); if (!x) return null;
     Object.assign(x, o, { itens: (o.itens || x.itens).map(Orc._item) });
+    if (o.cliente) Orc._fichaDo(x);
     Orc.propaga(x); _opSave(); return x;
   },
   status(id, st) { const o = Orc.get(id); if (!o) return; o.status = st; _opSave(); },
