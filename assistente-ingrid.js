@@ -1391,7 +1391,7 @@ iaFecha = function () { ingPararFala(); if (ingOuvindo) ingOuvDescarta(); return
    (ingrid_voz_v1). Até 06/10 eram guia_ia_hist/guia_mkt/guia_ia_confirma: o motor
    muda de chave sozinho na 1ª abertura (iaMudaChavesAntigas). Chave nova: ingrid_ia_dock.
 ===================================================== */
-const ING_DOCK_KEY = 'ingrid_ia_dock', ING_DOCK_MIN = 1280;
+const ING_DOCK_KEY = 'ingrid_ia_dock', ING_DOCK_MIN = 1400;   /* abaixo disso (notebook pequeno) o assistente abre por cima, sem espremer a tela */
 /* o app DELA (dados reais, semExemplos): o "ao vivo" é o trabalho de verdade — nada de "protótipo"
    nem de "módulo extra" na boas-vindas (e a IA não pode achar que os dados são de exemplo) */
 IA_TXT.perguntar = { pt: 'Confirmar antes', en: 'Confirm first' };   // cabe numa linha no rodapé do painel

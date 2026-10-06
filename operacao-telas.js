@@ -1456,32 +1456,41 @@ function admOrcEditor(id) {
   if (!o) { go('/adm/consulta'); return; }
   const tours = Tours.all();
   const tot = Orc.total(o), sin = Orc.sinal(o);
-  const linhaItem = (i) => `<div class="orc-item ${i.sugestao ? 'sug' : ''}${i.perdido ? ' perdido' : ''}" data-item="${esc(i.id)}">
-    <div class="frow">
-      <label class="fld grow">Serviço<input data-k="desc" value="${esc(i.desc)}"></label>
-      <label class="fld">Dia<input type="date" data-k="data" value="${esc(i.data)}"></label>
-      <label class="fld sm">Hora<input data-k="hora" value="${esc(i.hora)}" placeholder="09:00"></label>
-      <label class="fld sm">Pessoas<input type="number" min="1" data-k="pax" value="${i.pax}"></label>
-      <label class="fld sm">Valor €<input type="number" min="0" data-k="valor" value="${i.valor}"></label>
-      <label class="fld sm">Sinal €<input type="number" min="0" data-k="sinal" value="${i.sinal ?? ''}" placeholder="${Orc.sinalDoItem(o, i)}"></label>
-      <label class="fld sm" title="o que você paga a quem faz o serviço">Ingrid paga €<input type="number" min="0" data-k="custo" value="${i.custo || ''}" placeholder="0"></label>
-      <label class="fld sm orc-alt" title="marque nos serviços do MESMO dia que são alternativas (carro OU minivan): o cliente escolhe um e o total não soma os dois"><span>Opção?</span><input type="checkbox" data-k="alt" ${i.alt ? 'checked' : ''}></label>
-      ${(Tours.get(i.tourId) || {}).priceMode === 'transfer' ? `<label class="fld sm">Voo / trem<input data-k="voo" value="${esc(i.voo || '')}" placeholder="AZ 673"></label>` : ''}
+  /* UM SERVIÇO = um cartão em 3 linhas (06/10, áudio da Ingrid: "não entendi aqueles campos,
+     fica tudo sobreposto" no MacBook Air). 1) o que é  2) quando e quantos  3) preço.
+     O resto (quanto ela paga ao motorista, "é opção") fica em "mais", com palavras dela. */
+  const linhaItem = (i, n) => {
+    const tr = (Tours.get(i.tourId) || {}).priceMode === 'transfer' || /transfer|aeroporto|FCO|CIA|esta[çc][aã]o/i.test(i.desc);
+    const origem = i.tourId ? 'da sua tabela' : (i.vinculo || []).length ? '🎟 acompanha: ' + (o.itens.filter(x => i.vinculo.includes(x.id)).map(x => x.desc.replace(/\s*\(.*?\)/, '')).join(' / ') || '?') : i.precoRef ? 'da sua tabela de preços' : 'escrito por você';
+    const escolha = !i.perdido && Orc.opcoes(o).some(l => l.includes(i));
+    return `<div class="orc-item ${i.sugestao ? 'sug' : ''}${i.perdido ? ' perdido' : ''}" data-item="${esc(i.id)}">
+    <div class="oi-topo"><span class="oi-n">${n + 1}</span>
+      <label class="fld oi-desc"><span>Serviço</span><input data-k="desc" value="${esc(i.desc)}" placeholder="ex.: Transfer FCO → hotel"></label></div>
+    <div class="oi-grade">
+      <label class="fld"><span>Dia</span><input type="date" data-k="data" value="${esc(i.data)}"></label>
+      <label class="fld"><span>Hora</span><input data-k="hora" value="${esc(i.hora)}" placeholder="09:00" inputmode="numeric"></label>
+      <label class="fld"><span>Pessoas</span><input type="number" min="1" data-k="pax" value="${i.pax}"></label>
+      ${tr ? `<label class="fld"><span>Voo / trem</span><input data-k="voo" value="${esc(i.voo || '')}" placeholder="AZ 673"></label>` : ''}
+      <label class="fld oi-preco"><span>Preço ao cliente €</span><input type="number" min="0" data-k="valor" value="${i.valor}"></label>
+      <label class="fld"><span>Sinal €</span><input type="number" min="0" data-k="sinal" value="${i.sinal ?? ''}" placeholder="${Orc.sinalDoItem(o, i)}"></label>
     </div>
-    <div class="orc-item-pe">
-      ${i.tourId ? `<small class="why">da tabela: ${esc((Tours.get(i.tourId) || { name: { pt: '?' } }).name.pt)}</small>`
-        : (i.vinculo || []).length ? `<small class="why">🎟 acompanha: ${esc(o.itens.filter(x => i.vinculo.includes(x.id)).map(x => x.desc.replace(/\s*\(.*?\)/, '')).join(' / ') || '?')}</small>`
-        : i.precoRef ? '<small class="why">da Tabela de preços</small>' : '<small class="why">escrito à mão (com dia, vira reserva ao fechar)</small>'}
+    <details class="oi-mais" ${i.custo || i.alt ? 'open' : ''}><summary>mais detalhes deste serviço</summary>
+      <div class="oi-grade">
+        <label class="fld"><span>Você paga ao motorista/guia €</span><input type="number" min="0" data-k="custo" value="${i.custo || ''}" placeholder="0"></label>
+        <label class="oi-check"><input type="checkbox" data-k="alt" ${i.alt ? 'checked' : ''}><span><b>É uma opção</b><small>o cliente escolhe entre este e outro do mesmo dia (ex.: carro OU minivan) — o total não soma os dois</small></span></label>
+      </div>
+    </details>
+    <input class="orc-obs" data-k="obs" value="${esc(i.obs)}" placeholder="observação que o cliente vai ver (opcional)">
+    <div class="orc-item-pe"><small class="why">${esc(origem)}</small>
       ${i.sugestao ? '<span class="pill warn">sugestão do app — confira</span>' : ''}
-      <input class="orc-obs" data-k="obs" value="${esc(i.obs)}" placeholder="observação para o cliente">
-      ${i.tourId ? `<button class="mini" data-recalc="${esc(i.id)}">preço da tabela</button>` : ''}
-      ${o.status !== 'fechado' && typeof Precos !== 'undefined' && Precos.semExtras && Precos.semExtras(o, i) ? `<button class="mini strong" data-extras="${esc(i.id)}" title="põe os ingressos (comprar antecipado), os fones e a gestão deste passeio">🎟 pôr ingressos e gestão</button>` : ''}
-      ${!i.perdido && Orc.opcoes(o).some(l => l.includes(i)) ? `<button class="mini strong" data-escolhe="${esc(i.id)}" title="as outras opções deste dia ficam registradas como 'não fechou'">✓ o cliente escolheu esta</button>` : ''}
+      ${i.tourId ? `<button class="mini" data-recalc="${esc(i.id)}">voltar ao preço da tabela</button>` : ''}
+      ${o.status !== 'fechado' && typeof Precos !== 'undefined' && Precos.semExtras && Precos.semExtras(o, i) ? `<button class="mini strong" data-extras="${esc(i.id)}">🎟 pôr ingressos e gestão</button>` : ''}
+      ${escolha ? `<button class="mini strong" data-escolhe="${esc(i.id)}">✓ o cliente escolheu esta</button>` : ''}
       ${i.perdido
-        ? `<span class="pill bad" title="o cliente não quis — fica registrado, fora do total e do que vai pro cliente">não fechou${i.perdidoEm ? ' · ' + crmData(i.perdidoEm) : ''}</span><button class="mini" data-volta="${esc(i.id)}" title="o cliente quer de novo">voltar</button><button class="mini ghost danger" data-apaga="${esc(i.id)}" title="apagar de vez (sem registro)">apagar</button>`
-        : `<button class="mini danger" data-rmi="${esc(i.id)}" title="o cliente não quis: fica registrado como perdido e sai do total">não fechou</button>`}
+        ? `<span class="pill bad">o cliente não quis${i.perdidoEm ? ' · ' + crmData(i.perdidoEm) : ''}</span><button class="mini" data-volta="${esc(i.id)}">ele quer de novo</button><button class="mini ghost danger" data-apaga="${esc(i.id)}">tirar de vez</button>`
+        : `<button class="mini ghost danger" data-rmi="${esc(i.id)}" title="fica registrado como perdido e sai do total">✕ o cliente não quis</button>`}
     </div>
-  </div>`;
+  </div>`; };
   /* 1 orçamento por cliente: avisa se este cliente já tem outro em aberto */
   const dup = ['novo', 'rascunho', 'enviado'].includes(o.status) && (o.cliente.nome || o.cliente.whats) ? Orc.abertosDoCliente(o) : [];
   /* orçamento de antes da v1.94: passeio sem as linhas de ingresso e gestão — ela decide pôr (muda o total) */
@@ -1503,45 +1512,48 @@ function admOrcEditor(id) {
       </div></div>
     ${o.conversa || o.resumo ? `<details class="card"><summary><b>O pedido</b> <small class="why">${esc(o.resumo || '')}</small></summary>
       ${o.conversa ? `<pre class="pdmsg">${esc(o.conversa)}</pre>` : ''}</details>` : ''}
-    <section class="card">
-      <h3>Cliente</h3>
-      <div class="frow">
-        <label class="fld">Nome<input id="orNome" value="${esc(o.cliente.nome)}"></label>
-        <label class="fld">WhatsApp<input id="orWhats" value="${esc(o.cliente.whats)}"></label>
-        <label class="fld">E-mail<input id="orEmail" value="${esc(o.cliente.email)}"></label>
+    <section class="card orc-passo"><h3><span class="oi-n">1</span> Para quem</h3>
+      <div class="oi-grade">
+        <label class="fld"><span>Nome do cliente</span><input id="orNome" value="${esc(o.cliente.nome)}" placeholder="só o nome já basta"></label>
+        <label class="fld"><span>WhatsApp <small>(opcional)</small></span><input id="orWhats" value="${esc(o.cliente.whats)}"></label>
+        <label class="fld"><span>E-mail <small>(opcional)</small></span><input id="orEmail" value="${esc(o.cliente.email)}"></label>
       </div>
     </section>
-    <section class="card">
-      <h3>Serviços</h3>
-      <div id="orItens">${o.itens.map(linhaItem).join('') || '<p class="why">Nenhum serviço ainda.</p>'}</div>
-      <div class="frow orc-add">
-        <label class="fld grow">Acrescentar da sua tabela<select id="orAddT"><option value="">escolha…</option>
+    <section class="card orc-passo"><h3><span class="oi-n">2</span> Os serviços</h3>
+      <div class="orc-add">
+        <p class="why">Escolha da sua tabela — o preço entra sozinho. Pode pôr quantos quiser.</p>
+        <div class="oi-grade">
+        <label class="fld oi-tabela"><span>Serviço da tabela</span><select id="orAddT"><option value="">toque para escolher…</option>
           ${typeof Precos !== 'undefined' ? Precos.all().map(t => Precos.secoesView(t).map(s => s.linhas.length ? `<optgroup label="${esc('💶 ' + t.nome + ' · ' + s.titulo.slice(0, 44))}">${s.linhas.map(c => `<option value="${esc(t.id + '|' + s.id + '|' + c.ref)}">${esc(Precos.rotuloCurto(t, c))}</option>`).join('')}</optgroup>` : '').join('')).join('') : ''}
           ${regioes().map(([rg, pt]) => { const ts = tours.filter(x => x.region === rg); return ts.length ? `<optgroup label="${esc('catálogo do site · ' + pt)}">${ts.map(x => `<option value="${esc(x.id)}">${esc(x.name.pt)}</option>`).join('')}</optgroup>` : ''; }).join('')}
         </select></label>
-        <label class="fld sm">Pessoas<input type="number" min="1" id="orAddP" value="${o.pax || 2}"></label>
-        <label class="fld">Dia<input type="date" id="orAddD"></label>
-        <button class="mini strong" id="orAdd">+ acrescentar</button>
-        <button class="mini" id="orAvulso">+ item avulso</button>
+        <label class="fld"><span>Pessoas</span><input type="number" min="1" id="orAddP" value="${o.pax || 2}"></label>
+        <label class="fld"><span>Dia</span><input type="date" id="orAddD"></label>
+        </div>
+        <div class="btnrow"><button class="cta sm" id="orAdd">+ pôr no orçamento</button><button class="mini" id="orAvulso">✍️ escrever um serviço à mão</button></div>
       </div>
+      <div id="orItens">${o.itens.map((i, n) => linhaItem(i, n)).join('') || '<p class="empty">Nenhum serviço ainda — escolha acima.</p>'}</div>
     </section>
-    <section class="card">
-      <div class="frow">
-        <label class="fld sm">Sinal (% nos passeios)<input type="number" min="0" max="100" id="orPct" value="${o.sinalPct}"></label>
-        <label class="fld">Válido até<input type="date" id="orVal" value="${esc(o.validade)}"></label>
-        <label class="fld">Situação<select id="orSt">${ORC_STATUS.map(s => `<option value="${s[0]}" ${o.status === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('')}</select></label>
+    <section class="card orc-passo"><h3><span class="oi-n">3</span> Condições e total</h3>
+      <div class="oi-grade">
+        <label class="fld"><span>Sinal dos passeios (%)</span><input type="number" min="0" max="100" id="orPct" value="${o.sinalPct}"></label>
+        <label class="fld"><span>Vale até</span><input type="date" id="orVal" value="${esc(o.validade)}"></label>
+        <label class="fld"><span>Situação</span><select id="orSt">${ORC_STATUS.map(s => `<option value="${s[0]}" ${o.status === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('')}</select></label>
       </div>
       <label class="optin"><input type="checkbox" id="orTermos" ${o.termos ? 'checked' : ''}><span><b>Incluir os termos e condições</b><small>Pagou o sinal = aceitou. Edite os seus em Ajustes.${DB.settings.termos && DB.settings.termos.pt ? '' : ' <b>Hoje ainda é o MODELO.</b>'}</small></span></label>
-      <label class="fld">Observações para o cliente<textarea id="orObs" rows="2">${esc(o.obs)}</textarea></label>
+      <label class="fld"><span>Recado para o cliente <small>(aparece no orçamento)</small></span><textarea id="orObs" rows="2">${esc(o.obs)}</textarea></label>
       <div class="orc-tot"><span>Total <b>${eur(tot)}</b></span><span>Sinal <b>${eur(sin)}</b></span><span>No dia <b>${eur(Math.max(0, tot - sin))}</b></span>${Orc.itensConta(o).some(x => x.custo) ? `<span>Sua margem <b>${eur(Math.round((tot - Orc.itensConta(o).reduce((s2, x) => s2 + (+x.custo || 0), 0)) * 100) / 100)}</b></span>` : ''}</div>
-      <div class="orc-links"><span class="op-lbl">Arquivo: ${esc(Orc.nomeArquivo(o))}</span>
+      <details class="orc-links"><summary>links e nome do arquivo</summary><span class="op-lbl">Arquivo: ${esc(Orc.nomeArquivo(o))}</span>
         ${(o.links || []).map(l => `<a class="mini" target="_blank" rel="noopener" href="${esc(l.url)}">🔗 ${esc(l.nome)}</a>`).join('')}
-        <div class="frow"><label class="fld grow"><input id="orLkNome" placeholder="nome (ex.: PDF do orçamento)"></label><label class="fld grow"><input id="orLkUrl" placeholder="https://drive.google.com/…"></label><button class="mini" id="orLkAdd">+ link</button></div></div>
+        <div class="frow"><label class="fld grow"><input id="orLkNome" placeholder="nome (ex.: PDF do orçamento)"></label><label class="fld grow"><input id="orLkUrl" placeholder="https://drive.google.com/…"></label><button class="mini" id="orLkAdd">+ link</button></div></details>
       ${(o.repescagens || []).length ? `<p class="why">Follow-up: ${o.repescagens.map(x => `${x.n}ª ${crmData(x.data)} · ${esc(x.resultado)}`).join(' | ')}</p>` : ''}
-      <div class="btnrow"><button class="cta sm" id="orSalva">Salvar</button><button class="mini danger" id="orApaga">apagar</button></div>
+      <div class="btnrow"><button class="cta sm" id="orSalva">Salvar</button><button class="mini ghost danger" id="orApaga">apagar orçamento</button></div>
+    </section>
+    <section class="card orc-passo"><h3><span class="oi-n">4</span> Mandar ao cliente</h3>
+      <div class="btnrow"><a class="cta sm" href="#/adm/orcdoc/${esc(o.id)}">📄 ver o PDF</a>${o.cliente.whats ? `<a class="mini strong" id="orWa2" target="_blank" rel="noopener" href="${waLink(opMsgOrc(o), opNum(o.cliente.whats))}">💬 mandar no WhatsApp</a>` : ''}<button class="mini" id="orCopia2">copiar o texto</button></div>
     </section>
     ${o.status !== 'fechado' ? `<section class="card orc-fecha">
-      <h3>Fechou?</h3>
+      <h3><span class="oi-n">5</span> O cliente fechou?</h3>
       <p class="why">Cada serviço da sua tabela vira uma reserva, com o cliente, o dia e o sinal. Aparece no Hoje, na agenda e na ficha dele.</p>
       <label class="optin"><input type="checkbox" id="orSinalOk" checked><span><b>O sinal de ${eur(sin)} já caiu</b><small>registra o pagamento na conta abaixo</small></span></label>
       <label class="fld">Conta<select id="orConta">${opContaOpts('nubank')}</select></label>
@@ -1575,6 +1587,8 @@ function admOrcEditor(id) {
   const re = () => admOrcEditor(id);
   $('#orSalva').onclick = () => { lerTela(); toast('Orçamento salvo'); re(); };
   $('#orCopia').onclick = () => { lerTela(); opCopia(opMsgOrc(Orc.get(id))); };
+  $('#orCopia2').onclick = () => $('#orCopia').click();
+  $('#orWa2')?.addEventListener('click', (e) => { const w = $('#orWa'); if (w) { lerTela(); e.currentTarget.href = waLink(opMsgOrc(Orc.get(id)), opNum(o.cliente.whats)); w.onclick && w.onclick.call(w, e); } });
   const wa = $('#orWa');
   /* mandou o orcamento: o app ja fica aguardando a resposta (fecha sozinha quando fechar) */
   if (wa) wa.onclick = () => { lerTela(); wa.href = waLink(opMsgOrc(Orc.get(id)), opNum(o.cliente.whats)); if (o.status !== 'fechado') { o.status = 'enviado'; Orc.salva(o); Espera.orcamento(o); setTimeout(() => { toast('Orçamento enviado · tarefa "aguardar resposta" criada'); re(); }, 300); } };
