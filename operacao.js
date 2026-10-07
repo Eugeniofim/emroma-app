@@ -1905,13 +1905,17 @@ const Backup = {
                    indicadoPor (id), indicadoNome, parceiroId, grupoDe (id),
                    obs, criado, atualizado}] */
 /* o nome curto, para a coluna "veio por" da planilha */
-const VEIO_CURTO = { instagram: 'Instagram', status: 'Status WhatsApp', indicacao: 'Indicação', influencer: 'Influencer', agencia: 'Agência', google: 'Google / site', voltou: 'Já era cliente', junto: 'Veio junto', outro: 'Outro' };
+/* "VEIO POR" do jeito dela (Doc 07/10 parte 2, item 7): agência, indicação de guia, influencer,
+   indicação de um cliente, Instagram, YouTube, outro — e o "por quem" (nome / agência / de onde veio)
+   fica no campo ao lado. As opções antigas continuam lidas nos registros que já existem. */
+const VEIO_CURTO = { agencia: 'Agência', guia: 'Indicação de guia', influencer: 'Influencer', indicacao: 'Indicação de cliente', instagram: 'Instagram', youtube: 'YouTube', outro: 'Outro', junto: 'Veio junto',
+  status: 'Status WhatsApp', google: 'Google / site', voltou: 'Já era cliente' };
 const VEIO_POR = [
-  ['instagram', 'Instagram'], ['status', 'Status do WhatsApp'], ['indicacao', 'Indicação de alguém'],
-  ['influencer', 'Influencer / cupom'], ['agencia', 'Agência ou parceiro'], ['google', 'Google / site'],
-  ['voltou', 'Já era cliente'], ['junto', 'Veio junto com alguém'], ['outro', 'Outro'],
+  ['agencia', 'Agência'], ['guia', 'Indicação de guia'], ['influencer', 'Influencer'], ['indicacao', 'Indicação de um cliente'],
+  ['instagram', 'Instagram'], ['youtube', 'YouTube'], ['outro', 'Outro'], ['junto', 'Veio junto com alguém'],
 ];
-const veioPorNome = (v) => (VEIO_POR.find(x => x[0] === v) || [0, v || '—'])[1];
+const VEIO_ANTIGO = { status: 'Status do WhatsApp', google: 'Google / site', voltou: 'Já era cliente' };
+const veioPorNome = (v) => (VEIO_POR.find(x => x[0] === v) || [0, VEIO_ANTIGO[v] || v || '—'])[1];
 /* as origens antigas das reservas viram o "veio por" */
 const ORIGEM_PARA_VEIO = { instagram: 'instagram', friend: 'indicacao', whatsapp: 'status', agency: 'agencia', site: 'google' };
 const _nomeN = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
@@ -2310,7 +2314,7 @@ function importarPlanilha(txt, simular) {
   const res = out.filter(r => r.etapa !== 'aberto' && r.etapa !== 'perdido');
   if (simular) return { linhas: out, pulou, clientes: new Set(out.map(r => _dig8(r.whats) || _nomeN(r.nome))).size, orcamentos: orcs.length, reservas: res.length };
   const garanteAvulso = tourAvulso;
-  const VEIO = [[/status/i, 'status'], [/insta/i, 'instagram'], [/indic|amig|filh|m[aã]e|pai|irm/i, 'indicacao'], [/ag[eê]ncia|rpv|viage|turismo|tour/i, 'agencia'], [/google|site/i, 'google'], [/influ|cupom/i, 'influencer']];
+  const VEIO = [[/status/i, 'status'], [/insta/i, 'instagram'], [/indic|amig|filh|m[aã]e|pai|irm/i, 'indicacao'], [/ag[eê]ncia|rpv|viage|turismo|tour/i, 'agencia'], [/google|site/i, 'google'], [/influ|cupom/i, 'influencer'], [/youtube|you tube/i, 'youtube'], [/\bguia\b/i, 'guia']];
   const veioDe = (r) => (VEIO.find(([re]) => re.test(r.veio)) || [0, r.veio ? 'agencia' : ''])[1];
   const quemDe = (r) => r.indicou || (['agencia', 'indicacao', 'influencer'].includes(veioDe(r)) && !/^status|insta|google|site/i.test(r.veio) ? r.veio : '');
   const obsDe = (r) => [r.obs, r.paxObs, r.dataTxt && 'data: ' + r.dataTxt].filter(Boolean).join(' · ');
@@ -2623,7 +2627,7 @@ function _veioDigitado(v) {
   const t = _nomeN(v); if (!t) return '';
   const k = Object.keys(VEIO_CURTO).find(x => x === t || _nomeN(VEIO_CURTO[x]) === t);
   if (k) return k;
-  return /insta/.test(t) ? 'instagram' : /status/.test(t) ? 'status' : /indic/.test(t) ? 'indicacao' : /influ|cupom/.test(t) ? 'influencer' : /agenc/.test(t) ? 'agencia' : /google|site/.test(t) ? 'google' : 'outro';
+  return /insta/.test(t) ? 'instagram' : /status/.test(t) ? 'status' : /indic/.test(t) ? 'indicacao' : /influ|cupom/.test(t) ? 'influencer' : /agenc/.test(t) ? 'agencia' : /youtube/.test(t) ? 'youtube' : /\bguia\b/.test(t) ? 'guia' : /google|site/.test(t) ? 'google' : 'outro';
 }
 /* linha nova na planilha = um pedido novo (orcamento), como ela faz hoje */
 function crmNovaLinha(d = {}) {

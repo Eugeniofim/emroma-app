@@ -1134,6 +1134,10 @@ async function iaConversa(texto, fotos) {
   if (iaOcupado) return;
   iaOcupado = true; iaAbortar = false; iaTravado(true);
   const hist = iaAparaHist(iaLe(IA_HIST, []));
+  /* Doc 07/10 parte 2, item 9 ("responde perguntas anteriores quando mando uma nova"): pergunta que
+     ficou SEM resposta (erro, internet, cancelada) saía de novo junto com a nova e a IA respondia as duas.
+     Agora ela sai do histórico antes da pergunta nova. */
+  while (hist.length && ehPergunta(hist[hist.length - 1])) hist.pop();
   const refs = fotos.map(f => guardaFoto(f)).filter(Boolean).map(f => f.id);
   const nota = refs.length ? `\n\n[${refs.length > 1 ? 'fotos guardadas' : 'foto guardada'}; refs (para criativo ou capa de passeio): ${refs.join(', ')}]` : '';
   const pergunta = texto || (fotos.length > 1 ? 'O que dá para fazer com estas fotos?' : 'Escreva uma legenda para esta foto.');

@@ -653,8 +653,8 @@ function admFicha(arg) {
           <div class="frow"><label class="fld">Nome completo<input id="fcNome" value="${esc(c.nome)}"></label><label class="fld">Nascimento<input id="fcNasc" value="${esc(c.nasc || '')}" placeholder="dd/mm/aaaa"></label></div>
           <div class="frow"><label class="fld">WhatsApp<input id="fcWa" value="${esc(c.whats || '')}"></label><label class="fld">E-mail<input id="fcEm" value="${esc(c.email || '')}"></label></div>
           <div class="frow"><label class="fld">Instagram<input id="fcIg" value="${esc(c.insta || '')}"></label><label class="fld">País / cidade<input id="fcPais" value="${esc(c.pais || '')}"></label></div>
-          <div class="frow"><label class="fld">Veio por<select id="fcVeio"><option value="">—</option>${VEIO_POR.map(([vv, nn]) => `<option value="${vv}" ${c.veioPor === vv ? 'selected' : ''}>${nn}</option>`).join('')}</select></label>
-            <label class="fld">Indicado por<input id="fcInd" list="fcClis" value="${esc(ind ? ind.nome : c.indicadoNome || '')}" placeholder="nome de quem indicou"></label></div>
+          <div class="frow"><label class="fld">Veio por<select id="fcVeio"><option value="">—</option>${VEIO_ANTIGO[c.veioPor] ? `<option value="${esc(c.veioPor)}" selected>${esc(VEIO_ANTIGO[c.veioPor])} (antigo)</option>` : ''}${VEIO_POR.map(([vv, nn]) => `<option value="${vv}" ${c.veioPor === vv ? 'selected' : ''}>${nn}</option>`).join('')}</select></label>
+            <label class="fld">Por quem<input id="fcInd" list="fcClis" value="${esc(ind ? ind.nome : c.indicadoNome || '')}" placeholder="nome da pessoa / agência / de onde veio"></label></div>
           <div class="frow"><label class="fld">Parceiro / cupom<select id="fcPar"><option value="">—</option>${Parceiros.all().map(p => `<option value="${esc(p.id)}" ${c.parceiroId === p.id ? 'selected' : ''}>${esc(p.nome)}${p.cupom ? ' · ' + esc(p.cupom) : ''}</option>`).join('')}</select></label>
             <label class="fld">Idioma<input id="fcIdi" value="${esc(c.idioma || '')}" placeholder="pt, en…"></label></div>
           <datalist id="fcClis">${Cadastro.all().filter(x => x.id !== c.id).map(x => `<option value="${esc(x.nome)}">`).join('')}</datalist>
@@ -830,7 +830,7 @@ function admClientes() {
     </section>
     <details class="card" id="clNovoBox"><summary><b>+ Novo cliente</b></summary>
       <div class="frow"><label class="fld">Nome completo<input id="ncNome"></label><label class="fld">WhatsApp<input id="ncWa"></label></div>
-      <div class="frow"><label class="fld">Veio por<select id="ncVeio"><option value="">—</option>${VEIO_POR.map(([vv, nn]) => `<option value="${vv}">${nn}</option>`).join('')}</select></label><label class="fld">Indicado por<input id="ncInd" list="clClis"></label></div>
+      <div class="frow"><label class="fld">Veio por<select id="ncVeio"><option value="">—</option>${VEIO_POR.map(([vv, nn]) => `<option value="${vv}">${nn}</option>`).join('')}</select></label><label class="fld">Por quem<input id="ncInd" list="clClis"></label></div>
       <datalist id="clClis">${todos.map(x => `<option value="${esc(x.nome)}">`).join('')}</datalist>
       <button class="cta sm" id="ncSalva">Cadastrar</button></details>`);
   const re = () => admClientes();
@@ -1874,16 +1874,17 @@ function opDocVoucher(id) {
     </tbody></table>
     <div class="doc-tblwrap"><table class="tbl doc-tbl doc-orc"><thead><tr><th>Data</th><th>Hora</th><th>Serviço</th><th class="right">Total</th><th class="right">Sinal</th><th class="right">Pagar no dia</th></tr></thead><tbody>
       ${bs.map((x, k) => { const q = contas[k]; return `<tr><td class="mono">${crmDataSem(x.date)}</td><td class="mono">${esc(x.time || '')}</td>
-        <td>${esc(opNomeServ(x))}${x.voo ? `<br><small>voo/trem ${esc(x.voo)}</small>` : ''}${q.dia > 0 && q.paraIngrid ? `<br><small>a pagar à ${esc(guiaNegocio())} até ${fmtDate(Bookings.dueDate(x))}</small>` : ''}</td>
+        <td>${esc(opNomeServ(x))}${x.voo && !String(opNomeServ(x)).toUpperCase().includes(String(x.voo).toUpperCase()) ? `<br><small>voo/trem ${esc(x.voo)}</small>` : ''}${q.dia > 0 && q.paraIngrid ? `<br><small>a pagar à ${esc(guiaNegocio())} até ${fmtDate(Bookings.dueDate(x))}</small>` : ''}</td>
         <td class="mono right">${eur(q.total)}</td><td class="mono right">${eur(q.sinal)}${q.pendente ? '<br><small>a pagar</small>' : ''}</td><td class="mono right">${eur(q.dia)}</td></tr>`; }).join('')}
     </tbody><tfoot><tr><td colspan="3"><b>TOTAL</b></td><td class="mono right"><b>${eur(r2(T.total))}</b></td><td class="mono right"><b>${eur(r2(T.sinal))}</b></td><td class="mono right"><b>${eur(r2(T.dia))}</b></td></tr></tfoot></table></div>
-    <div class="vch-bloco"><h4 class="vch-h">ONDE E QUANDO</h4>
-      ${bs.map(x => { const ops = !ehTransfer(x) ? Pontos.doPasseio(x.tourId) : [], at = vchEncontro(x).ponto;
-        return `<div class="vch-serv"><p class="vch-sub">${crmDataSem(x.date)} · ${esc(x.time || '')} — ${esc(opNomeServ(x))}</p>
-          ${(() => { const nm = _nomeN(opNomeServ(x)), ja = (t) => t && nm.includes(_nomeN(String(t).split(/[,(]/)[0]));
-            return `${ehTransfer(x) && ja(x.origem) ? '' : `<p>Encontro: ${vchEncontroHtml(x)}</p>`}${x.destino && !ja(x.destino) ? `<p>Destino: ${esc(x.destino)}</p>` : ''}`; })()}
-          ${ops.length ? `<label class="nao-imprime vch-pt">ponto deste passeio <select data-pt="${esc(x.id)}"><option value="">— escolher —</option>${ops.map(p => `<option value="${esc(p.id)}" ${at && at.id === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>` : ''}</div>`; }).join('')}
-    </div>
+    ${(() => { /* Doc 07/10 item 11: sem "ONDE E QUANDO" repetindo a tabela — só o que ela NÃO diz
+         (o ponto de encontro do passeio, ou o destino que não está no nome do serviço) */
+      const linhas = bs.map(x => { const ops = !ehTransfer(x) ? Pontos.doPasseio(x.tourId) : [], at = vchEncontro(x).ponto;
+        const nm = _nomeN(opNomeServ(x)), ja = (t) => t && nm.includes(_nomeN(String(t).split(/[,(]/)[0]));
+        const info = `${ehTransfer(x) ? '' : `<p>Encontro: ${vchEncontroHtml(x)}</p>`}${x.destino && !ja(x.destino) && !ehTransfer(x) ? `<p>Destino: ${esc(x.destino)}</p>` : ''}`;
+        const sel = ops.length ? `<label class="nao-imprime vch-pt">ponto deste passeio <select data-pt="${esc(x.id)}"><option value="">— escolher —</option>${ops.map(p => `<option value="${esc(p.id)}" ${at && at.id === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>` : '';
+        return info || sel ? `<div class="vch-serv"><p class="vch-sub">${crmDataSem(x.date)} — ${esc(String(opNomeServ(x)).split(/\s*[(-]/)[0])}</p>${info}${sel}</div>` : ''; }).filter(Boolean);
+      return linhas.length ? `<div class="vch-bloco"><h4 class="vch-h">PONTO DE ENCONTRO</h4>${linhas.join('')}</div>` : ''; })()}
     ${blocos.filter(k => !fora.has(k) && k !== 'fechamento').map(k => { const t = voucherBlocoTxt(k); return t ? `<div class="vch-bloco">${vchFmt(t)}</div>` : ''; }).join('')}
     ${nota ? `<div class="vch-bloco"><h4 class="vch-h">OBSERVAÇÕES</h4>${vchFmt(nota)}</div>` : ''}
     ${!fora.has('fechamento') && voucherBlocoTxt('fechamento') ? `<div class="vch-bloco">${vchFmt(voucherBlocoTxt('fechamento'))}</div>` : ''}
@@ -1934,7 +1935,7 @@ function orcTabelasHtml(o) {
   const C = orcCenarios(o), pMax = Math.max(+o.pax || 0, ...(o.itens || []).map(i => +i.pax || 0));
   const linhas = C.ativos.map(i => { const si = Orc.sinalDoItem(o, i), op = C.emGrupo.get(i);
     return `<tr${op ? ' class="doc-opcao"' : ''}><td class="mono">${i.data ? crmDataSem(i.data) : '—'}</td><td class="mono">${esc(i.hora || '')}</td>
-      <td>${op ? `<span class="doc-op">Opção ${op.k + 1}</span> ` : ''}${esc(i.desc)}${C.soNa.has(i) ? ` <span class="doc-sona">só na ${esc(C.soNa.get(i))}</span>` : ''}${i.obs && !i.sugestao ? `<br><small>${esc(orcTextoCliente(i.obs))}</small>` : ''}${o.status !== 'fechado' && transferFaltaTexto(i) ? `<br><small class="doc-falta">${esc(transferFaltaTexto(i))}</small>` : ''}</td>
+      <td>${op ? `<span class="doc-op">Opção ${op.k + 1}</span> ` : ''}${esc(i.desc)}${C.soNa.has(i) ? ` <span class="doc-sona">só na ${esc(C.soNa.get(i))}</span>` : ''}${i.obs && !i.sugestao ? `<br><small>${esc(orcTextoCliente(i.obs))}</small>` : ''}</td>
       <td class="mono right">${i.valor ? (+i.valorCheio > +i.valor ? `<s class="doc-cheio">${eur(i.valorCheio)}</s><br>` : '') + eur(i.valor) : 'a definir'}</td>
       <td class="mono right">${i.valor ? eur(si) : ''}</td><td class="mono right">${i.valor ? eur(Math.max(0, i.valor - si)) : ''}</td></tr>`; }).join('');
   const rod = C.cenarios.map(c => `<tr><td colspan="3"><b>TOTAL${c.rotulo ? ' — ' + c.rotulo : ''}</b></td><td class="mono right"><b>${eur(c.total)}</b></td><td class="mono right"><b>${eur(c.sinal)}</b></td><td class="mono right"><b>${eur(c.dia)}</b></td></tr>`).join('');
@@ -1959,6 +1960,9 @@ function opDocOrc(id) {
   const modelo = /^MODELO/.test(termos);
   const corpo = `
     ${orcTabelasHtml(o)}
+    ${(() => { /* Doc 07/10 parte 2, item 8: o que falta do transfer vai ABAIXO do TOTAL, não dentro da linha */
+      if (o.status === 'fechado') return ''; const f = (o.itens || []).filter(i => !i.perdido).map(i => transferFaltaTexto(i)).filter(Boolean);
+      return f.length ? `<p class="doc-falta">${[...new Set(f)].map(esc).join('<br>')}</p>` : ''; })()}
     ${o.obs ? `<p>${esc(orcTextoCliente(o.obs)).replace(/\n/g, '<br>')}</p>` : ''}
     <h3>Como pagar o sinal</h3>
     <p>${[DB.settings.pixKey && 'Pix: ' + esc(DB.settings.pixKey), DB.settings.wiseLink && 'Wise: ' + esc(DB.settings.wiseLink), DB.settings.iban && 'IBAN: ' + esc(DB.settings.iban) + (DB.settings.ibanName ? ' (' + esc(DB.settings.ibanName) + ')' : '')].filter(Boolean).join('<br>') || 'Os dados de pagamento seguem pelo WhatsApp.'}</p>
@@ -3259,7 +3263,7 @@ function opJanela(titulo, corpo) {
 function atReservas(q, soDevendo) {
   const n = _nomeN(q), dig = String(q || '').replace(/\D/g, ''), hoje = isoToday();
   return DB.bookings.filter(b => b.status !== 'cancelled' && (!soDevendo || Bookings.due(b) > 0))
-    .filter(b => !n || _nomeN(b.name).includes(n) || String(b.code || '').toLowerCase().includes(String(q).toLowerCase()) || (dig.length >= 4 && String(b.whats || '').replace(/\D/g, '').includes(dig)))
+    .filter(b => !n || _nomeN(b.name).includes(n) || _nomeN(((b.clienteId && Cadastro.get(b.clienteId)) || {}).nome).includes(n) || (b.group || []).some(g => _nomeN(g.nome || g.name).includes(n)) || String(b.code || '').toLowerCase().includes(String(q).toLowerCase()) || (dig.length >= 4 && String(b.whats || '').replace(/\D/g, '').includes(dig)))
     .sort((a, b) => ((a.date >= hoje) === (b.date >= hoje) ? (a.date >= hoje ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)) : a.date >= hoje ? -1 : 1))
     .slice(0, 12);
 }
@@ -3268,7 +3272,14 @@ function atLinhaReserva(b) {
 }
 function atBusca(d, soDevendo, escolhe) {
   const inp = d.querySelector('.at-q'), box = d.querySelector('.at-lista');
-  const pinta = () => { const l = atReservas(inp.value, soDevendo); box.innerHTML = l.map(atLinhaReserva).join('') || '<p class="why">Nenhuma reserva com esse nome.</p>';
+  /* Doc 07/10 (print da Ingrid, "paula"): sem reserva, mostra se a pessoa tem ORÇAMENTO ainda não fechado —
+     o voucher nasce da reserva, que nasce quando o orçamento fecha */
+  const semReserva = (q) => { const n = _nomeN(q); if (n.length < 2) return '<p class="why">Nenhuma reserva com esse nome.</p>';
+    const os = (DB.orcamentos || []).filter(o => o.status !== 'fechado' && o.status !== 'perdido' && _nomeN(o.cliente && o.cliente.nome).includes(n)).slice(0, 5);
+    if (!os.length) return '<p class="why">Nenhuma reserva nem orçamento com esse nome.</p>';
+    return `<p class="why">Nenhuma <b>reserva</b> com esse nome ainda — o voucher sai da reserva, que nasce quando o orçamento fecha:</p>` +
+      os.map(o => `<a class="at-res" href="#/adm/consulta/${esc(o.id)}" onclick="document.querySelectorAll('dialog[open]').forEach(x=>x.close())"><b>${esc(o.cliente.nome)}</b><span>${esc(o.num)} · ${esc(o.status)} · ${eur(Orc.total(o))}</span><small>abrir e tocar em "O cliente fechou?" → aí o voucher fica pronto</small></a>`).join(''); };
+  const pinta = () => { const l = atReservas(inp.value, soDevendo); box.innerHTML = l.map(atLinhaReserva).join('') || semReserva(inp.value);
     box.querySelectorAll('[data-res]').forEach(x => x.onclick = () => escolhe(Bookings.get(x.dataset.res))); };
   inp.oninput = pinta; pinta(); inp.focus();
 }
