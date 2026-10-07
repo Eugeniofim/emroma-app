@@ -397,6 +397,32 @@ const ORC_STATUS = [
   ['novo', 'Novo', 'New'], ['rascunho', 'Em montagem', 'Drafting'], ['enviado', 'Enviado', 'Sent'],
   ['fechado', 'Fechou', 'Won'], ['perdido', 'Não fechou', 'Lost'],
 ];
+/* O QUE VAI PARA O CLIENTE (Doc 07/10 item 5): nunca "ela informou" — sempre "foi informado". */
+function orcTextoCliente(t) {
+  return String(t || '').trim()
+    .replace(/\b(?:ela|ele|a cliente|o cliente|a ingrid|ingrid|a passageira|o passageiro)\s+(?:nos\s+|me\s+)?(?:informou|disse|falou|comentou|avisou|contou|mencionou)\b/gi, 'foi informado')
+    .replace(/\bsegundo (?:ela|ele|a cliente|o cliente)\b/gi, 'conforme informado')
+    .replace(/(^|[.!?]\s+)foi informado/g, (m, a) => a + 'Foi informado');
+}
+/* TRANSFER SEM TODOS OS DADOS (Doc 07/10 item 5): só o que FALTA para este transfer, no texto dela */
+function transferFalta(i) {
+  if (!i || i.perdido) return [];
+  const t = [i.desc, i.obs, i.voo].join(' ');
+  if (!/transfer|\b(FCO|CIA|MXP|LIN|NAP|VCE|FLR)\b|aeroporto|fiumicino|ciampino|malpensa|linate|esta[çc][aã]o|termini|tiburtina|porto|civitavecchia|navio/i.test(t)) return [];
+  const f = [], voo = String(i.voo || '').trim();
+  if (/\b(FCO|CIA|MXP|LIN|NAP|VCE|FLR)\b|aeroporto|fiumicino|ciampino|malpensa|linate/i.test(t) && !voo && !/\b[A-Z]{2}\s?\d{2,4}\b/.test(String(i.desc || '').replace(/\b(FCO|CIA|MXP|LIN|NAP|VCE|FLR)\b/g, ''))) f.push('o número do voo');
+  else if (/esta[çc][aã]o|termini|tiburtina|\btrem\b/i.test(t) && !voo) f.push('o número do trem');
+  else if (/porto|civitavecchia|navio|cruzeiro/i.test(t) && !voo) f.push('o nome do navio');
+  if (!String(i.hora || '').trim()) f.push('o horário');
+  if (/\bcentro\b/i.test(i.desc || '') || !/hotel|\bvia\b|piazza|viale|largo|corso|endere/i.test(t)) f.push('o nome e o endereço do hotel');
+  if (!/mala|bagag/i.test(t)) f.push('a quantidade e o tamanho exatos das bagagens');
+  if (f.length) f.push('outros volumes, se houver (carrinho de bebê, equipamento esportivo, caixas, mochilas de despachar ou malas de 10 kg)');
+  return f;
+}
+function transferFaltaTexto(i) {
+  const f = transferFalta(i); if (!f.length) return '';
+  return 'Caso queira reservar o transfer, precisamos de: ' + (f.length > 1 ? f.slice(0, -1).join(', ') + ' e ' + f[f.length - 1] : f[0]) + '.';
+}
 const Orc = {
   all() { return [...(DB.orcamentos || [])].sort((a, b) => (b.criado || '').localeCompare(a.criado || '')); },
   get(id) { return (DB.orcamentos || []).find(o => o.id === id) || null; },
@@ -412,7 +438,7 @@ const Orc = {
       itens: (d.itens || []).map(Orc._item),
       sinalPct: d.sinalPct != null ? +d.sinalPct : 30,
       validade: d.validade || addDays(isoToday(), 7),
-      obs: String(d.obs || ''), resumo: String(d.resumo || ''), conversa: String(d.conversa || ''),
+      obs: orcTextoCliente(d.obs), resumo: String(d.resumo || ''), conversa: String(d.conversa || ''),
       pax: +d.pax || 0, datas: d.datas || [],
       termos: d.termos !== false, bookingIds: [],
     };
@@ -438,7 +464,7 @@ const Orc = {
     return { id: i.id || uid(), tourId: i.tourId || '', desc: String(i.desc || '').trim(),
              data: i.data || '', hora: i.hora || '', pax: Math.max(1, +i.pax || 1), opcao: +i.opcao || 0,
              valor: Math.max(0, +i.valor || 0), sinal: i.sinal != null && i.sinal !== '' ? Math.max(0, +i.sinal) : null,
-             obs: String(i.obs || '').trim(), sugestao: !!i.sugestao, voo: String(i.voo || '').trim(),
+             obs: orcTextoCliente(i.obs), sugestao: !!i.sugestao, voo: String(i.voo || '').trim(),
              custo: Math.max(0, +i.custo || 0), cidade: String(i.cidade || '').trim(),
              /* o cliente NAO quis este servico: fica no orcamento como perdido (estatistica dela),
                 fora do total e do que vai pro cliente; pode voltar se ele mudar de ideia */
@@ -576,6 +602,7 @@ const Orc = {
   salva(o) {
     const x = Orc.get(o.id); if (!x) return null;
     Object.assign(x, o, { itens: (o.itens || x.itens).map(Orc._item) });
+    if (typeof x.obs === 'string') x.obs = orcTextoCliente(x.obs);
     if (o.cliente) Orc._fichaDo(x);
     Orc.propaga(x); _opSave(); return x;
   },

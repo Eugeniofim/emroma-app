@@ -156,7 +156,7 @@ const ING_FERRAMENTAS = [
   { name: 'escalar', description: 'Passa um serviço para uma guia/motorista (ou tira, com guia "ninguém"). Ache a reserva pelo NOME do cliente — não peça código.', input_schema: obj({ codigo: S_('nome do cliente, "o Vaticano da Mariana", "o transfer da Mariana" ou o código da reserva'), servico: S_('pista do serviço se o cliente tiver vários: "Vaticano", "transfer", "Roma Antiga" (opcional)'), guia: S_() }, ['codigo', 'guia']) },
   { name: 'detalhes_servico', description: 'Voo/trem, onde buscar, para onde levar, observação, quanto ela paga a quem faz (custo) e quem recebe o resto (no_dia = a guia/motorista recebe do cliente; ingrid = ela recebe e acerta).', input_schema: obj({ codigo: S_('nome do cliente, "o Vaticano da Mariana", "o transfer da Mariana" ou o código da reserva'), servico: S_('pista do serviço se o cliente tiver vários: "Vaticano", "transfer", "Roma Antiga" (opcional)'), voo: S_(), buscar_em: S_(), levar_para: S_(), obs: S_(), custo: N_(), resto: { type: 'string', enum: ['no_dia', 'ingrid'] } }, ['codigo']) },
   { name: 'registrar_pagamento', description: 'Registra dinheiro recebido numa reserva, na conta certa (define Brasil ou Europa na contabilidade). "prestador" = o cliente pagou na mão da guia/motorista. Sem valor: tipo "sinal" (padrão quando ainda falta sinal) ou tipo "resto"/"tudo" = o que falta — "pagou o resto do Vaticano" → servico Vaticano + tipo resto, SEM perguntar o valor. É dinheiro do CLIENTE: "acertei/paguei a guia" é acerto_guia. Se ela não disse a conta, PERGUNTE. Ache a reserva pelo NOME do cliente (+ servico se ele tiver vários). Repita EXATAMENTE os valores que a ferramenta devolve.', input_schema: obj({ codigo: S_('nome do cliente, "o Vaticano da Mariana", "o transfer da Mariana" ou o código da reserva'), servico: S_('pista do serviço se o cliente tiver vários (sem ela e sem valor: o sinal de cada reserva da viagem)'), valor: N_('só se ela disse o valor'), tipo: { type: 'string', enum: ['sinal', 'resto', 'tudo'], description: 'sem valor: "sinal" = o sinal que faltava (padrão quando ainda falta sinal); "tudo"/"resto" = tudo o que falta' }, conta: S_('id de ver_contas ou "prestador"'), anexo: S_('ref do comprovante que ela mandou no chat (anexo1…): fica na ficha e na pasta do cliente no Google Drive') }, ['codigo', 'conta']) },
-  { name: 'arquivar', description: 'Guarda um arquivo que ela mandou no chat (anexo1…) na ficha do cliente e na pastinha dele no Google Drive (EmRoma › Clientes › nome). Para comprovante de pagamento use registrar_pagamento com anexo — ele já arquiva.', input_schema: obj({ anexo: S_('anexo1, anexo2…'), cliente: S_('nome, código da reserva ou WhatsApp'), descricao: S_('o que é: passaporte, voucher do hotel, bilhete de trem…') }, ['anexo', 'cliente']) },
+  { name: 'arquivar', description: 'Guarda um arquivo que ela mandou no chat (anexo1…) na ficha do cliente e no Google Drive (EMROMA › 02 CLIENTES › pasta do tipo; nome do arquivo no padrão dela: aaaa_mm_dd Cliente TIPO). Para comprovante de pagamento use registrar_pagamento com anexo — ele já arquiva.', input_schema: obj({ anexo: S_('anexo1, anexo2…'), cliente: S_('nome, código da reserva ou WhatsApp'), descricao: S_('o que é: passaporte, voucher do hotel, bilhete de trem…') }, ['anexo', 'cliente']) },
   { name: 'criar_orcamento', description: 'Cria orçamento sob consulta com vários serviços. Só o NOME do cliente basta: WhatsApp e e-mail são opcionais — NUNCA peça; se o cliente já existe ("Patricia", "a Juliana"), a ferramenta acha a ficha pelo nome e usa o contato guardado. Para transfer, guia ou bate-e-volta use preco_ref (de ver_precos): valor, SINAL e custo entram certos da Tabela de preços. passeio_id (de ver_passeios) para o catálogo de passeios. Para MUDAR um orçamento que já existe use editar_orcamento — não crie outro.', input_schema: obj({ cliente: S_(), whats: S_(), email: S_(), pessoas_nota: S_('ex.: 2 adultos + 1 bebê (bebê conta como pessoa)'), bagagem: S_('ex.: 2 malas 23kg + 1 de bordo + carrinho de bebê'), adultos: { type: 'integer', description: 'só se ela disse: quantos adultos (os ingressos são por idade; sem isso = todos adultos)' }, idades: { type: 'array', items: { type: 'integer' }, description: 'idades das crianças/jovens, se ela disse (ex.: [10, 5])' }, itens: { type: 'array', items: obj({ preco_ref: S_('ref de ver_precos — traz valor, sinal e custo da tabela'), aeroporto: { type: 'string', enum: ['FCO', 'CIA'], description: 'transfer de aeroporto: a SIGLA do aeroporto que o cliente disse (Fiumicino = FCO, Ciampino = CIA)' }, sentido: { type: 'string', enum: ['chegada', 'partida'], description: 'chegada = aeroporto/porto/estação → hotel; partida = hotel → aeroporto/porto/estação (a descrição sai na ordem certa)' }, passeio_id: S_(), descricao: S_(), data: S_('AAAA-MM-DD'), hora: S_(), pessoas: { type: 'integer' }, valor: N_() }) }, sinal_pct: N_(), obs: S_('SÓ o que NÃO está nos serviços (ex.: cadeirinha de bebê, parada extra). NUNCA repita data, hora, pessoas, malas ou rota — elas já estão na tabela e repetir dá informação divergente'), novo: { type: 'boolean', description: 'só true se ela pedir MESMO um segundo orçamento para um cliente que já tem um em aberto' } }, ['cliente']) },
   { name: 'apagar_orcamento', description: 'Apaga um orçamento — ex.: o repetido (regra dela: 1 orçamento por cliente até pagar e receber o voucher). Fecha junto a tarefa de aguardar resposta. Para não perder serviços do repetido, traga-os antes com editar_orcamento (adicionar) no que fica.', input_schema: obj({ numero: S_('número do orçamento') }, ['numero']) },
   { name: 'ler_conversa', description: 'Lê uma conversa colada do WhatsApp/Instagram/e-mail e monta o rascunho do orçamento + a anotação com o resumo. Nunca responde o cliente.', input_schema: obj({ texto: S_() }, ['texto']) },
@@ -179,7 +179,7 @@ const ING_FERRAMENTAS = [
   { name: 'avaliacao_pedida', description: 'Registra que ela já pediu a avaliação ao cliente (o serviço vai para Finalizado). A mensagem ela manda pelo botão do CRM. Ache pelo nome do cliente.', input_schema: obj({ codigo: S_('nome do cliente, "o Vaticano da Mariana", "o transfer da Mariana" ou o código da reserva'), servico: S_('pista do serviço se o cliente tiver vários: "Vaticano", "transfer", "Roma Antiga" (opcional)') }, ['codigo']) },
   { name: 'cadastrar_parceiro', description: 'Cadastra ou muda um influencer/agência/parceiro com cupom, desconto e comissão.', input_schema: obj({ nome: S_(), tipo: { type: 'string', enum: TIPOS_PARCEIRO.map(t => t[0]) }, contato: S_(), cupom: S_(), desconto: N_(), comissao: N_() }, ['nome']) },
   { name: 'comissao_paga', description: 'Registra comissão paga a um parceiro.', input_schema: obj({ parceiro: S_(), valor: N_() }, ['parceiro', 'valor']) },
-  { name: 'exportar_comissoes', description: 'A TABELA DE COMISSÕES dos parceiros (uma linha por reserva trazida + o total de cada parceiro) em CSV: baixa o arquivo e, se a pasta do Google Drive estiver escolhida, grava em EmRoma › Relatórios.', input_schema: obj() },
+  { name: 'exportar_comissoes', description: 'A TABELA DE COMISSÕES dos parceiros (uma linha por reserva trazida + o total de cada parceiro) em CSV: baixa o arquivo e, se a pasta do Google Drive estiver escolhida, grava em EMROMA › 04 FINANCEIRO.', input_schema: obj() },
   { name: 'mudar_tabela', description: 'Muda a tabela de preço por número de pessoas de um passeio (preço do grupo).', input_schema: obj({ passeio_id: S_(), de_pessoas: { type: 'integer' }, ate_pessoas: { type: 'integer' }, valor: N_() }, ['passeio_id', 'de_pessoas', 'valor']) },
 ];
 IA_FERRAMENTAS.push(...ING_FERRAMENTAS);
@@ -570,7 +570,7 @@ const ING_PLANO = {
       linhas: [['Cliente', b0.name], ...(lotes.length > 1 ? lotes.map(x => [`${nomeDoServico(x.b)} ${ingData(x.b.date)}`, eur(x.valor)]) : [['Serviço', `${nomeDoServico(b0)} · ${ingData(b0.date)}`], ['Código', b0.code]]),
         ['Valor', eur(total)], ['Onde caiu', Contas.nome(i.conta)],
         ['Contabilidade', i.conta === CONTA_PRESTADOR ? 'fora do caixa dela' : (Contas.get(i.conta) || {}).pais === 'brasil' ? 'Brasil' : 'Europa'], ['Ainda falta', eur(Math.max(0, lotes.reduce((s, x) => s + x.falta - x.valor, 0)))],
-        ...(i.anexo ? [['Comprovante', `fica na ficha e no Google Drive: EmRoma › Clientes › ${drvNome((Cadastro.get(b0.clienteId) || {}).nome || b0.name)}`]] : [])],
+        ...(i.anexo ? [['Comprovante', `fica na ficha e no Google Drive: EMROMA › 02 CLIENTES › 02 Comprovante pagamento · ${arqNome('comprovante', { bookingId: b0.id })}`]] : [])],
       fazer: () => {
         const feitos = [];
         for (const x of lotes) {
@@ -592,7 +592,7 @@ const ING_PLANO = {
     const nome = (c && c.nome) || (b && (Cadastro.get(b.clienteId) || {}).nome) || (b && b.name);
     const desc = String(i.descricao || 'documento').trim();
     return { titulo: 'Guardar arquivo', assumiu: [],
-      linhas: [['Arquivo', a.nome || i.anexo], ['Cliente', nome], ['O que é', desc], ['Onde fica', `na ficha e no Google Drive: EmRoma › Clientes › ${drvNome(nome)}`]],
+      linhas: [['Arquivo', a.nome || i.anexo], ['Cliente', nome], ['O que é', desc], ['Onde fica', `na ficha e no Google Drive: EMROMA › ${(ARQ_TIPO[/comprov|pix|recibo/i.test(desc) ? 'comprovante' : 'documento'].pasta).join(' › ')}`]],
       fazer: () => { const r = ingArquiva(i.anexo, b || { clienteId: c.id, name: c.nome }, `${isoToday()} ${desc}`, /comprov|pix|recibo/i.test(desc) ? 'comprovante' : 'documento', desc); return r.erro ? E_(r.erro) : { ok: true, onde: r.onde }; } };
   },
   criar_orcamento(i) {
@@ -903,7 +903,7 @@ const ING_PLANO = {
   },
   exportar_comissoes() {
     const ps = Parceiros.all(); if (!ps.length) return E_('nenhum parceiro cadastrado');
-    return { titulo: 'Tabela de comissões', assumiu: [], linhas: [['Parceiros', String(ps.length)], ['Onde', 'baixa o CSV e, com a pasta do Drive escolhida, grava em EmRoma › Relatórios']],
+    return { titulo: 'Tabela de comissões', assumiu: [], linhas: [['Parceiros', String(ps.length)], ['Onde', 'baixa o CSV e, com a pasta do Drive escolhida, grava em EMROMA › 04 FINANCEIRO']],
       fazer: async () => { const r = typeof comissoesCsv === 'function' ? await comissoesCsv(false) : null; return r ? { ok: true, arquivo: r.baixado, drive: r.drive || 'não gravou no Drive (pasta não liberada neste aparelho — o CSV foi baixado)' } : E_('não consegui gerar'); } };
   },
   cadastrar_parceiro(i) {
@@ -981,6 +981,9 @@ Você é o assistente de ${guiaNome()}, dona da ${guiaNegocio()} — receptivo t
 - Nunca invente, nunca enfeite: o que não sabe, diga que vai verificar — e verifique.
 - Nunca ofereça "mando pra ela?" — você não manda nada. Ofereça "preparo a mensagem pra você enviar?".
 - Pergunta sobre um cliente ("já foi cliente?", "o que a Patrícia fez?", "o que a Juliana tem comigo?") → ver_ficha ou procurar com o NOME que ela disse (primeiro nome serve). Nunca peça WhatsApp, e-mail ou sobrenome — nem para procurar, nem para montar orçamento, nem para escrever mensagem: chame a ferramenta com o nome; só se ela devolver duas opções, pergunte qual.
+
+## TEXTO QUE VAI PARA O CLIENTE (observações do orçamento e do voucher)
+Escreva sempre impessoal: "foi informado", "conforme informado" — NUNCA "ela informou", "a Ingrid disse", "o cliente falou" (o cliente lê). Num transfer sem voo/hora/hotel/malas, NÃO escreva a lista do que falta: o app já põe sozinho no orçamento "Caso queira reservar o transfer, precisamos de: …" só com o que falta.
 
 ## CONFERÊNCIA DUPLA (sempre que mexer com dinheiro)
 Orçamento, mudança de orçamento, fechamento ou conta de cliente: ANTES de responder, leia contas.conferencia que a ferramenta devolveu (o app refez as contas por outro caminho). Se ok → termine com "✓ conferido 2x". Se vierem avisos → mostre os avisos PRIMEIRO, em lista curta, e pergunte se corrige. Nunca diga "conferido" sem esse campo.
@@ -1219,7 +1222,7 @@ function ingArquiva(ref, b, nome, tipo, descricao) {
   if (typeof Arquivos === 'undefined') return { erro: 'arquivos indisponíveis aqui' };
   const c = b && b.clienteId ? Cadastro.get(b.clienteId) : null;
   const { arquivo } = Arquivos.guarda({ src: a.src, nome, tipo, clienteId: (b && b.clienteId) || '', clienteNome: (c && c.nome) || (b && b.name) || '', bookingId: (b && b.id) || '', descricao });
-  const onde = `guardado na ficha${drvEstado.liberada ? ' e no Google Drive: ' : '; vai para o Google Drive (' + (drvEstado.pasta ? 'o Chrome pede um toque — botão 📁 Google Drive' : 'ligue a pasta no botão 📁 Google Drive') + '): '}EmRoma › Clientes › ${drvNome(arquivo.clienteNome || 'Sem cliente')}`;
+  const onde = `guardado na ficha${drvEstado.liberada ? ' e no Google Drive: ' : '; vai para o Google Drive (' + (drvEstado.pasta ? 'o Chrome pede um toque — botão 📁 Google Drive' : 'ligue no botão 📁 Google Drive') + '): '}EMROMA › ${(arquivo.pasta || ['02 CLIENTES']).join(' › ')} › ${arquivo.nome}`;
   return { arquivo, onde };
 }
 const _ingMostraAnexo = iaMostraAnexo;
@@ -2205,27 +2208,27 @@ function ingDocArquivo(titulo, corpo) {
   const g = (typeof APP_CONFIG !== 'undefined' && APP_CONFIG.guia) || {};
   return `<!doctype html><html lang="pt-BR" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)} — ${esc(g.negocio || '')}</title><style>${css}\nbody{background:#fff;margin:0}.doc{box-shadow:none;margin:0 auto;max-width:860px}.doc-barra,.nao-imprime{display:none!important}</style></head><body class="em-adm"><article class="doc"><header class="doc-cab">${logoFull({ mark: 34 })}<div><b>${esc(titulo)}</b><small>${esc(guiaNegocio())} · ${esc(guiaNome())}${DB.settings.whats ? ' · WhatsApp ' + esc(DB.settings.whats) : ''}</small></div></header>${corpo}</article></body></html>`;
 }
-IA_FERRAMENTAS.push({ name: 'guardar_documento', description: 'Guarda o ORÇAMENTO ou o VOUCHER de um cliente como arquivo na pasta dele no Google Drive (EmRoma › Clientes › nome), com o nome certo (aaaa_mm_dd Cliente). O documento é o mesmo do botão imprimir; abre em qualquer navegador e vira PDF por "imprimir → salvar como PDF". Ache pelo nome do cliente. Ela disse "orçamento" → tipo orcamento; "voucher" → voucher: NUNCA pergunte qual dos dois, nem peça número.', input_schema: { type: 'object', properties: { tipo: { type: 'string', enum: ['orcamento', 'voucher'] }, cliente: { type: 'string', description: 'nome do cliente, número do orçamento ou código da reserva' } }, required: ['tipo', 'cliente'] } });
+IA_FERRAMENTAS.push({ name: 'guardar_documento', description: 'Guarda o ORÇAMENTO (EMROMA › 01 ORÇAMENTOS) ou o VOUCHER (EMROMA › 02 CLIENTES › 01 Vouchers e ingressos) de um cliente como arquivo no Google Drive, com o nome no padrão dela (aaaa_mm_dd Cliente (Agência) ORÇAMENTO / VOUCHER). O documento é o mesmo do botão imprimir; abre em qualquer navegador e vira PDF por "imprimir → salvar como PDF". Ache pelo nome do cliente. Ela disse "orçamento" → tipo orcamento; "voucher" → voucher: NUNCA pergunte qual dos dois, nem peça número.', input_schema: { type: 'object', properties: { tipo: { type: 'string', enum: ['orcamento', 'voucher'] }, cliente: { type: 'string', description: 'nome do cliente, número do orçamento ou código da reserva' } }, required: ['tipo', 'cliente'] } });
 ING_PLANO.guardar_documento = function (i) {
-  let nome = '', fazerDoc = null, arquivo = '', cliId = '';
+  let nome = '', fazerDoc = null, arquivo = '', cliId = '', ref = {};
   if (i.tipo === 'voucher') {
     const r = ingAchaReservaNome(i.cliente, '', { viagem: true }); if (!r.b) return r;
     nome = r.b.name; cliId = r.b.clienteId || ''; fazerDoc = () => opDocVoucher(r.b.id);
-    const orc = r.b.orcamentoId && Orc.get(r.b.orcamentoId); arquivo = (orc ? Orc.nomeArquivo(orc) : `${String(r.b.date || '').replace(/-/g, '_')} ${r.b.name}`) + ' - Voucher';
+    ref = { bookingId: r.b.id, clienteId: r.b.clienteId }; arquivo = arqNome('voucher', ref);
   } else {
     const r = ingAchaOrc(i.cliente); if (!r.o) return r;
-    nome = r.o.cliente.nome; fazerDoc = () => opDocOrc(r.o.id); arquivo = Orc.nomeArquivo(r.o);
+    nome = r.o.cliente.nome; fazerDoc = () => opDocOrc(r.o.id); ref = { orcId: r.o.id }; arquivo = arqNome('orcamento', ref);
     const c = Cadastro.all().find(x => Orc.mesmoCliente({ nome: x.nome, whats: x.whats }, r.o.cliente)); cliId = c ? c.id : '';
   }
   const pasta = typeof drvEstado !== 'undefined' && drvEstado.pasta;
   return { titulo: 'Guardar no Google Drive', assumiu: pasta ? [] : ['a pasta do Drive ainda não foi escolhida neste aparelho: o arquivo fica guardado no app e sobe quando ela escolher (botão Google Drive)'],
-    linhas: [['Documento', i.tipo === 'voucher' ? 'Voucher' : 'Orçamento'], ['Cliente', nome], ['Arquivo', arquivo + '.html'], ['Pasta', `EmRoma › Clientes › ${nome}`]],
+    linhas: [['Documento', i.tipo === 'voucher' ? 'Voucher' : 'Orçamento'], ['Cliente', nome], ['Arquivo', arquivo + '.html'], ['Pasta', 'EMROMA › ' + ARQ_TIPO[i.tipo === 'voucher' ? 'voucher' : 'orcamento'].pasta.join(' › ')]],
     fazer: async () => {
       const hashAntes = location.hash;
       try { fazerDoc(); } catch (e) { return E_('não consegui montar o documento: ' + e.message); }
       const u = opDoc._ultimo || {}; const html = ingDocArquivo(u.titulo || (i.tipo === 'voucher' ? 'Voucher' : 'Orçamento'), u.corpo || '');
       if (location.hash !== hashAntes) location.hash = hashAntes; else route();
-      const g = Arquivos.guarda({ blob: new Blob([html], { type: 'text/html' }), nome: arquivo, tipo: 'documento', clienteId: cliId, clienteNome: nome, descricao: (i.tipo === 'voucher' ? 'Voucher' : 'Orçamento') + ' (do assistente)' });
+      const g = Arquivos.guarda({ blob: new Blob([html], { type: 'text/html' }), nome: arquivo, tipo: i.tipo === 'voucher' ? 'voucher' : 'orcamento', ...ref, clienteId: cliId || ref.clienteId || '', clienteNome: nome, descricao: (i.tipo === 'voucher' ? 'Voucher' : 'Orçamento') + ' (do assistente)' });
       let r = null; try { r = await Promise.race([g.feito, new Promise(res => setTimeout(() => res({ fila: true }), 4000))]); } catch (e) { r = { erro: String(e && e.message || e) }; }
       return { ok: true, arquivo: g.arquivo.nome, onde: r && r.ok ? 'Google Drive: ' + r.caminho : 'guardado no app; vai para o Drive quando a pasta estiver liberada (botão Google Drive no topo)' };
     } };

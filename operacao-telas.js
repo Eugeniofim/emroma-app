@@ -41,7 +41,7 @@ async function comissoesCsv(comToque) {
   let drive = '';
   try {
     const l = await drvLiberada(!!comToque);
-    if (!l.erro) { const csv = linhas.map(r => r.map(v => String(v ?? '').replace(/;/g, ',').replace(/\n/g, ' ')).join(';')).join('\r\n'); drive = await drvGrava(l.h, ['Relatórios'], nome, new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })); toast('📁 No Google Drive: ' + drive); }
+    if (!l.erro) { const csv = linhas.map(r => r.map(v => String(v ?? '').replace(/;/g, ',').replace(/\n/g, ' ')).join(';')).join('\r\n'); drive = await drvGrava(l.h, ['04 FINANCEIRO'], nome, new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })); toast('📁 No Google Drive: ' + drive); }
   } catch (e) {}
   return { baixado: nome, drive, parceiros: Parceiros.all().length };
 }
@@ -675,7 +675,7 @@ function admFicha(arg) {
         ${indicou.length ? `<section class="card"><h3>Indicou · ${indicou.length}</h3>${indicou.map(x => `<div class="deprow"><a href="${fichaHref(x)}">${esc(x.nome)}</a><small>${x.criado ? new Date(x.criado).toLocaleDateString('pt-BR') : ''}</small></div>`).join('')}</section>` : ''}
         <section class="card" id="fcArqs"><h3>📁 Arquivos <small class="why">comprovantes e documentos</small></h3>
           ${Arquivos.lista({ clienteId: c.id }).map(a => `<div class="deprow"><a href="#" data-arq="${esc(a.id)}">${a.tipo === 'comprovante' ? '🧾' : '📄'} ${esc(a.nome)}</a><small>${a.drive ? '✓ no Drive' : '⏳ ainda não subiu para o Drive'}</small></div>`).join('') || '<p class="why">Nenhum arquivo ainda. O que você mandar pelo assistente ou pelo 💶 Pagamento aparece aqui.</p>'}
-          <p class="why">No Google Drive: <b>EmRoma › Clientes › ${esc(drvNome(c.nome))}</b></p>
+          <p class="why">No Google Drive: <b>EMROMA › 02 CLIENTES</b> (vouchers, comprovantes e avaliações com o nome dele no arquivo)</p>
           <label class="mini fc-arq-add">+ guardar um arquivo<input type="file" id="fcArq" accept="image/*,application/pdf" hidden></label>
         </section>
         <section class="card"><h3>Pedidos e orçamentos</h3>
@@ -1890,7 +1890,7 @@ function opDocVoucher(id) {
       <button class="cta sm" id="vchSalva">salvar este voucher</button>
     </details>`;
   opDoc('Voucher', corpo, b.whats ? `<a class="mini cta-ish" id="docVoucherWa" target="_blank" rel="noopener" href="${waLink(opVoucherTexto(b), opNum(b.whats))}">💬 mandar ao cliente</a>` : '',
-    (orc ? Orc.nomeArquivo(orc) : b.arquivo || `${String(bs.map(x => x.date).filter(Boolean).sort()[0] || b.date || '').replace(/-/g, '_')} ${b.name}`) + ' - Voucher');
+    arqNome('voucher', { bookingId: b.id, clienteId: b.clienteId }));
   $$('[data-pt]').forEach(s => s.onchange = () => { escolhePonto(s.dataset.pt, s.value); opDocVoucher(id); toast('Ponto de encontro escolhido'); });
   const vs = $('#vchSalva'); if (vs) vs.onclick = () => {
     const f = $$('[data-vblk]').filter(i => !i.checked).map(i => i.dataset.vblk), n = $('#vchNota').value.trim();
@@ -1925,7 +1925,7 @@ function orcTabelasHtml(o) {
   const C = orcCenarios(o), pMax = Math.max(+o.pax || 0, ...(o.itens || []).map(i => +i.pax || 0));
   const linhas = C.ativos.map(i => { const si = Orc.sinalDoItem(o, i), op = C.emGrupo.get(i);
     return `<tr${op ? ' class="doc-opcao"' : ''}><td class="mono">${i.data ? crmDataSem(i.data) : '—'}</td><td class="mono">${esc(i.hora || '')}</td>
-      <td>${op ? `<span class="doc-op">Opção ${op.k + 1}</span> ` : ''}${esc(i.desc)}${C.soNa.has(i) ? ` <span class="doc-sona">só na ${esc(C.soNa.get(i))}</span>` : ''}${i.obs && !i.sugestao ? `<br><small>${esc(i.obs)}</small>` : ''}</td>
+      <td>${op ? `<span class="doc-op">Opção ${op.k + 1}</span> ` : ''}${esc(i.desc)}${C.soNa.has(i) ? ` <span class="doc-sona">só na ${esc(C.soNa.get(i))}</span>` : ''}${i.obs && !i.sugestao ? `<br><small>${esc(orcTextoCliente(i.obs))}</small>` : ''}${o.status !== 'fechado' && transferFaltaTexto(i) ? `<br><small class="doc-falta">${esc(transferFaltaTexto(i))}</small>` : ''}</td>
       <td class="mono right">${i.valor ? (+i.valorCheio > +i.valor ? `<s class="doc-cheio">${eur(i.valorCheio)}</s><br>` : '') + eur(i.valor) : 'a definir'}</td>
       <td class="mono right">${i.valor ? eur(si) : ''}</td><td class="mono right">${i.valor ? eur(Math.max(0, i.valor - si)) : ''}</td></tr>`; }).join('');
   const rod = C.cenarios.map(c => `<tr><td colspan="3"><b>TOTAL${c.rotulo ? ' — ' + c.rotulo : ''}</b></td><td class="mono right"><b>${eur(c.total)}</b></td><td class="mono right"><b>${eur(c.sinal)}</b></td><td class="mono right"><b>${eur(c.dia)}</b></td></tr>`).join('');
@@ -1950,14 +1950,14 @@ function opDocOrc(id) {
   const modelo = /^MODELO/.test(termos);
   const corpo = `
     ${orcTabelasHtml(o)}
-    ${o.obs ? `<p>${esc(o.obs).replace(/\n/g, '<br>')}</p>` : ''}
+    ${o.obs ? `<p>${esc(orcTextoCliente(o.obs)).replace(/\n/g, '<br>')}</p>` : ''}
     <h3>Como pagar o sinal</h3>
     <p>${[DB.settings.pixKey && 'Pix: ' + esc(DB.settings.pixKey), DB.settings.wiseLink && 'Wise: ' + esc(DB.settings.wiseLink), DB.settings.iban && 'IBAN: ' + esc(DB.settings.iban) + (DB.settings.ibanName ? ' (' + esc(DB.settings.ibanName) + ')' : '')].filter(Boolean).join('<br>') || 'Os dados de pagamento seguem pelo WhatsApp.'}</p>
     ${o.termos ? `<h3>Termos e condições</h3>
       ${modelo ? '<div class="alert warn nao-imprime">Estes ainda são os termos MODELO. Cole os seus em Ajustes → Termos e condições.</div>' : ''}
       <div class="doc-termos vch-bloco">${vchFmt(termos.replace(/^MODELO.*\n\n?/, ''))}</div>
       <p><b>Ao pagar o sinal, você declara que leu e aceita estes termos.</b></p>` : ''}`;
-  opDoc('Orçamento', corpo, `<a class="mini" href="#/adm/consulta/${esc(o.id)}">editar</a>`, Orc.nomeArquivo(o));
+  opDoc('Orçamento', corpo, `<a class="mini" href="#/adm/consulta/${esc(o.id)}">editar</a>`, arqNome('orcamento', { orcId: o.id }));
 }
 
 /* =====================================================
@@ -2741,7 +2741,41 @@ async function arqIdb(modo, id, valor) {
     });
   } catch (e) { return modo === 'get' ? null : false; }
 }
-const DRV_BACKUPS = 'Backups', DRV_CRM = 'CRM', DRV_CLIENTES = 'Clientes';
+/* AS PASTAS DO DRIVE (pedido da Ingrid, Doc 07/10 itens 3 e 4) — exatamente o desenho dela:
+   EMROMA › 01 ORÇAMENTOS · 02 CLIENTES (01 Vouchers e ingressos, 02 Comprovante pagamento, 03 Avaliações)
+   · 03 FORNECEDORES · 04 FINANCEIRO · 05 PORTFÓLIOS · 06 MODELOS · 99 ARQUIVO */
+const DRV_BACKUPS = ['99 ARQUIVO', 'Backups do app'], DRV_CRM = ['04 FINANCEIRO'], DRV_CLIENTES = '02 CLIENTES';
+const DRV_ESQUELETO = [['01 ORÇAMENTOS'], ['02 CLIENTES', '01 Vouchers e ingressos'], ['02 CLIENTES', '02 Comprovante pagamento'], ['02 CLIENTES', '03 Avaliações'],
+  ['03 FORNECEDORES'], ['04 FINANCEIRO'], ['05 PORTFÓLIOS'], ['06 MODELOS'], ['99 ARQUIVO']];
+/* cada tipo de arquivo: o FIM do nome e a pasta (Doc 07/10 item 2: "2026_11_23 Nome Cliente (agência) ORÇAMENTO") */
+const ARQ_TIPO = {
+  orcamento: { suf: 'ORÇAMENTO', pasta: ['01 ORÇAMENTOS'] },
+  voucher: { suf: 'VOUCHER', pasta: ['02 CLIENTES', '01 Vouchers e ingressos'] },
+  ingresso: { suf: 'INGRESSO', pasta: ['02 CLIENTES', '01 Vouchers e ingressos'] },
+  comprovante: { suf: 'COMPROVANTE', pasta: ['02 CLIENTES', '02 Comprovante pagamento'] },
+  avaliacao: { suf: 'AVALIACAO', pasta: ['02 CLIENTES', '03 Avaliações'] },
+  documento: { suf: '', pasta: ['02 CLIENTES'] },
+};
+/* "2026_11_23 Nome Cliente (Agência)": a data é a do 1º serviço da viagem (como ela já fazia) */
+function arqBase({ orcId, bookingId, clienteId, clienteNome } = {}) {
+  const b = bookingId && typeof Bookings !== 'undefined' ? Bookings.get(bookingId) : null;
+  const o = (orcId && Orc.get(orcId)) || (b && b.orcamentoId && Orc.get(b.orcamentoId)) || null;
+  if (o) return Orc.nomeArquivo(o).replace(/\s*-\s*Voucher$/i, '');
+  const limpa = (t) => String(t || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+  if (b) {
+    const viagem = DB.bookings.filter(x => x.status !== 'cancelled' && (b.clienteId ? x.clienteId === b.clienteId : x.name === b.name)).map(x => x.date).filter(Boolean).sort();
+    const d = (viagem.find(x => x >= addDays(b.date || isoToday(), -30)) || b.date || isoToday()).replace(/-/g, '_');
+    const ag = b.veioPor === 'agencia' && String(b.indicou || '').trim() ? ` (${String(b.indicou).trim()})` : '';
+    return limpa(`${d} ${b.name}${ag}`);
+  }
+  const c = clienteId && Cadastro.get(clienteId);
+  const prox = c ? Cadastro.reservas(c).filter(x => x.status !== 'cancelled').map(x => x.date).filter(Boolean).sort().reverse()[0] : '';
+  return limpa(`${(prox || isoToday()).replace(/-/g, '_')} ${(c && c.nome) || clienteNome || 'Cliente'}`);
+}
+function arqNome(tipo, ref, descricao) {
+  const t = ARQ_TIPO[tipo] || ARQ_TIPO.documento, base = arqBase(ref);
+  return t.suf ? `${base} ${t.suf}` : `${base} ${String(descricao || 'documento').replace(/^\d{4}-\d{2}-\d{2}\s*/, '').trim()}`;
+}
 function drvNome(t) { return String(t || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Sem nome'; }
 /* a pasta, com a permissao do Chrome. comToque = veio de um clique (pode pedir) */
 /* GOOGLE DRIVE DIRETO (06/10): o botao "Conectar Google Drive" entra com a conta
@@ -2751,7 +2785,7 @@ function drvNome(t) { return String(t || '').replace(/[\\/:*?"<>|]+/g, ' ').repl
    (getDirectoryHandle/getFileHandle/entries/removeEntry), entao backup, planilha
    e comprovantes usam o mesmo caminho de antes. */
 const GD_CLIENTE = '1086489042405-mst3shdj5oo47tmg7ocu4a47no0gd0ta.apps.googleusercontent.com';
-const GD_ESCOPO = 'https://www.googleapis.com/auth/drive.file', GD_PASTA = 'EmRoma', GD_CHAVE = 'emroma_gdrive';
+const GD_ESCOPO = 'https://www.googleapis.com/auth/drive.file', GD_PASTA = 'EMROMA', GD_CHAVE = 'emroma_gdrive';
 const GD_PASTA_MIME = 'application/vnd.google-apps.folder';
 function gdLe() { try { return JSON.parse(localStorage.getItem(GD_CHAVE) || 'null') || {}; } catch (e) { return {}; } }
 function gdGuarda(o) { try { o ? localStorage.setItem(GD_CHAVE, JSON.stringify(o)) : localStorage.removeItem(GD_CHAVE); } catch (e) {} }
@@ -2873,6 +2907,12 @@ function drvMarca(r) {
   $$('.drv-bt').forEach(b => { b.classList.toggle('ok', drvEstado.liberada); b.classList.toggle('warn', !!drvEstado.pasta && !drvEstado.liberada); });
   return r;
 }
+/* cria as pastas do desenho dela (vazias tambem: Fornecedores, Portfólios, Modelos…) uma vez por aparelho */
+async function drvEsqueleto(h) {
+  const k = 'emroma_drv_esqueleto_' + (h.id || h.name); try { if (localStorage.getItem(k)) return; } catch (e) {}
+  for (const cam of DRV_ESQUELETO) { let d = h; for (const p of cam) d = await d.getDirectoryHandle(drvNome(p), { create: true }); }
+  try { localStorage.setItem(k, '1'); } catch (e) {}
+}
 async function drvGrava(h, caminho, nome, conteudo) {
   let d = h;
   for (const p of caminho) d = await d.getDirectoryHandle(drvNome(p), { create: true });
@@ -2888,12 +2928,17 @@ const Arquivos = {
   get(id) { return (DB.arquivos || []).find(a => a.id === id) || null; },
   pendentes() { return (DB.arquivos || []).filter(a => !a.drive); },
   /* devolve a ficha na hora; gravar no aparelho e no Drive acontece por tras */
-  guarda({ src, blob, nome, tipo, clienteId, clienteNome, bookingId, descricao }) {
+  guarda({ src, blob, nome, tipo, clienteId, clienteNome, bookingId, orcId, descricao }) {
     const ext = (String(src || '').match(/^data:([^;]+)/) || [])[1] || (blob && blob.type) || 'image/jpeg';
     const fim = /pdf/.test(ext) ? '.pdf' : /png/.test(ext) ? '.png' : /html/.test(ext) ? '.html' : /plain/.test(ext) ? '.txt' : '.jpg';
-    const base = drvNome(nome || `${isoToday()} ${tipo || 'arquivo'}`).replace(/\.(jpe?g|png|pdf|html?|txt)$/i, '');
-    const a = { id: uid(), nome: base + fim, tipo: tipo || 'documento', clienteId: clienteId || '', clienteNome: clienteNome || '', bookingId: bookingId || '',
-                descricao: descricao || '', criado: new Date().toISOString(), mime: ext, drive: '' };
+    /* o nome no padrao dela, sempre (antes cada tela inventava o seu) */
+    const t = ARQ_TIPO[tipo] ? tipo : 'documento';
+    let base = drvNome(arqNome(t, { orcId, bookingId, clienteId, clienteNome }, descricao || String(nome || '').replace(/\.(jpe?g|png|pdf|html?|txt)$/i, ''))).replace(/\.(jpe?g|png|pdf|html?|txt)$/i, '');
+    /* 2º comprovante do mesmo cliente nao pode apagar o 1º no Drive: ganha " 2", " 3"… */
+    const usados = new Set((DB.arquivos || []).map(x => x.nome));
+    if (usados.has(base + fim)) { let k = 2; while (usados.has(`${base} ${k}${fim}`)) k++; base = `${base} ${k}`; }
+    const a = { id: uid(), nome: base + fim, tipo: t, clienteId: clienteId || '', clienteNome: clienteNome || '', bookingId: bookingId || '',
+                descricao: descricao || '', criado: new Date().toISOString(), mime: ext, drive: '', pasta: (ARQ_TIPO[t] || ARQ_TIPO.documento).pasta };
     DB.arquivos = DB.arquivos || []; DB.arquivos.push(a); _opSave();
     const feito = (async () => {
       const b = blob || await (await fetch(src)).blob();
@@ -2907,7 +2952,7 @@ const Arquivos = {
   async paraDrive(a, comToque) {
     const l = await drvLiberada(comToque); if (l.erro) return l;
     const b = await arqIdb('get', a.id); if (!b) return { erro: 'nao-esta-aqui' };
-    try { a.drive = await drvGrava(l.h, [DRV_CLIENTES, a.clienteNome || 'Sem cliente'], a.nome, b); } catch (e) { return { erro: 'nao-gravou' }; }
+    try { a.drive = await drvGrava(l.h, a.pasta || [DRV_CLIENTES], a.nome, b); } catch (e) { return { erro: 'nao-gravou' }; }
     _opSave();
     return { ok: true, caminho: a.drive };
   },
@@ -2949,12 +2994,13 @@ async function bkpNaPasta(comToque) {
   const l = await drvLiberada(comToque); if (l.erro) return l;
   const h = l.h, nome = Backup.nome();
   let caminho;
-  try { caminho = await drvGrava(h, [DRV_BACKUPS], nome, JSON.stringify(pacoteBackup(), null, 2)); } catch (e) { return { erro: 'nao-gravou', pasta: h.name }; }
+  try { await drvEsqueleto(h); } catch (e) {}
+  try { caminho = await drvGrava(h, DRV_BACKUPS, nome, JSON.stringify(pacoteBackup(), null, 2)); } catch (e) { return { erro: 'nao-gravou', pasta: h.name }; }
   /* a planilha dela, sempre a mais nova, pronta para abrir no Google Planilhas */
-  try { await drvGrava(h, [DRV_CRM], 'CRM-EmRoma.csv', '\ufeff' + crmCsv(crmLinhas())); } catch (e) {}
+  try { await drvGrava(h, DRV_CRM, 'CRM-EmRoma.csv', '\ufeff' + crmCsv(crmLinhas())); } catch (e) {}
   /* guarda os ultimos 60 dias; o resto sai para a pasta nao crescer para sempre */
   try {
-    const limite = Backup.nome(addDays(isoToday(), -60)), d = await h.getDirectoryHandle(DRV_BACKUPS);
+    const limite = Backup.nome(addDays(isoToday(), -60)), d = await (await h.getDirectoryHandle(DRV_BACKUPS[0])).getDirectoryHandle(DRV_BACKUPS[1]);
     for await (const [n, e] of d.entries()) if (e.kind === 'file' && /^EmRoma-backup-\d{4}-\d{2}-\d{2}\.json$/.test(n) && n < limite) await d.removeEntry(n);
   } catch (e) {}
   try { await Arquivos.sobeFila(false); } catch (e) {}
@@ -3301,10 +3347,12 @@ const ATALHO = {
       </div>
       <h3>O que vai para lá</h3>
       <ul class="drv-arvore">
-        <li>📁 <b>${esc(l.pasta || 'EmRoma')}</b>
-          <ul><li>📁 <b>Backups</b> — tudo do app, um arquivo por dia (ficam os últimos 60 dias)</li>
-            <li>📁 <b>CRM</b> — <i>CRM-EmRoma.csv</i>: a sua planilha, atualizada todo dia (abre no Google Planilhas)</li>
-            <li>📁 <b>Clientes</b> › <i>nome do cliente</i> — comprovantes e documentos que você manda pelo assistente ou pelo 💶 Pagamento</li></ul></li>
+        <li>📁 <b>${esc(l.pasta || 'EMROMA')}</b>
+          <ul><li>📁 <b>01 ORÇAMENTOS</b> — todos os orçamentos (<i>2026_11_23 Nome ORÇAMENTO</i>)</li>
+            <li>📁 <b>02 CLIENTES</b> — 01 Vouchers e ingressos · 02 Comprovante pagamento · 03 Avaliações</li>
+            <li>📁 <b>03 FORNECEDORES</b> · <b>05 PORTFÓLIOS</b> · <b>06 MODELOS</b> — prontas para você usar</li>
+            <li>📁 <b>04 FINANCEIRO</b> — <i>CRM-EmRoma.csv</i>: a sua planilha, atualizada todo dia (abre no Google Planilhas)</li>
+            <li>📁 <b>99 ARQUIVO</b> › Backups do app — tudo do app, um arquivo por dia (ficam os últimos 60)</ul></li>
       </ul>
       ${fila ? `<p class="why">⏳ ${fila} ${fila === 1 ? 'arquivo ainda não subiu' : 'arquivos ainda não subiram'} para o Drive — ${fila === 1 ? 'está guardado' : 'estão guardados'} no app e ${fila === 1 ? 'sobe' : 'sobem'} quando a pasta estiver ligada.</p>` : ''}
       ${l.h || g ? '' : `<details open><summary><b>Como ligar (uma vez só)</b></summary><ol class="bkp-passos">
