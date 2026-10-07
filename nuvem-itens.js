@@ -18,7 +18,7 @@
    dona lê — nunca para o appstate público); conversas = o que ela mandou a cada cliente */
 /* iaMemoria = o que ela ensinou ao assistente (antes só no aparelho); arquivos = a ficha
    dos comprovantes/documentos (o arquivo em si fica no Drive) — v1.95 */
-const ITENS_COLS = ['equipe', 'disp', 'contas', 'orcamentos', 'fichas', 'tarefas', 'clientes', 'parceiros', 'pontos', 'pedidos', 'lembretesVistos', 'interesse', 'precos', 'conversas', 'iaMemoria', 'arquivos', 'iaDiario'];
+const ITENS_COLS = ['equipe', 'disp', 'contas', 'orcamentos', 'fichas', 'tarefas', 'clientes', 'parceiros', 'pontos', 'pedidos', 'lembretesVistos', 'interesse', 'precos', 'conversas', 'iaMemoria', 'arquivos', 'iaDiario', 'iaUso'];   /* iaUso = gasto da IA por dia + créditos que ela pôs (07/10) */
 /* estas sao "dicionarios" no DB (chave -> valor); as outras sao listas com id */
 const ITENS_DIC = ['fichas', 'lembretesVistos', 'interesse', 'conversas'];
 const IT_SOMBRA = 'ingrid_sombra_v1', IT_FILA = 'ingrid_fila_v1', IT_MARCA = 'ingrid_marca_v1', IT_EMDIA = 'ingrid_emdia_v1';

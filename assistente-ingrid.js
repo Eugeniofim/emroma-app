@@ -1485,6 +1485,7 @@ iaDesenha = function () {
   const pe = g.querySelector('#iaPe');
   if (pe && !pe.querySelector('#iaCreditos')) { const sp = pe.querySelector('span') || pe; sp.insertAdjacentHTML('beforeend', ' · <button type="button" id="iaCreditos" title="Pôr créditos na conta da IA (console da Anthropic → Billing)">💳 Créditos</button>');
     pe.querySelector('#iaCreditos').onclick = () => { try { window.open('https://console.anthropic.com/settings/billing', '_blank', 'noopener'); } catch (e) {} }; }
+  if (iaModo() === 'vivo' && typeof isLoggedIn === 'function' && isLoggedIn()) { try { ingGastoPinta(); } catch (e) {} }
   const lb = g.querySelector('#iaLimpa');
   if (lb && !lb.dataset.pergunta) { const orig = lb.onclick; lb.dataset.pergunta = '1';
     lb.onclick = (e) => { if (confirm('Começar uma conversa nova?\n\nA memória continua — o que você me ensinou (as regras, os passeios, os ingressos) eu não esqueço.')) return orig && orig.call(lb, e); }; }
@@ -1583,6 +1584,17 @@ function ingSugestoesPinta() {
   st.textContent = `
 /* ===== painel fixo à direita (TI ARTES: 392px, borda à esquerda, fundo da barra lateral) ===== */
 @media (min-width:1280px){
+  .ingGasto{margin:0 12px 6px;padding:10px 12px;border:1px solid var(--line-2,#e5e5e5);border-radius:12px;background:var(--surface,#fff);font-size:12.5px;color:var(--ink-2,#555)}
+  .ingG-topo{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .ingG-topo b{color:var(--ink,#222);font-size:13px}
+  .ingG-resta{font-weight:700;font-variant-numeric:tabular-nums}
+  .ingG-resta.ok{color:var(--ok,#1e7d4f)} .ingG-resta.warn{color:var(--warn-ink,#9a6400)} .ingG-resta.bad{color:var(--danger,#b3261e)}
+  .ingG-barra{height:10px;border-radius:99px;background:var(--surface-2,#eee);overflow:hidden;margin:7px 0 6px}
+  .ingG-barra i{display:block;height:100%;border-radius:99px;background:var(--ok,#1e7d4f);transition:width .3s}
+  .ingG-barra.warn i{background:#d99a1e} .ingG-barra.bad i{background:var(--danger,#b3261e)}
+  .ingG-linha{font-variant-numeric:tabular-nums} .ingG-linha b{color:var(--ink,#222)}
+  .ingG-acoes{display:flex;gap:12px;margin-top:6px}
+  .ingG-acoes button,.ingG-info{border:0;background:none;padding:0;font:inherit;color:var(--accent,#5b2333);text-decoration:underline;cursor:pointer;text-align:left}
   body.ia-dock #app{margin-right:392px}
   body.ia-dock #iaGaveta{width:392px;transform:none;transition:none;box-shadow:none;z-index:50;border-left:1px solid var(--line-2);background:var(--rail)}
   body.ia-dock #iaGaveta #iaMsgs,body.ia-dock #iaGaveta #iaPe{background:transparent}
@@ -1996,8 +2008,72 @@ iaChamar = async function (mensagens) {
   if (!r.ok && ingSemWeb(corpo)) ({ r, corpo } = await ingPede(vai(false)));
   if (r.status === 429 && corpo && corpo.error && corpo.error.type === 'limite') { marcaEsgotado('claude'); throw Object.assign(new Error(ia('vivoAcabou')), { acabou: true }); }
   if (!r.ok) throw new Error(iaTraduzErro(r.status, corpo));
+  try { ingGastoAnota(corpo); } catch (e) {}
   return ingCortado(corpo);
 };
+
+/* GASTO DA IA, CLARO PARA ELA (pedido do Eugênio, 07/10: "mostre o valor acabando").
+   Cada resposta traz o modelo e quantos tokens usou; o app converte em US$ (preço oficial
+   da Anthropic) e soma por dia em DB.iaUso (vai para a nuvem: celular + computador somam).
+   O saldo é estimado: ela diz quanto pôs de crédito e o app desconta o que gastou desde então.
+   O número oficial continua no painel da Anthropic. */
+const ING_PRECOS = {   /* US$ por milhão de tokens: entrada, saída, leitura do cache (gravar cache = 1,25× a entrada) */
+  'claude-fable-5-1': [10, 50, 0.25], 'claude-fable-5': [10, 50, 1], 'claude-opus-5-5': [4, 20, 0.20], 'claude-opus-5': [5, 25, 0.5],
+  'claude-sonnet-5-5': [2, 10, 0.20], 'claude-sonnet-5': [2, 10, 0.2], 'claude-haiku-4-5': [1, 5, 0.1] };
+function ingCusto(modelo, u) {
+  if (!u) return 0;
+  const k = Object.keys(ING_PRECOS).find(m => String(modelo || '').startsWith(m)) || 'claude-opus-5-5', [pi, po, pr] = ING_PRECOS[k];
+  const busca = ((u.server_tool_use || {}).web_search_requests || 0) * 0.01;   /* US$ 10 por mil buscas */
+  return ((u.input_tokens || 0) * pi + (u.output_tokens || 0) * po + (u.cache_creation_input_tokens || 0) * pi * 1.25 + (u.cache_read_input_tokens || 0) * pr) / 1e6 + busca;
+}
+function ingGastoAnota(corpo) {
+  if (!corpo || !corpo.usage || typeof DB === 'undefined') return;
+  const v = ingCusto(corpo.model, corpo.usage); if (!(v > 0)) return;
+  DB.iaUso = Array.isArray(DB.iaUso) ? DB.iaUso : [];
+  /* uma linha por DIA e por APARELHO: celular e computador gravando juntos não apagam um ao outro */
+  let ap = ''; try { ap = localStorage.getItem('ingrid_aparelho') || ''; if (!ap) { ap = Math.random().toString(36).slice(2, 8); localStorage.setItem('ingrid_aparelho', ap); } } catch (e) { ap = 'x'; }
+  const d = hojeIso(), id = d + '|' + ap, l = DB.iaUso.find(x => x.id === id) || (DB.iaUso.push({ id, dia: d, usd: 0, n: 0 }), DB.iaUso[DB.iaUso.length - 1]);
+  l.usd = Math.round((l.usd + v) * 10000) / 10000; l.n = (l.n || 0) + 1; l.modelo = corpo.model || l.modelo || '';
+  _opSave(); ingGastoPinta();
+}
+function ingGastoResumo() {
+  const u = Array.isArray(DB.iaUso) ? DB.iaUso : [], hoje = hojeIso(), mes = hoje.slice(0, 7);
+  const dias = u.filter(x => x.dia && x.usd >= 0).map(x => ({ id: x.dia, usd: +x.usd || 0, n: +x.n || 0 }));
+  const rec = u.filter(x => x.recarga > 0).sort((a, b) => String(b.em).localeCompare(String(a.em)))[0] || null;
+  const desde = rec ? dias.filter(x => x.id >= String(rec.em).slice(0, 10)).reduce((s, x) => s + x.usd, 0) - (rec.jaGastoNoDia || 0) : 0;
+  const hojeL = dias.filter(x => x.id === hoje).reduce((a, x) => ({ usd: a.usd + x.usd, n: a.n + x.n }), { usd: 0, n: 0 });
+  const mesUsd = dias.filter(x => x.id.startsWith(mes)).reduce((s, x) => s + x.usd, 0);
+  /* média só dos dias em que ela usou (com 2 dias de uso, dividir por 7 prometia "35 dias" — achado na conferência da tela) */
+  const s7 = dias.filter(x => x.id > addDays(hoje, -7)), ndias = new Set(s7.map(x => x.id)).size;
+  const ult7 = ndias ? s7.reduce((s, x) => s + x.usd, 0) / ndias : 0;
+  const resta = rec ? Math.max(0, rec.recarga - desde) : null;
+  return { hoje: hojeL.usd, hojeN: hojeL.n, mes: mesUsd, mediaDia: ult7, rec, resta, pct: rec ? resta / rec.recarga : null, dura: rec && ult7 > 0 ? Math.floor(resta / ult7) : null };
+}
+const ingUsd = (v) => 'US$ ' + (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
+function ingGastoPinta() {
+  const g = iaEl && iaEl.g; if (!g) return;
+  const pe = g.querySelector('#iaPe'); if (!pe) return;
+  let el = g.querySelector('#ingGasto');
+  if (!el) { pe.insertAdjacentHTML('beforebegin', '<div id="ingGasto" class="ingGasto"></div>'); el = g.querySelector('#ingGasto'); }
+  const r = ingGastoResumo();
+  if (!r.rec && !r.mes) { el.innerHTML = `<button type="button" class="ingG-info" data-gasto="recarga">💳 Quanto você tem de crédito da IA? Toque para informar — eu mostro quando estiver acabando.</button>`; }
+  else {
+    const cor = r.pct == null ? '' : r.pct <= 0.15 ? 'bad' : r.pct <= 0.35 ? 'warn' : 'ok';
+    el.innerHTML = `${r.rec ? `<div class="ingG-topo"><b>💳 Crédito da IA</b><span class="ingG-resta ${cor}">${r.pct <= 0.15 ? '⚠️ acabando: ' : ''}resta ~${ingUsd(r.resta)} de ${ingUsd(r.rec.recarga)}</span></div>
+      <div class="ingG-barra ${cor}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(r.pct * 100)}"><i style="width:${Math.max(2, Math.round(r.pct * 100))}%"></i></div>` : '<div class="ingG-topo"><b>💳 Gasto da IA</b></div>'}
+      <div class="ingG-linha">Hoje <b>${ingUsd(r.hoje)}</b>${r.hojeN ? ` (${r.hojeN} ${r.hojeN === 1 ? 'resposta' : 'respostas'})` : ''} · Este mês <b>${ingUsd(r.mes)}</b>${r.dura != null ? ` · dá para ~<b>${r.dura} ${r.dura === 1 ? 'dia' : 'dias'}</b>` : ''}</div>
+      <div class="ingG-acoes"><button type="button" data-gasto="recarga">coloquei crédito</button><button type="button" data-gasto="abrir">ver na Anthropic ↗</button></div>`;
+  }
+  el.querySelectorAll('[data-gasto]').forEach(b => b.onclick = () => {
+    if (b.dataset.gasto === 'abrir') { try { window.open('https://console.anthropic.com/settings/billing', '_blank', 'noopener'); } catch (e) {} return; }
+    const v = prompt('Quanto de crédito tem na conta da IA agora? (em dólares, ex.: 30)\n\nVeja em console.anthropic.com → Billing → "Credit balance".');
+    const n = +String(v || '').replace(',', '.').replace(/[^\d.]/g, ''); if (!(n > 0)) return;
+    DB.iaUso = Array.isArray(DB.iaUso) ? DB.iaUso : [];
+    const hj = DB.iaUso.filter(x => x.dia === hojeIso()).reduce((t, x) => t + (+x.usd || 0), 0);
+    DB.iaUso.push({ id: 'r' + Date.now(), recarga: n, em: new Date().toISOString(), jaGastoNoDia: hj });
+    _opSave(); ingGastoPinta();
+  });
+}
 
 /* DOUBLE CHECK INTERNO (pedido do Eugênio, 05/10): antes de a resposta final aparecer, o app confere
    duas coisas que o teste "como a Ingrid" pegou — (1) valor em € que não veio de nenhuma ferramenta
