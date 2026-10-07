@@ -193,12 +193,36 @@ function ingServicosNum(o) {
 }
 /* AS CONTAS DO ORÇAMENTO, prontas pra IA repetir (teste ao vivo de 03/10: ela inventou
    "sinal 50% = €595,50" quando o certo era €458). Nunca deixar a IA fazer conta de dinheiro. */
+/* CONFERÊNCIA DUPLA (pedido do Eugênio, 07/10: "double check em tudo na matemática, 2x").
+   Refaz as contas por OUTRO caminho (em centavos, item por item) e procura erro comum de
+   orçamento. Custo zero de IA: é o app que confere; o assistente só lê e avisa. */
+function ingConfere(o) {
+  const av = [], c = (v) => Math.round((+v || 0) * 100);
+  const conta = Orc.itensConta(o);
+  const tot2 = conta.reduce((s, i) => s + c(i.valor), 0), sin2 = conta.reduce((s, i) => s + c(Orc.sinalDoItem(o, i)), 0);
+  if (tot2 !== c(Orc.total(o))) av.push(`total não bate na 2ª conta (${eur(tot2 / 100)} × ${eur(Orc.total(o))})`);
+  if (sin2 !== c(Orc.sinal(o))) av.push(`sinal não bate na 2ª conta (${eur(sin2 / 100)} × ${eur(Orc.sinal(o))})`);
+  if (sin2 > tot2) av.push('o sinal ficou maior que o total');
+  const hoje = typeof isoToday === 'function' ? isoToday() : '';
+  const vistos = new Map();
+  o.itens.forEach((i, k) => { if (i.perdido) return; const n = k + 1;
+    if (!(+i.valor > 0) && !(i.vinculo || []).length) av.push(`serviço ${n} (${i.desc || 'sem nome'}) está sem preço`);
+    if (i.sinal != null && +i.sinal > +i.valor) av.push(`serviço ${n}: sinal maior que o preço`);
+    if (!(+i.pax >= 1)) av.push(`serviço ${n}: sem número de pessoas`);
+    if (i.data && hoje && i.data < hoje && o.status !== 'fechado') av.push(`serviço ${n}: a data ${i.data} já passou`);
+    const ch = ingN(i.desc) + '|' + (i.data || '') + '|' + (i.hora || '');
+    if (!i.alt && !(i.vinculo || []).length && vistos.has(ch)) av.push(`serviço ${n} parece repetido do ${vistos.get(ch)}`); else vistos.set(ch, n);
+  });
+  return av.length ? { ok: false, avisos: av, regra: 'MOSTRE estes avisos a ela ANTES de qualquer outra coisa e pergunte se corrige' }
+    : { ok: true, texto: 'conferido 2x pelo app: total, sinal e no dia batem' };
+}
 function ingContas(o) {
   const tot = Orc.total(o), sin = Orc.sinal(o), ops = Orc.opcoes(o);
   const C = ops.length && typeof orcCenarios === 'function' ? orcCenarios(o) : null;
   return { total: eur(tot), sinal: eur(sin), pagar_no_dia: eur(Math.max(0, Math.round((tot - sin) * 100) / 100)),
     ...(ops.length ? { atencao: 'há opções sem escolha: total e sinal acima são "a partir de" (a opção mais barata de cada)', ...(C && C.cenarios.length > 1 ? { por_opcao: C.cenarios.map(c => `${c.rotulo}: total ${eur(c.total)} · sinal ${eur(c.sinal)} · no dia ${eur(c.dia)}`) } : {}) } : {}),
     situacao: o.status === 'fechado' ? 'FECHADO (virou reserva)' : `${o.status} — ainda NÃO está fechado`,
+    conferencia: ingConfere(o),
     regra: 'repita EXATAMENTE estes valores; nunca calcule sinal, total ou porcentagem de cabeça' };
 }
 /* passeio com guia (da Tabela): põe os ingressos, os fones e a gestão junto — pedido dela de 02/10.
@@ -739,7 +763,7 @@ const ING_PLANO = {
       fazer: () => { const bs = Orc.fecha(o.id, { sinalRecebido: !!i.sinal_recebido, conta: i.conta }); Tarefas.sincroniza(); const of = Orc.get(o.id) || o;
         const pendenteConta = assumiuFecha.length ? { proximo: 'o sinal JÁ CAIU mas a conta era ambígua: pergunte AGORA em qual conta caiu (uma pergunta, com as opções) e registre com registrar_pagamento tipo sinal — senão a Planilha fica sem o pagamento e sem a forma' } : {};
         const noDia = bs.map(b => { const nd = Op.noDia(b); return { servico: `${nomeDoServico(b)} ${b.date}`, no_dia: eur(nd.valor || 0), para: nd.valor ? (nd.para === 'prestador' ? 'quem faz o serviço (guia/motorista), em dinheiro' : 'a Ingrid') : '—' }; });
-        return { ok: true, ...pendenteConta, reservas: bs.map(b => `${b.code} ${b.date} ${nomeDoServico(b)}`), contas: { total: eur(Orc.total(of)), sinal: eur(Orc.sinal(of)), sinal_ja_caiu: !!i.sinal_recebido, pagar_no_dia: eur(Math.max(0, Math.round((Orc.total(of) - Orc.sinal(of)) * 100) / 100)), no_dia_por_servico: noDia, regra: 'repita EXATAMENTE estes valores; nunca calcule de cabeça. "Quanto falta / quanto paga no dia": ver_ficha traz por serviço e para quem.' } }; } };
+        return { ok: true, ...pendenteConta, reservas: bs.map(b => `${b.code} ${b.date} ${nomeDoServico(b)}`), contas: { total: eur(Orc.total(of)), sinal: eur(Orc.sinal(of)), sinal_ja_caiu: !!i.sinal_recebido, pagar_no_dia: eur(Math.max(0, Math.round((Orc.total(of) - Orc.sinal(of)) * 100) / 100)), no_dia_por_servico: noDia, conferencia: ingConfere(of), regra: 'repita EXATAMENTE estes valores; nunca calcule de cabeça. "Quanto falta / quanto paga no dia": ver_ficha traz por serviço e para quem.' } }; } };
   },
   ajustar_termos(i) {
     const linhas = [];
@@ -953,10 +977,13 @@ Você é o assistente de ${guiaNome()}, dona da ${guiaNegocio()} — receptivo t
 ## POSTURA (profissional, sempre)
 - Pense e consulte ANTES, responda UMA vez. Nunca se corrija no meio da resposta ("opa", "deixa eu corrigir", "na verdade"): se precisa de um dado, chame a ferramenta primeiro.
 - Dinheiro sempre no mesmo formato (€ 1.388,50 · € 564 · € 824,50) e sempre com a origem clara (total, sinal, no dia, para quem).
-- Sem emoji em resposta que fala de dinheiro, erro ou cliente. Fora disso, no máximo um.
+- Sem emoji em resposta que fala de dinheiro, erro ou cliente (o "✓ conferido 2x" pode). Fora disso, no máximo um.
 - Nunca invente, nunca enfeite: o que não sabe, diga que vai verificar — e verifique.
 - Nunca ofereça "mando pra ela?" — você não manda nada. Ofereça "preparo a mensagem pra você enviar?".
 - Pergunta sobre um cliente ("já foi cliente?", "o que a Patrícia fez?", "o que a Juliana tem comigo?") → ver_ficha ou procurar com o NOME que ela disse (primeiro nome serve). Nunca peça WhatsApp, e-mail ou sobrenome — nem para procurar, nem para montar orçamento, nem para escrever mensagem: chame a ferramenta com o nome; só se ela devolver duas opções, pergunte qual.
+
+## CONFERÊNCIA DUPLA (sempre que mexer com dinheiro)
+Orçamento, mudança de orçamento, fechamento ou conta de cliente: ANTES de responder, leia contas.conferencia que a ferramenta devolveu (o app refez as contas por outro caminho). Se ok → termine com "✓ conferido 2x". Se vierem avisos → mostre os avisos PRIMEIRO, em lista curta, e pergunte se corrige. Nunca diga "conferido" sem esse campo.
 
 ## REGRAS QUE NUNCA MUDAM
 1. Nada sai para fora. Você NUNCA responde cliente, nunca manda mensagem, nunca publica, nunca paga. Você prepara (texto, orçamento, resumo); ela confere e envia pelos botões do app. Não existe ferramenta que mande nada — é de propósito.
