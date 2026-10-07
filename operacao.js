@@ -2001,6 +2001,18 @@ function cadastroDaReserva(b) {
 
 /* reserva que chegou da nuvem (o cliente reservou pelo site) ainda nao tem
    cadastro neste aparelho: completa aqui, antes de desenhar o painel */
+/* Doc 06/10 item 18: "@viajandocomgabi também tem 5% de desconto e é influencer" — entra uma vez
+   nas parcerias (se ela ainda não cadastrou); o cupom ela põe depois, se quiser */
+function parceriaGabi() {
+  try {
+    if (!DB.settings || DB.settings.parcGabi) return;
+    /* só depois que os dados dela chegaram da nuvem (senão um aparelho novo criaria uma repetida) */
+    if (typeof temNuvem === 'function' && temNuvem()) { let emDia = false; try { emDia = JSON.parse(localStorage.getItem('ingrid_emdia_v1')) === true; } catch (e) {} if (!emDia) return; }
+    DB.parceiros = Array.isArray(DB.parceiros) ? DB.parceiros : [];
+    if (!DB.parceiros.some(p => /viajandocomgabi/i.test([p.nome, p.contato, p.cupom].join(' ')))) DB.parceiros.push({ id: uid(), nome: '@viajandocomgabi', tipo: 'influencer', contato: 'Instagram @viajandocomgabi', cupom: '', desconto: 5, comissao: 0, obs: 'Doc 06/10: 5% de desconto, influencer', pagamentos: [] });
+    DB.settings.parcGabi = true; _opSave();
+  } catch (e) {}
+}
 /* LIMPAR OS TESTES (pedido da Ingrid, 06/10: "a gente tem que deixar ele so coisa
    real... eu vou selecionar qual tem que apagar"). Apagar um cliente leva junto
    TUDO dele: reservas, orcamentos, tarefas, arquivos, anotacoes e quem veio junto.

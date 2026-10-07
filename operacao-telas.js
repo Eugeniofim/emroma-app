@@ -240,6 +240,7 @@ function opLigaCards(redesenha) {
    HOJE — a planilha de 15 anos, agora no app
 ===================================================== */
 function admHoje(arg) {
+  if (typeof parceriaGabi === 'function') parceriaGabi();
   const hoje = isoToday();
   const dia = /^\d{4}-\d{2}-\d{2}$/.test(arg || '') ? arg : hoje;
   const lista = Op.doDia(dia);
@@ -687,7 +688,7 @@ function admFicha(arg) {
     </div>`);
   const re = () => admFicha(arg);
   opLigaCards(re); tfLigaMini(re);
-  $('#fcArq').onchange = (e) => { const f = e.target.files[0]; if (!f) return; Arquivos.guarda({ blob: f, nome: `${isoToday()} ${f.name}`, tipo: /comprov|pix|recibo/i.test(f.name) ? 'comprovante' : 'documento', clienteId: c.id, clienteNome: c.nome }); toast('Arquivo guardado'); re(); };
+  $('#fcArq').onchange = (e) => { const f = e.target.files[0]; if (!f) return; Arquivos.guarda({ blob: f, nome: `${isoToday()} ${f.name}`, tipo: /comprov|pix|recibo/i.test(f.name) ? 'comprovante' : /ingress|ticket|biglietto|bilhete/i.test(f.name) ? 'ingresso' : /voucher/i.test(f.name) ? 'voucher' : /avalia|review/i.test(f.name) ? 'avaliacao' : 'documento', clienteId: c.id, clienteNome: c.nome }); toast('Arquivo guardado'); re(); };
   $('#fvSalva').onclick = () => { Cadastro.salva(c.id, { viagem: { hotel: $('#fvHotel').value.trim(), chegada: $('#fvCheg').value.trim(), partida: $('#fvPart').value.trim(), bagagem: $('#fvBag').value.trim() } }); toast('Viagem salva'); re(); };
   $('#fcSalvaCad').onclick = () => {
     const indNome = $('#fcInd').value.trim(), indC = indNome ? Cadastro.all().find(x => x.id !== c.id && _nomeN(x.nome) === _nomeN(indNome)) : null;
@@ -976,13 +977,17 @@ function crmLinksCels(r) {
   const todos = [...(r.links || []), ...((o && o.links) || [])];
   const acha = (re) => todos.filter(l => re.test(l.nome)).map(l => `<a target="_blank" rel="noopener" href="${esc(l.url)}">${esc(l.nome)}</a>`).join('<br>');
   const comprov = r.b ? (r.b.payments || []).filter(p => p.comprovante || p.arquivoId).map((p, k) => p.arquivoId ? `<a href="#" data-arq="${esc(p.arquivoId)}">📎 comprovante ${k + 1}</a>` : `<a target="_blank" rel="noopener" href="${esc(p.comprovante)}">comprovante ${k + 1}</a>`).join('<br>') : '';
+  /* Doc 06/10 item 13: o que foi salvo no Drive (voucher, comprovante, avaliação, ingresso) também aparece na planilha */
+  const jaLink = new Set(r.b ? (r.b.payments || []).map(p => p.arquivoId).filter(Boolean) : []);
+  const arqs = (tipos) => !r.b ? '' : (DB.arquivos || []).filter(a => tipos.includes(a.tipo) && !jaLink.has(a.id) && (a.bookingId === r.b.id || (!a.bookingId && r.b.clienteId && a.clienteId === r.b.clienteId)))
+    .map(a => `<a href="#" data-arq="${esc(a.id)}" title="${esc(a.drive || 'guardado no app')}">📁 ${esc(a.tipo)}</a>`).join('<br>');
   const aval = r.b && r.b.avaliacaoEm ? (DB.settings.linkAvaliacao ? `<a target="_blank" rel="noopener" href="${esc(DB.settings.linkAvaliacao)}">pedida ${crmData(r.b.avaliacaoEm)}</a>` : 'pedida ' + crmData(r.b.avaliacaoEm)) : '';
   return [esc(r.arquivo || (o ? Orc.nomeArquivo(o) : String(r.dataServ || '').replace(/-/g, '_') + ' ' + r.nome)),
     `${o ? `<a href="#/adm/orcdoc/${esc(o.id)}">PDF do orçamento</a>` : ''}${acha(/pdf/i) ? '<br>' + acha(/pdf/i) : ''}`,
     acha(/or[cç]amento|planilha/i),
-    `${r.b ? `<a href="#/adm/voucher/${esc(r.b.id)}">voucher</a>` : ''}${acha(/voucher/i) ? '<br>' + acha(/voucher/i) : ''}`,
-    `${comprov}${acha(/comprov/i) ? '<br>' + acha(/comprov/i) : ''}`,
-    aval];
+    `${r.b ? `<a href="#/adm/voucher/${esc(r.b.id)}">voucher</a>` : ''}${acha(/voucher/i) ? '<br>' + acha(/voucher/i) : ''}${arqs(['voucher', 'ingresso']) ? '<br>' + arqs(['voucher', 'ingresso']) : ''}`,
+    `${comprov}${acha(/comprov/i) ? '<br>' + acha(/comprov/i) : ''}${arqs(['comprovante']) ? '<br>' + arqs(['comprovante']) : ''}`,
+    [aval, arqs(['avaliacao'])].filter(Boolean).join('<br>')];
 }
 /* as colunas da planilha, na ordem dela, em grupos que ela pode esconder
    (como ocultar colunas no Google Planilhas). O NOME fica sempre fixo a esquerda. */
@@ -1514,7 +1519,8 @@ function admOrcEditor(id) {
       ${o.conversa ? `<pre class="pdmsg">${esc(o.conversa)}</pre>` : ''}</details>` : ''}
     <section class="card orc-passo"><h3><span class="oi-n">1</span> Para quem</h3>
       <div class="oi-grade">
-        <label class="fld"><span>Nome do cliente</span><input id="orNome" value="${esc(o.cliente.nome)}" placeholder="só o nome já basta"></label>
+        <label class="fld"><span>Nome do cliente</span><input id="orNome" list="orClis" autocomplete="off" value="${esc(o.cliente.nome)}" placeholder="comece a digitar — acho no cadastro"></label>
+        <datalist id="orClis">${Cadastro.all().filter(c => !c.grupoDe).map(c => `<option value="${esc(c.nome)}">${esc([c.whats, c.email].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>
         <label class="fld"><span>WhatsApp <small>(opcional)</small></span><input id="orWhats" value="${esc(o.cliente.whats)}"></label>
         <label class="fld"><span>E-mail <small>(opcional)</small></span><input id="orEmail" value="${esc(o.cliente.email)}"></label>
       </div>
@@ -1585,6 +1591,9 @@ function admOrcEditor(id) {
     Orc.salva(o);
   };
   const re = () => admOrcEditor(id);
+  /* Doc 06/10 item 12: no orçamento feito à mão, escolher o nome traz o WhatsApp e o e-mail da ficha */
+  $('#orNome').addEventListener('change', () => { const nm = $('#orNome').value.trim().toLowerCase(); const c = Cadastro.all().find(x => String(x.nome || '').trim().toLowerCase() === nm);
+    if (!c) return; if (!$('#orWhats').value.trim() && c.whats) $('#orWhats').value = c.whats; if (!$('#orEmail').value.trim() && c.email) $('#orEmail').value = c.email; toast('Cliente do cadastro: ' + c.nome); });
   $('#orSalva').onclick = () => { lerTela(); toast('Orçamento salvo'); re(); };
   $('#orCopia').onclick = () => { lerTela(); opCopia(opMsgOrc(Orc.get(id))); };
   $('#orCopia2').onclick = () => $('#orCopia').click();
@@ -3159,6 +3168,7 @@ function lerParticipantes(x) {
    Cada um com o cupom dele; o app conta reservas, faturado e comissao.
 ===================================================== */
 function admParcerias() {
+  if (typeof parceriaGabi === 'function') parceriaGabi();
   const S = admParcerias._s = admParcerias._s || { ed: '' };
   const ps = Parceiros.all(), contas = new Map(ps.map(p => [p.id, Parceiros.conta(p)]));
   const tot = (k) => [...contas.values()].reduce((s2, c) => s2 + c[k], 0);
