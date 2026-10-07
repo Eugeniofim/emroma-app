@@ -57,7 +57,7 @@ const IA_PRECO = { in: 1, out: 5, cacheW: 1.25, cacheR: 0.10 };  /* US$ por milh
 const IA_MAX_VOLTAS = 10;
 /* o histórico guardado: resultado de ferramenta maior que isto é encolhido ao gravar (a resposta
    já foi dada; a próxima mensagem não precisa reenviar 150 linhas da planilha), e o total tem teto */
-const IA_RESULT_MAX = 3500, IA_HIST_MAX_CHARS = 120000;
+const IA_RESULT_MAX = 3500, IA_HIST_MAX_CHARS = 45000;   /* 07/10: era 120000 — cada pergunta reenviava ~35 mil tokens de conversa velha (custo da Ingrid) */
 /* toda chamada à IA tem prazo — sem isto, rede ruim no celular era "pensando…" para sempre */
 const IA_PRAZO_MS = 90000;
 function iaFetch(url, opts, ms) {
@@ -1107,7 +1107,7 @@ function iaEncolheResultado(b) {
   return { ...b, content: b.content.slice(0, IA_RESULT_MAX) + ' …[resultado encolhido — chame a ferramenta de novo se precisar do resto]' };
 }
 function iaAparaHist(h) {
-  let x = h.slice(-40);
+  let x = h.slice(-24);
   while (x.length && !ehPergunta(x[0])) x.shift();
   x = x.map(m => Array.isArray(m.content) && m.content.some(b => b.type === 'image' || b.type === 'document' || b.type === 'tool_result')
     ? { ...m, content: m.content.map(b => (b.type === 'image' || b.type === 'document') ? { type: 'text', text: b.type === 'document' ? '[documento]' : '[foto]' } : iaEncolheResultado(b)) } : m);
