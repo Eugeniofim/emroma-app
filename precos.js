@@ -423,6 +423,8 @@ const Precos = {
       /* "transfer" = só a Transfer Roma; a 5% (derivada) só entra se pedida (id ou "5") */
       const casa = !qt || t.id === q.tabela || (t.derivaDe ? /5/.test(qt) : (n(t.nome).includes(qt) || Precos.base(t).tipo === qt));
       if (!casa) continue;
+      /* Milão só entra quando a fala é de Milão (senão "aeroporto" traria Malpensa junto com Fiumicino) */
+      if (t.id === 'transfer-milao' && t.id !== q.tabela && !/mil[ao]|malpensa|linate|bergamo|orio|\b(mxp|lin|bgy)\b/.test([qt, qs, qx].join(' '))) continue;
       for (const s of Precos.secoesView(t)) {
         if (qs && !n(s.titulo).includes(qs)) continue;
         for (const c of s.linhas) {
