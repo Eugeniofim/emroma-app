@@ -629,13 +629,10 @@ function admFicha(arg) {
     </section>
 
     <section class="card">
-      <div class="rp-cab"><h3>A viagem</h3><button class="mini" data-abre="fcViagem">editar</button></div>
-      <div class="fc-viagem"><span><small>Hotel</small><b>${esc(v.hotel || '—')}</b></span><span><small>Chegada</small><b>${esc(v.chegada || '—')}</b></span>
-        <span><small>Partida</small><b>${esc(v.partida || '—')}</b></span><span><small>Bagagem</small><b>${esc(v.bagagem || '—')}</b></span></div>
-      <div class="svc-form" id="fcViagem" hidden><div class="frow">
-        <label class="fld">Hotel<input id="fvHotel" value="${esc(v.hotel || '')}"></label><label class="fld">Chegada (voo, dia)<input id="fvCheg" value="${esc(v.chegada || '')}"></label></div>
-        <div class="frow"><label class="fld">Partida<input id="fvPart" value="${esc(v.partida || '')}"></label><label class="fld">Bagagem<input id="fvBag" value="${esc(v.bagagem || '')}" placeholder="2x23kg + 2x10kg"></label></div>
-        <button class="cta sm" id="fvSalva">Salvar</button></div>
+      <div class="rp-cab"><h3>A viagem</h3></div>
+      <p class="why">Hotel, voo e <b>malas</b> ficam num lugar só — no <b>orçamento</b> de cada viagem (campo "Malas e outros volumes") e na reserva. Assim o orçamento, o voucher e o assistente leem sempre do mesmo lugar.</p>
+      ${v.hotel || v.chegada || v.partida || v.bagagem ? `<div class="fc-viagem"><span><small>Hotel (antigo)</small><b>${esc(v.hotel || '—')}</b></span><span><small>Chegada (antigo)</small><b>${esc(v.chegada || '—')}</b></span>
+        <span><small>Partida (antigo)</small><b>${esc(v.partida || '—')}</b></span><span><small>Bagagem (antigo)</small><b>${esc(v.bagagem || '—')}</b></span></div>` : ''}
 
       <h3 style="margin-top:16px">Serviços ${prox.length ? '· próximos' : ''}</h3>
       ${prox.length ? `<div class="fc-tab-wrap"><table class="tbl fc-tab"><thead><tr><th>Data</th><th>Hora</th><th>Serviço · quem vai · ingressos e links</th><th class="right">Total</th><th class="right">Sinal/pago</th><th class="right">Pagar no dia</th><th>Guia</th><th></th></tr></thead>
@@ -689,7 +686,7 @@ function admFicha(arg) {
   const re = () => admFicha(arg);
   opLigaCards(re); tfLigaMini(re);
   $('#fcArq').onchange = (e) => { const f = e.target.files[0]; if (!f) return; Arquivos.guarda({ blob: f, nome: `${isoToday()} ${f.name}`, tipo: /comprov|pix|recibo/i.test(f.name) ? 'comprovante' : /ingress|ticket|biglietto|bilhete/i.test(f.name) ? 'ingresso' : /voucher/i.test(f.name) ? 'voucher' : /avalia|review/i.test(f.name) ? 'avaliacao' : 'documento', clienteId: c.id, clienteNome: c.nome }); toast('Arquivo guardado'); re(); };
-  $('#fvSalva').onclick = () => { Cadastro.salva(c.id, { viagem: { hotel: $('#fvHotel').value.trim(), chegada: $('#fvCheg').value.trim(), partida: $('#fvPart').value.trim(), bagagem: $('#fvBag').value.trim() } }); toast('Viagem salva'); re(); };
+  if ($('#fvSalva')) $('#fvSalva').onclick = () => { Cadastro.salva(c.id, { viagem: { hotel: $('#fvHotel').value.trim(), chegada: $('#fvCheg').value.trim(), partida: $('#fvPart').value.trim(), bagagem: $('#fvBag').value.trim() } }); toast('Viagem salva'); re(); };
   $('#fcSalvaCad').onclick = () => {
     const indNome = $('#fcInd').value.trim(), indC = indNome ? Cadastro.all().find(x => x.id !== c.id && _nomeN(x.nome) === _nomeN(indNome)) : null;
     const nasc = $('#fcNasc').value.trim();
@@ -1911,6 +1908,7 @@ function opDocVoucher(id) {
         <div class="frow"><label class="fld sm">Voo/trem<input data-vtr="${esc(x.id)}" data-campo="voo" value="${esc(x.voo || '')}"></label>
         <label class="fld grow">Buscar em<input data-vtr="${esc(x.id)}" data-campo="origem" value="${esc(x.origem || '')}" placeholder="aeroporto (FCO/CIA) ou endereço do hotel"></label>
         <label class="fld grow">Levar para<input data-vtr="${esc(x.id)}" data-campo="destino" value="${esc(x.destino || '')}" placeholder="endereço do hotel ou aeroporto"></label></div></fieldset>`).join('')}
+      <label class="fld">Bagagem <small>(sai para o cliente no voucher, igual ao orçamento)</small><input id="vchBag" value="${esc(bagagem)}" placeholder="ex.: 2 malas grandes (23 kg) + 2 de mão"></label>
       <label class="fld">Observação deste voucher (sai antes da assinatura)<textarea id="vchNota" rows="3">${esc(nota)}</textarea></label>
       <button class="cta sm" id="vchSalva">salvar este voucher</button>
     </details>`;
@@ -1920,6 +1918,8 @@ function opDocVoucher(id) {
   const vs = $('#vchSalva'); if (vs) vs.onclick = () => {
     const f = $$('[data-vblk]').filter(i => !i.checked).map(i => i.dataset.vblk), n = $('#vchNota').value.trim();
     const pgN = ($('#vchPg') || {}).value || '';
+    const bagN = (($('#vchBag') || {}).value || '').trim();
+    if (bagN !== bagagem) { if (orc) { orc.bagagem = bagN; Orc.salva(orc); } for (const x of bs) { x.malas = bagN; } }
     for (const x of bs) { x.voucherFora = f; x.voucherNota = n; x.voucherPg = pgN; _opSaveBooking(x); }
     for (const inp of $$('[data-vtr]')) { const x = bs.find(b => b.id === inp.dataset.vtr); if (!x) continue; const v = inp.value.trim(); if ((x[inp.dataset.campo] || '') !== v) { const d = {}; d[inp.dataset.campo] = v; Op.detalhes(x.id, d); } }
     toast('Voucher salvo'); opDocVoucher(id);
@@ -1960,7 +1960,7 @@ function orcTabelasHtml(o) {
       <tr><th>Nome:</th><td>${esc(o.cliente.nome || '')}</td></tr>
       <tr><th>Whatsapp:</th><td>${esc(o.cliente.whats || '')}</td></tr>
       <tr><th>Pessoas:</th><td>${esc(o.paxNota || (pMax ? pMax + ' pessoa' + (pMax > 1 ? 's' : '') : ''))}</td></tr>
-      <tr><th>Bagagem:</th><td>${esc(o.bagagem || '')}</td></tr>
+      <tr><th>Bagagem:</th><td>${esc(o.bagagem || ((Cadastro.get(o.clienteId) || {}).viagem || {}).bagagem || '')}</td></tr>
     </tbody></table>
     <div class="doc-tblwrap"><table class="tbl doc-tbl doc-orc"><thead><tr><th>Data</th><th>Hora</th><th>Serviço</th><th class="right">Total</th><th class="right">Sinal</th><th class="right">Pagar no dia</th></tr></thead>
       <tbody>${linhas}</tbody><tfoot>${rod}</tfoot></table></div>

@@ -395,6 +395,11 @@ function linhaHoje() { const d = new Date(); const DS = ['domingo', 'segunda-fei
 const diaSemanaEn = () => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
 /* o que vai pra API: sem o campo `dia` (a API não aceita) e com o carimbo no que é de outro dia */
 function mensagensParaEnvio(ms) { const hoje = hojeLocalIso();
+  /* Doc 08/10 itens 7 e 8 ("ele ainda me pergunta da Cleide, que já fechei de manhã"): a conversa de
+     OUTRO DIA não vai mais para a IA — o que importa de antes está na memória, no diário e nos dados
+     do app. Também gasta menos: não relê a conversa velha. */
+  const k = ms.findIndex(m => m.role === 'user' && m.dia === hoje && (typeof m.content === 'string' || (Array.isArray(m.content) && !m.content.some(b => b.type === 'tool_result'))));
+  if (k > 0) ms = ms.slice(k); else if (k < 0 && ms.length) { const u = ms[ms.length - 1]; ms = u.role === 'user' && !u.dia ? [u] : ms; }
   return ms.map(m => { const { dia, ...r } = m; if (m.role !== 'user' || !dia || dia === hoje) return r;
     const c = '[dito em ' + dia.slice(8, 10) + '/' + dia.slice(5, 7) + '] ';
     r.content = typeof m.content === 'string' ? c + m.content : m.content.map(b => b.type === 'text' ? { ...b, text: c + b.text } : b); return r; }); }

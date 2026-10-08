@@ -425,6 +425,15 @@ function transferFaltaTexto(i, o) {
   return 'Caso queira reservar o transfer, precisamos de: ' + (f.length > 1 ? f.slice(0, -1).join(', ') + ' e ' + f[f.length - 1] : f[0]) + '.';
 }
 const Orc = {
+  /* Doc 08/10 item 5: orçamento (e voucher) sempre em ORDEM DE DATA E HORA — sem precisar apagar e
+     cadastrar de novo. O ingresso/gestão que acompanha um passeio fica logo depois dele. Serviço sem data vai pro fim. */
+  ordena(itens) {
+    const L = (itens || []).slice(), porId = new Map(L.map(i => [i.id, i])), pos = new Map(L.map((i, k) => [i, k]));
+    const chave = (i) => { const pai = (i.vinculo || []).map(id => porId.get(id)).find(Boolean);
+      const base = pai && !i.data ? pai : i;
+      return (base.data || i.data || '9999-99-99') + '|' + ((pai && (pai.hora || '')) || i.hora || '99:99') + '|' + (pai ? '1' : '0'); };
+    return L.sort((a, b) => chave(a).localeCompare(chave(b)) || pos.get(a) - pos.get(b));
+  },
   all() { return [...(DB.orcamentos || [])].sort((a, b) => (b.criado || '').localeCompare(a.criado || '')); },
   get(id) { return (DB.orcamentos || []).find(o => o.id === id) || null; },
   cria(d) {
@@ -436,7 +445,7 @@ const Orc = {
       cliente: { nome: String((d.cliente && d.cliente.nome) || '').trim(), whats: String((d.cliente && d.cliente.whats) || '').trim(),
                  email: String((d.cliente && d.cliente.email) || '').trim() },
       clienteKey: d.clienteKey || '',
-      itens: (d.itens || []).map(Orc._item),
+      itens: Orc.ordena((d.itens || []).map(Orc._item)),
       sinalPct: d.sinalPct != null ? +d.sinalPct : 30,
       validade: d.validade || addDays(isoToday(), 7),
       obs: orcTextoCliente(d.obs), resumo: String(d.resumo || ''), conversa: String(d.conversa || ''),
@@ -602,7 +611,7 @@ const Orc = {
   sinal(o) { return Math.round(Orc.itensConta(o).reduce((s, i) => s + Orc.sinalDoItem(o, i), 0) * 100) / 100; },
   salva(o) {
     const x = Orc.get(o.id); if (!x) return null;
-    Object.assign(x, o, { itens: (o.itens || x.itens).map(Orc._item) });
+    Object.assign(x, o, { itens: Orc.ordena((o.itens || x.itens).map(Orc._item)) });
     if (typeof x.obs === 'string') x.obs = orcTextoCliente(x.obs);
     if (o.cliente) Orc._fichaDo(x);
     Orc.propaga(x); _opSave(); return x;
@@ -1168,7 +1177,7 @@ function voucherFalta(bs) {
   if (!String(b.name || '').trim()) out.push('nome');
   if (!String(b.whats || (c && c.whats) || '').replace(/\D/g, '')) out.push('WhatsApp');
   if (chegadas.length) {
-    if (!/\d/.test(bagagem) || !/mala/i.test(bagagem)) out.push('quantidade e tamanho das malas');
+    if (!/\d/.test(bagagem) || !/mala|bagag|kg|volume|mochila|bordo|despach/i.test(bagagem)) out.push('quantidade e tamanho das malas');
     for (const x of chegadas) {
       const quando = (x.date || '').slice(8, 10) + '/' + (x.date || '').slice(5, 7);
       if (!/\b(fco|cia)\b|fiumicino|ciampino|aeroport/i.test((x.origem || '') + ' ' + nomeDoServico(x))) out.push(`aeroporto da chegada (${quando})`);
