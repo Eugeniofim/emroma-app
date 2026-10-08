@@ -4,9 +4,9 @@
    Para publicar uma atualização: subir os arquivos novos e trocar a VERSION. */
 'use strict';
 
-const VERSION = 'ingrid-v1.129.0';
+const VERSION = 'ingrid-v1.130.0';
 const CORE = [
-  './', './index.html', './config.js', './app.js', './fx.js', './pix.js', './qr.js', './qrcode.js', './traduz.js', './store.js', './auth.js', './logo.js', './cloud.js', './nuvem-itens.js', './i18n.js', './operacao.js', './operacao-telas.js', './precos.js', './assistente.js', './assistente-ingrid.js', './tokens.css', './operacao.css', './manifest.webmanifest', './capa.jpg', './home.jpg', './og.jpg', './guia.jpg',
+  './', './index.html', './config.js', './app.js', './fx.js', './pix.js', './qr.js', './qrcode.js', './traduz.js', './store.js', './auth.js', './logo.js', './cloud.js', './nuvem-itens.js', './i18n.js', './operacao.js', './operacao-telas.js', './precos.js', './assistente.js', './assistente-ingrid.js', './assistente-visual.js', './tokens.css', './operacao.css', './manifest.webmanifest', './capa.jpg', './home.jpg', './og.jpg', './guia.jpg',
   /* a arte da Ingrid: o selo e as capas do portfolio. Vao para o cache
      porque sao a cara do app — sem elas, offline, a vitrine fica cinza. */
   './arte/avatar-ingrid.jpg', './arte/capa-conexao.jpg', './arte/capa-cruzeiro.jpg',
