@@ -405,22 +405,23 @@ function orcTextoCliente(t) {
     .replace(/(^|[.!?]\s+)foi informado/g, (m, a) => a + 'Foi informado');
 }
 /* TRANSFER SEM TODOS OS DADOS (Doc 07/10 item 5): só o que FALTA para este transfer, no texto dela */
-function transferFalta(i) {
+function transferFalta(i, o) {
   if (!i || i.perdido) return [];
   const t = [i.desc, i.obs, i.voo].join(' ');
-  if (!/transfer|\b(FCO|CIA|MXP|LIN|NAP|VCE|FLR)\b|aeroporto|fiumicino|ciampino|malpensa|linate|esta[çc][aã]o|termini|tiburtina|porto|civitavecchia|navio/i.test(t)) return [];
+  if (!/transfer|\b(FCO|CIA|MXP|LIN|BGY|NAP|VCE|FLR)\b|aeroporto|fiumicino|ciampino|malpensa|linate|esta[çc][aã]o|termini|tiburtina|porto|civitavecchia|navio/i.test(t)) return [];
   const f = [], voo = String(i.voo || '').trim();
-  if (/\b(FCO|CIA|MXP|LIN|NAP|VCE|FLR)\b|aeroporto|fiumicino|ciampino|malpensa|linate/i.test(t) && !voo && !/\b[A-Z]{2}\s?\d{2,4}\b/.test(String(i.desc || '').replace(/\b(FCO|CIA|MXP|LIN|NAP|VCE|FLR)\b/g, ''))) f.push('o número do voo');
+  if (/\b(FCO|CIA|MXP|LIN|BGY|NAP|VCE|FLR)\b|aeroporto|fiumicino|ciampino|malpensa|linate/i.test(t) && !voo && !/\b[A-Z]{2}\s?\d{2,4}\b/.test(String(i.desc || '').replace(/\b(FCO|CIA|MXP|LIN|BGY|NAP|VCE|FLR)\b/g, ''))) f.push('o número do voo');
   else if (/esta[çc][aã]o|termini|tiburtina|\btrem\b/i.test(t) && !voo) f.push('o número do trem');
   else if (/porto|civitavecchia|navio|cruzeiro/i.test(t) && !voo) f.push('o nome do navio');
   if (!String(i.hora || '').trim()) f.push('o horário');
   if (/\bcentro\b/i.test(i.desc || '') || !/hotel|\bvia\b|piazza|viale|largo|corso|endere/i.test(t)) f.push('o nome e o endereço do hotel');
-  if (!/mala|bagag/i.test(t)) f.push('a quantidade e o tamanho exatos das bagagens');
-  if (f.length) f.push('outros volumes, se houver (carrinho de bebê, equipamento esportivo, caixas, mochilas de despachar ou malas de 10 kg)');
+  /* Doc 08/10 item 3: malas não declaradas → a frase dela, inteira (com os outros volumes) */
+  const bag = String((o && o.bagagem) || '');
+  if (!/mala|bagag/i.test(t + ' ' + bag)) f.push('a quantidade e o tamanho das malas e outros volumes, se houver (carrinho de bebê, equipamento esportivo, caixas, mochilas de despachar ou malas de 10 kg)');
   return f;
 }
-function transferFaltaTexto(i) {
-  const f = transferFalta(i); if (!f.length) return '';
+function transferFaltaTexto(i, o) {
+  const f = transferFalta(i, o); if (!f.length) return '';
   return 'Caso queira reservar o transfer, precisamos de: ' + (f.length > 1 ? f.slice(0, -1).join(', ') + ' e ' + f[f.length - 1] : f[0]) + '.';
 }
 const Orc = {

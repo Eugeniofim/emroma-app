@@ -1523,7 +1523,10 @@ function admOrcEditor(id) {
         <datalist id="orClis">${Cadastro.all().filter(c => !c.grupoDe).map(c => `<option value="${esc(c.nome)}">${esc([c.whats, c.email].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>
         <label class="fld"><span>WhatsApp <small>(opcional)</small></span><input id="orWhats" value="${esc(o.cliente.whats)}"></label>
         <label class="fld"><span>E-mail <small>(opcional)</small></span><input id="orEmail" value="${esc(o.cliente.email)}"></label>
+        <label class="fld"><span>Pessoas <small>(como sai no orçamento)</small></span><input id="orPaxNota" value="${esc(o.paxNota || '')}" placeholder="ex.: 2 adultos e 1 criança (8 anos)"></label>
       </div>
+      <label class="fld"><span>Malas e outros volumes <small>(quantidade e tamanho — sai em "Bagagem")</small></span><input id="orBag" value="${esc(o.bagagem || '')}" placeholder="ex.: 2 malas grandes (até 23 kg) + 2 de mão + 1 carrinho de bebê"></label>
+      <label class="fld"><span>📝 Anotação interna <small>(só você vê — não vai para o cliente)</small></span><textarea id="orNotaInt" rows="3" class="orc-nota-int">${esc(o.notaInterna || '')}</textarea></label>
     </section>
     <section class="card orc-passo"><h3><span class="oi-n">2</span> Os serviços</h3>
       <div class="orc-add">
@@ -1587,6 +1590,7 @@ function admOrcEditor(id) {
     if (retarifa) setTimeout(() => toast(retarifa === 'noturno' ? 'Tarifa noturna aplicada (21h–6h: +€30 por veículo)' : 'Voltou a tarifa diurna'), 50);
     o.sinalPct = +$('#orPct').value || 0; o.validade = $('#orVal').value; o.status = $('#orSt').value;
     o.termos = $('#orTermos').checked; o.obs = $('#orObs').value;
+    o.bagagem = $('#orBag').value.trim(); o.paxNota = $('#orPaxNota').value.trim(); o.notaInterna = $('#orNotaInt').value;
     if (o.status === 'novo') o.status = 'rascunho';
     Orc.salva(o);
   };
@@ -1681,16 +1685,17 @@ function opDoc(titulo, corpo, acoes, arquivo) {
 function opVoucherTexto(b) {
   const bs = voucherViagem(b), orc = bs.map(x => x.orcamentoId && Orc.get(x.orcamentoId)).find(Boolean) || null;
   const pMax = Math.max(...bs.map(x => +x.pax || 0)), r2 = (n) => Math.round(n * 100) / 100;
+  const semValores = bs.some(x => (x.voucherFora || []).includes('valores'));   /* agência: sem valores também no texto */
   const l = [`Voucher — ${guiaNegocio()}`, '', `Nome: ${b.name}`, `Pessoas: ${(orc && orc.paxNota) || pMax + ' pessoa' + (pMax > 1 ? 's' : '')}`];
   if (orc && orc.bagagem) l.push(`Bagagem: ${orc.bagagem}`);
   l.push('');
   let T = 0, S = 0, D = 0;
   bs.forEach((x, n) => { const q = vchContaDe(x); T += q.total; S += q.sinal; D += q.dia;
-    l.push(`${n + 1}. ${opCurta(x.date)} ${diaSemanaCurto(x.date)} ${x.time || ''} — ${opNomeServ(x)}`, `   Total ${eur(q.total)} · Sinal ${eur(q.sinal)}${q.pendente ? ' (a pagar)' : ''} · Pagar no dia ${eur(q.dia)}`);
+    l.push(`${n + 1}. ${opCurta(x.date)} ${diaSemanaCurto(x.date)} ${x.time || ''} — ${opNomeServ(x)}`); if (!semValores) l.push(`   Total ${eur(q.total)} · Sinal ${eur(q.sinal)}${q.pendente ? ' (a pagar)' : ''} · Pagar no dia ${eur(q.dia)}`);
     const e = vchEncontro(x);
     l.push(`   Encontro: ${e.txt}${e.ponto && linkMapa(e.ponto) ? ' · ' + linkMapa(e.ponto) : ''}`);
     if (x.voo) l.push(`   Voo/trem: ${x.voo}`); });
-  l.push('', `TOTAL: ${eur(r2(T))} · Sinal: ${eur(r2(S))} · Pagar no dia: ${eur(r2(D))}`);
+  if (!semValores) l.push('', `TOTAL: ${eur(r2(T))} · Sinal: ${eur(r2(S))} · Pagar no dia: ${eur(r2(D))}`);
   if (DB.settings.plantao) l.push('', `Suporte (plantão): ${DB.settings.plantao}`);
   l.push('', 'O voucher completo (pagamento, suporte e as instruções de cada serviço) segue em PDF.', guiaNome());
   return l.join('\n');
@@ -1849,14 +1854,23 @@ function vchEncontroHtml(x) {
    tabela com TODOS os serviços (Data|Hora|Serviço|Total|Sinal|Pagar no dia), onde
    encontrar em cada um, e os blocos da aba Voucher SEM repetir. O nome do
    motorista/guia não sai (os textos dela dizem que não é informado antes). */
+/* Doc 08/10 item 1: o método de pagamento visível, com o escolhido marcado (☑) e os outros (☐) */
+const VCH_PG = [['', '— ainda não escolheu (lista sem marcar) —'], ['dinheiro', 'Dinheiro (em euros)'], ['cartao', 'Cartão de crédito (+10%)'], ['antecipado', 'PIX ou WISE antecipado (+15%)']];
+function vchPgMarca(t, pg) {
+  if (!pg) return t;
+  const casa = { dinheiro: /dinheiro/i, cartao: /cart[aã]o/i, antecipado: /pix|wise|antecipad/i }[pg];
+  return String(t).split('\n').map(l => /^\s*-\s+/.test(l) ? l.replace(/^\s*-\s+/, (casa && casa.test(l) ? '☑ ' : '☐ ')) : l).join('\n');
+}
 function opDocVoucher(id) {
   const b = Bookings.get(id);
   if (!b) return go('/adm/today');
   const bs = voucherViagem(b);
   const c = b.clienteId ? Cadastro.get(b.clienteId) : null;
   const orc = bs.map(x => x.orcamentoId && Orc.get(x.orcamentoId)).find(Boolean) || null;
-  const cfg = bs.find(x => x.voucherFora || x.voucherNota) || {};
-  const fora = new Set(cfg.voucherFora || []), nota = String(cfg.voucherNota || '');
+  const cfg = bs.find(x => x.voucherFora || x.voucherNota || x.voucherPg) || {};
+  const fora = new Set(cfg.voucherFora || []), nota = String(cfg.voucherNota || ''), pg = String(cfg.voucherPg || '');
+  /* Doc 07/10 item 12: agência cobra comissão no dia — o cliente não pode ver total, sinal e "pagar no dia" */
+  const semValores = fora.has('valores');
   const pMax = Math.max(...bs.map(x => +x.pax || 0));
   const pessoas = (orc && orc.paxNota) || (pMax ? pMax + ' pessoa' + (pMax > 1 ? 's' : '') : '');
   const bagagem = (orc && orc.bagagem) || (c && (c.bagagem || (c.viagem && c.viagem.bagagem))) || [...new Set(bs.map(x => x.malas).filter(Boolean))].join(' · ');
@@ -1872,11 +1886,11 @@ function opDocVoucher(id) {
       <tr><th>Pessoas:</th><td>${esc(pessoas)}${bs.some(x => (x.group || []).length) ? `<br><small>${esc([...new Set(bs.flatMap(x => (x.group || []).map(g => g.nome)))].join(', '))}</small>` : ''}</td></tr>
       <tr><th>Bagagem:</th><td>${esc(bagagem)}</td></tr>
     </tbody></table>
-    <div class="doc-tblwrap"><table class="tbl doc-tbl doc-orc"><thead><tr><th>Data</th><th>Hora</th><th>Serviço</th><th class="right">Total</th><th class="right">Sinal</th><th class="right">Pagar no dia</th></tr></thead><tbody>
+    <div class="doc-tblwrap"><table class="tbl doc-tbl doc-orc"><thead><tr><th>Data</th><th>Hora</th><th>Serviço</th>${semValores ? '' : '<th class="right">Total</th><th class="right">Sinal</th><th class="right">Pagar no dia</th>'}</tr></thead><tbody>
       ${bs.map((x, k) => { const q = contas[k]; return `<tr><td class="mono">${crmDataSem(x.date)}</td><td class="mono">${esc(x.time || '')}</td>
-        <td>${esc(opNomeServ(x))}${x.voo && !String(opNomeServ(x)).toUpperCase().includes(String(x.voo).toUpperCase()) ? `<br><small>voo/trem ${esc(x.voo)}</small>` : ''}${q.dia > 0 && q.paraIngrid ? `<br><small>a pagar à ${esc(guiaNegocio())} até ${fmtDate(Bookings.dueDate(x))}</small>` : ''}</td>
-        <td class="mono right">${eur(q.total)}</td><td class="mono right">${eur(q.sinal)}${q.pendente ? '<br><small>a pagar</small>' : ''}</td><td class="mono right">${eur(q.dia)}</td></tr>`; }).join('')}
-    </tbody><tfoot><tr><td colspan="3"><b>TOTAL</b></td><td class="mono right"><b>${eur(r2(T.total))}</b></td><td class="mono right"><b>${eur(r2(T.sinal))}</b></td><td class="mono right"><b>${eur(r2(T.dia))}</b></td></tr></tfoot></table></div>
+        <td>${esc(opNomeServ(x))}${x.voo && !String(opNomeServ(x)).toUpperCase().includes(String(x.voo).toUpperCase()) ? `<br><small>voo/trem ${esc(x.voo)}</small>` : ''}${!semValores && q.dia > 0 && q.paraIngrid ? `<br><small>a pagar à ${esc(guiaNegocio())} até ${fmtDate(Bookings.dueDate(x))}</small>` : ''}</td>
+        ${semValores ? '' : `<td class="mono right">${eur(q.total)}</td><td class="mono right">${eur(q.sinal)}${q.pendente ? '<br><small>a pagar</small>' : ''}</td><td class="mono right">${eur(q.dia)}</td>`}</tr>`; }).join('')}
+    </tbody>${semValores ? '' : `<tfoot><tr><td colspan="3"><b>TOTAL</b></td><td class="mono right"><b>${eur(r2(T.total))}</b></td><td class="mono right"><b>${eur(r2(T.sinal))}</b></td><td class="mono right"><b>${eur(r2(T.dia))}</b></td></tr></tfoot>`}</table></div>
     ${(() => { /* Doc 07/10 item 11: sem "ONDE E QUANDO" repetindo a tabela — só o que ela NÃO diz
          (o ponto de encontro do passeio, ou o destino que não está no nome do serviço) */
       const linhas = bs.map(x => { const ops = !ehTransfer(x) ? Pontos.doPasseio(x.tourId) : [], at = vchEncontro(x).ponto;
@@ -1885,13 +1899,14 @@ function opDocVoucher(id) {
         const sel = ops.length ? `<label class="nao-imprime vch-pt">ponto deste passeio <select data-pt="${esc(x.id)}"><option value="">— escolher —</option>${ops.map(p => `<option value="${esc(p.id)}" ${at && at.id === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>` : '';
         return info || sel ? `<div class="vch-serv"><p class="vch-sub">${crmDataSem(x.date)} — ${esc(String(opNomeServ(x)).split(/\s*[(-]/)[0])}</p>${info}${sel}</div>` : ''; }).filter(Boolean);
       return linhas.length ? `<div class="vch-bloco"><h4 class="vch-h">PONTO DE ENCONTRO</h4>${linhas.join('')}</div>` : ''; })()}
-    ${blocos.filter(k => !fora.has(k) && k !== 'fechamento').map(k => { const t = voucherBlocoTxt(k); return t ? `<div class="vch-bloco">${vchFmt(t)}</div>` : ''; }).join('')}
+    ${blocos.filter(k => !fora.has(k) && k !== 'fechamento').map(k => { let t = voucherBlocoTxt(k); if (k === 'pagamento' && t) t = vchPgMarca(t, pg); return t ? `<div class="vch-bloco">${vchFmt(t)}</div>` : ''; }).join('')}
     ${nota ? `<div class="vch-bloco"><h4 class="vch-h">OBSERVAÇÕES</h4>${vchFmt(nota)}</div>` : ''}
     ${!fora.has('fechamento') && voucherBlocoTxt('fechamento') ? `<div class="vch-bloco">${vchFmt(voucherBlocoTxt('fechamento'))}</div>` : ''}
     <p class="doc-ref">Reserva${bs.length > 1 ? 's' : ''} ${bs.map(x => esc(x.code)).join(' · ')}</p>
     <details class="nao-imprime vch-edita"><summary>✏️ Editar este voucher</summary>
       <p class="why">Tire o que não serve pra este cliente e escreva uma observação só dele. Os textos padrão você muda na aba Voucher.</p>
-      <div class="vch-blks">${blocos.map(k => `<label><input type="checkbox" data-vblk="${k}" ${fora.has(k) ? '' : 'checked'}> ${esc((VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome)}</label>`).join('')}</div>
+      <div class="vch-blks"><label><input type="checkbox" data-vblk="valores" ${semValores ? '' : 'checked'}> <b>Valores</b> (total, sinal, pagar no dia) — tire quando for de agência</label>${blocos.map(k => `<label><input type="checkbox" data-vblk="${k}" ${fora.has(k) ? '' : 'checked'}> ${esc((VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome)}</label>`).join('')}</div>
+      <label class="fld">Método de pagamento que o cliente escolheu (sai marcado ☑ no voucher)<select id="vchPg">${VCH_PG.map(([v, nm]) => `<option value="${v}" ${pg === v ? 'selected' : ''}>${nm}</option>`).join('')}</select></label>
       ${bs.filter(ehTransfer).map(x => `<fieldset class="vch-tr"><legend>${crmDataSem(x.date)} · ${esc(x.time || '')} — ${esc(opNomeServ(x)).slice(0, 60)}</legend>
         <div class="frow"><label class="fld sm">Voo/trem<input data-vtr="${esc(x.id)}" data-campo="voo" value="${esc(x.voo || '')}"></label>
         <label class="fld grow">Buscar em<input data-vtr="${esc(x.id)}" data-campo="origem" value="${esc(x.origem || '')}" placeholder="aeroporto (FCO/CIA) ou endereço do hotel"></label>
@@ -1904,7 +1919,8 @@ function opDocVoucher(id) {
   $$('[data-pt]').forEach(s => s.onchange = () => { escolhePonto(s.dataset.pt, s.value); opDocVoucher(id); toast('Ponto de encontro escolhido'); });
   const vs = $('#vchSalva'); if (vs) vs.onclick = () => {
     const f = $$('[data-vblk]').filter(i => !i.checked).map(i => i.dataset.vblk), n = $('#vchNota').value.trim();
-    for (const x of bs) { x.voucherFora = f; x.voucherNota = n; _opSaveBooking(x); }
+    const pgN = ($('#vchPg') || {}).value || '';
+    for (const x of bs) { x.voucherFora = f; x.voucherNota = n; x.voucherPg = pgN; _opSaveBooking(x); }
     for (const inp of $$('[data-vtr]')) { const x = bs.find(b => b.id === inp.dataset.vtr); if (!x) continue; const v = inp.value.trim(); if ((x[inp.dataset.campo] || '') !== v) { const d = {}; d[inp.dataset.campo] = v; Op.detalhes(x.id, d); } }
     toast('Voucher salvo'); opDocVoucher(id);
   };
@@ -1961,7 +1977,7 @@ function opDocOrc(id) {
   const corpo = `
     ${orcTabelasHtml(o)}
     ${(() => { /* Doc 07/10 parte 2, item 8: o que falta do transfer vai ABAIXO do TOTAL, não dentro da linha */
-      if (o.status === 'fechado') return ''; const f = (o.itens || []).filter(i => !i.perdido).map(i => transferFaltaTexto(i)).filter(Boolean);
+      if (o.status === 'fechado') return ''; const f = (o.itens || []).filter(i => !i.perdido).map(i => transferFaltaTexto(i, o)).filter(Boolean);
       return f.length ? `<p class="doc-falta">${[...new Set(f)].map(esc).join('<br>')}</p>` : ''; })()}
     ${o.obs ? `<p>${esc(orcTextoCliente(o.obs)).replace(/\n/g, '<br>')}</p>` : ''}
     <h3>Como pagar o sinal</h3>
@@ -3397,6 +3413,25 @@ const ATALHO = {
   },
 };
 document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-at]'); if (!b || !ATALHO[b.dataset.at]) return; e.preventDefault(); ATALHO[b.dataset.at](); });
+/* Doc 08/10 item 4 ("ele não está arquivando no Google Drive"): a permissão do Google vale 1 hora;
+   depois os arquivos esperavam na fila SEM AVISO. Agora uma barrinha fixa diz quantos esperam e
+   o toque em "Enviar agora" (que o navegador exige) renova a permissão e manda tudo. */
+function drvFilaAviso() {
+  try {
+    if (typeof Arquivos === 'undefined' || !document.querySelector('#app > .adm')) { const v = document.getElementById('drvFilaBar'); if (v) v.remove(); return; }
+    const n = Arquivos.pendentes().length; let el = document.getElementById('drvFilaBar');
+    if (!n) { if (el) el.remove(); return; }
+    const ligado = (typeof gdLigado === 'function' && gdLigado()) || !!drvEstado.pasta;
+    if (!el) { el = document.createElement('div'); el.id = 'drvFilaBar'; el.className = 'drv-fila-bar'; document.body.appendChild(el); }
+    el.innerHTML = `📁 <b>${n} ${n === 1 ? 'arquivo esperando' : 'arquivos esperando'}</b> o Google Drive <button type="button" class="mini strong">${ligado ? 'Enviar agora' : 'Conectar o Drive'}</button>`;
+    el.querySelector('button').onclick = async () => {
+      if (!ligado) return ATALHO.drive();
+      const l = await drvLiberada(true); if (l.erro) { toast(l.erro === 'sem-internet' ? 'Sem internet agora — tento de novo depois' : 'O Google não liberou — toque de novo'); return; }
+      const k = await Arquivos.sobeFila(true); toast(`📁 ${k} ${k === 1 ? 'arquivo enviado' : 'arquivos enviados'} para o Google Drive`); drvFilaAviso();
+    };
+  } catch (e) {}
+}
+setInterval(drvFilaAviso, 15000); setTimeout(drvFilaAviso, 2500); window.addEventListener('hashchange', () => setTimeout(drvFilaAviso, 300));
 /* a bolinha do botao do Drive: verde ligado, amarela pede toque */
 setTimeout(() => { if (typeof bkpPasta === 'function' && window.indexedDB) drvLiberada(false).catch(() => {}); }, 800);
 
