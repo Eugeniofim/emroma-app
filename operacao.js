@@ -59,6 +59,7 @@ function _opSave() {
   if (typeof itAgendar === 'function') itAgendar();
 }
 function _opSaveBooking(b) {
+  try { if (typeof Orc !== 'undefined' && Orc.daReserva) Orc.daReserva(b); } catch (e) {}
   _opSave();
   if (b && typeof cloudUpdateBooking === 'function') cloudUpdateBooking(b);
 }
@@ -425,6 +426,47 @@ function transferFaltaTexto(i, o) {
   return 'Caso queira reservar o transfer, precisamos de: ' + (f.length > 1 ? f.slice(0, -1).join(', ') + ' e ' + f[f.length - 1] : f[0]) + '.';
 }
 const Orc = {
+  /* UM DADO, UM LUGAR (Doc 09/10 item 1): a reserva e o serviço do orçamento de onde ela veio são a
+     mesma coisa. Mudou na Planilha, no voucher ou pelo assistente (reserva) → o orçamento acompanha;
+     mudou no orçamento já fechado → as reservas acompanham (e o voucher, que lê a reserva). */
+  _itemDa(b, o) {
+    if (!o || !b) return null;
+    if (b.orcItemId) return o.itens.find(i => i.id === b.orcItemId) || null;
+    /* reservas de antes deste ajuste: acha pelo dia (e pela hora/serviço quando há mais de um) */
+    const mesmos = o.itens.filter(i => !i.perdido && i.data === b.date);
+    const it = mesmos.length === 1 ? mesmos[0] : mesmos.find(i => (i.hora || '09:00') === (b.time || '09:00') && (!b.servicoTxt || String(i.desc).trim() === String(b.servicoTxt).trim())) || null;
+    if (it) b.orcItemId = it.id;
+    return it;
+  },
+  daReserva(b) {
+    if (!b || !b.orcamentoId || Orc._sincronizando) return;
+    const o = Orc.get(b.orcamentoId); const it = Orc._itemDa(b, o); if (!it) return;
+    const novo = { data: b.date || it.data, hora: b.time || it.hora, pax: +b.pax || it.pax, valor: b.total != null ? +b.total : it.valor };
+    if (b.servicoTxt) novo.desc = b.servicoTxt;
+    if (b.custo != null) novo.custo = +b.custo || 0;
+    if (b.obsOp != null && b.obsOp !== '') novo.obs = b.obsOp;
+    if (b.voo) novo.voo = b.voo;
+    Object.assign(it, novo);
+    if (b.name && o.cliente) o.cliente.nome = o.cliente.nome || b.name;
+    o.itens = Orc.ordena(o.itens);
+  },
+  /* orçamento FECHADO editado → as reservas dele recebem o que mudou */
+  paraReservas(o) {
+    if (!o || o.status !== 'fechado') return;
+    Orc._sincronizando = true;
+    try {
+      for (const b of DB.bookings || []) {
+        if (b.orcamentoId !== o.id || b.status === 'cancelled') continue;
+        const it = Orc._itemDa(b, o); if (!it) continue;
+        const antes = JSON.stringify([b.date, b.time, b.pax, b.total, b.servicoTxt, b.custo, b.obsOp, b.voo, b.name, b.whats]);
+        if (it.data) b.date = it.data; if (it.hora) b.time = it.hora; b.pax = +it.pax || b.pax; b.total = +it.valor || 0;
+        if (b.servicoTxt) b.servicoTxt = String(it.desc || '').trim() || b.servicoTxt;
+        b.custo = +it.custo || 0; if (it.obs) b.obsOp = it.obs; if (it.voo) b.voo = it.voo;
+        if (o.cliente && o.cliente.nome) b.name = o.cliente.nome; if (o.cliente && o.cliente.whats) b.whats = o.cliente.whats;
+        if (JSON.stringify([b.date, b.time, b.pax, b.total, b.servicoTxt, b.custo, b.obsOp, b.voo, b.name, b.whats]) !== antes && typeof cloudUpdateBooking === 'function') cloudUpdateBooking(b);
+      }
+    } finally { Orc._sincronizando = false; }
+  },
   /* Doc 08/10 item 5: orçamento (e voucher) sempre em ORDEM DE DATA E HORA — sem precisar apagar e
      cadastrar de novo. O ingresso/gestão que acompanha um passeio fica logo depois dele. Serviço sem data vai pro fim. */
   ordena(itens) {
@@ -613,6 +655,7 @@ const Orc = {
     const x = Orc.get(o.id); if (!x) return null;
     Object.assign(x, o, { itens: Orc.ordena((o.itens || x.itens).map(Orc._item)) });
     if (typeof x.obs === 'string') x.obs = orcTextoCliente(x.obs);
+    if (x.status === 'fechado') Orc.paraReservas(x);
     if (o.cliente) Orc._fichaDo(x);
     Orc.propaga(x); _opSave(); return x;
   },
@@ -734,7 +777,7 @@ const Orc = {
         name: o.cliente.nome || 'Cliente', whats: o.cliente.whats, email: o.cliente.email,
         pax: i.pax, total: i.valor, recebido: 0, veioPor: o.veioPor || '',
       });
-      b.origin = 'orcamento'; b.orcamentoId = o.id;
+      b.origin = 'orcamento'; b.orcamentoId = o.id; b.orcItemId = i.id;
       if (avulso) b.servicoTxt = String(i.desc).trim();
       Object.assign(b, { indicou: o.indicou || '', parceiroTxt: o.parceiroTxt || '', arquivo: Orc.nomeArquivo(o), links: [...(o.links || [])] });
       if (i.cidade) b.destino = i.cidade;

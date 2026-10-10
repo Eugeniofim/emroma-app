@@ -2829,7 +2829,9 @@ function gdCarrega() {
 setTimeout(() => { if (gdLigado()) gdCarrega(); }, 1500);   // deixa pronto para o toque abrir a janela na hora
 /* pede a permissao (janelinha do Google). So de um toque. */
 async function gdConecta() {
-  if (!await gdCarrega()) return { erro: 'Não consegui falar com o Google. Confira a internet.' };
+  /* iPhone/Safari: a janela do Google só abre se for pedida NA HORA do toque — sem nenhuma espera antes.
+     Por isso, se o Google já está carregado (ele carrega ao abrir o app), não há "await" aqui. */
+  if (!(window.google && google.accounts && google.accounts.oauth2) && !await gdCarrega()) return { erro: 'Não consegui falar com o Google. Confira a internet.' };
   return new Promise((ok) => {
     let feito = false;
     const cli = google.accounts.oauth2.initTokenClient({ client_id: GD_CLIENTE, scope: GD_ESCOPO,
@@ -3416,20 +3418,31 @@ document.addEventListener('click', (e) => { const b = e.target.closest && e.targ
 /* Doc 08/10 item 4 ("ele não está arquivando no Google Drive"): a permissão do Google vale 1 hora;
    depois os arquivos esperavam na fila SEM AVISO. Agora uma barrinha fixa diz quantos esperam e
    o toque em "Enviar agora" (que o navegador exige) renova a permissão e manda tudo. */
-function drvFilaAviso() {
+/* só conta o que ESTE aparelho consegue mandar: um comprovante guardado no computador não está no
+   celular (Doc 09/10: a barrinha não sumia no celular e tampava o menu) */
+async function drvFilaAqui() {
+  const out = [];
+  for (const a of Arquivos.pendentes()) { try { if (await arqIdb('get', a.id)) out.push(a); } catch (e) {} }
+  return out;
+}
+let drvFilaRodando = false;
+async function drvFilaAviso() {
+  if (drvFilaRodando) return; drvFilaRodando = true;
   try {
     if (typeof Arquivos === 'undefined' || !document.querySelector('#app > .adm')) { const v = document.getElementById('drvFilaBar'); if (v) v.remove(); return; }
-    const n = Arquivos.pendentes().length; let el = document.getElementById('drvFilaBar');
-    if (!n) { if (el) el.remove(); return; }
+    let fechou = 0; try { fechou = +localStorage.getItem('emroma_drv_bar_fechou') || 0; } catch (e) {}
+    const n = (await drvFilaAqui()).length; let el = document.getElementById('drvFilaBar');
+    if (!n || Date.now() - fechou < 6 * 3600e3) { if (el) el.remove(); return; }
     const ligado = (typeof gdLigado === 'function' && gdLigado()) || !!drvEstado.pasta;
     if (!el) { el = document.createElement('div'); el.id = 'drvFilaBar'; el.className = 'drv-fila-bar'; document.body.appendChild(el); }
-    el.innerHTML = `📁 <b>${n} ${n === 1 ? 'arquivo esperando' : 'arquivos esperando'}</b> o Google Drive <button type="button" class="mini strong">${ligado ? 'Enviar agora' : 'Conectar o Drive'}</button>`;
-    el.querySelector('button').onclick = async () => {
+    el.innerHTML = `📁 <b>${n} ${n === 1 ? 'arquivo esperando' : 'arquivos esperando'}</b> o Google Drive <button type="button" class="mini strong" data-drvbar="ir">${ligado ? 'Enviar agora' : 'Conectar o Drive'}</button><button type="button" class="drv-fila-x" data-drvbar="x" aria-label="esconder por 6 horas" title="esconder por 6 horas">✕</button>`;
+    el.querySelector('[data-drvbar="x"]').onclick = () => { try { localStorage.setItem('emroma_drv_bar_fechou', String(Date.now())); } catch (e) {} el.remove(); };
+    el.querySelector('[data-drvbar="ir"]').onclick = async () => {
       if (!ligado) return ATALHO.drive();
       const l = await drvLiberada(true); if (l.erro) { toast(l.erro === 'sem-internet' ? 'Sem internet agora — tento de novo depois' : 'O Google não liberou — toque de novo'); return; }
-      const k = await Arquivos.sobeFila(true); toast(`📁 ${k} ${k === 1 ? 'arquivo enviado' : 'arquivos enviados'} para o Google Drive`); drvFilaAviso();
+      const k = await Arquivos.sobeFila(true); toast(`📁 ${k} ${k === 1 ? 'arquivo enviado' : 'arquivos enviados'} para o Google Drive`); drvFilaRodando = false; drvFilaAviso();
     };
-  } catch (e) {}
+  } catch (e) {} finally { drvFilaRodando = false; }
 }
 setInterval(drvFilaAviso, 15000); setTimeout(drvFilaAviso, 2500); window.addEventListener('hashchange', () => setTimeout(drvFilaAviso, 300));
 /* a bolinha do botao do Drive: verde ligado, amarela pede toque */
