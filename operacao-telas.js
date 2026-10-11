@@ -1474,11 +1474,12 @@ function admOrcEditor(id) {
       <label class="fld"><span>Pessoas</span><input type="number" min="1" data-k="pax" value="${i.pax}"></label>
       ${tr ? `<label class="fld"><span>Voo / trem</span><input data-k="voo" value="${esc(i.voo || '')}" placeholder="AZ 673"></label>` : ''}
       <label class="fld oi-preco"><span>Preço ao cliente €</span><input type="number" min="0" data-k="valor" value="${i.valor}"></label>
-      <label class="fld"><span>Sinal €</span><input type="number" min="0" data-k="sinal" value="${i.sinal ?? ''}" placeholder="${Orc.sinalDoItem(o, i)}"></label>
+      <label class="fld"><span>Sinal €</span><input type="number" min="0" data-k="sinal" value="${i.restoPara === 'ingrid' ? i.valor : (i.sinal ?? '')}" placeholder="${Orc.sinalDoItem(o, i)}" ${i.restoPara === 'ingrid' ? 'disabled title="a EmRoma recebe tudo"' : ''}></label>
+      <label class="fld oi-quem"><span>Quem paga o motorista/guia</span><select data-k="restoPara"><option value="" ${i.restoPara === 'ingrid' ? '' : 'selected'}>o cliente, no dia (sai em "pagar no dia")</option><option value="ingrid" ${i.restoPara === 'ingrid' ? 'selected' : ''}>a EmRoma (o cliente paga tudo à EmRoma)</option></select></label>
     </div>
     <details class="oi-mais" ${i.custo || i.alt ? 'open' : ''}><summary>mais detalhes deste serviço</summary>
       <div class="oi-grade">
-        <label class="fld"><span>Você paga ao motorista/guia €</span><input type="number" min="0" data-k="custo" value="${i.custo || ''}" placeholder="0"></label>
+        <label class="fld"><span>Custo: a EmRoma paga ao motorista/guia € <small>(interno)</small></span><input type="number" min="0" data-k="custo" value="${i.custo || ''}" placeholder="0"></label>
         <label class="oi-check"><input type="checkbox" data-k="alt" ${i.alt ? 'checked' : ''}><span><b>É uma opção</b><small>o cliente escolhe entre este e outro do mesmo dia (ex.: carro OU minivan) — o total não soma os dois</small></span></label>
       </div>
     </details>
@@ -1542,7 +1543,7 @@ function admOrcEditor(id) {
     </section>
     <section class="card orc-passo"><h3><span class="oi-n">3</span> Condições e total</h3>
       <div class="oi-grade">
-        <label class="fld"><span>Sinal dos passeios (%)</span><input type="number" min="0" max="100" id="orPct" value="${o.sinalPct}"></label>
+        <input type="hidden" id="orPct" value="${o.sinalPct}">
         <label class="fld"><span>Vale até</span><input type="date" id="orVal" value="${esc(o.validade)}"></label>
         <label class="fld"><span>Situação</span><select id="orSt">${ORC_STATUS.map(s => `<option value="${s[0]}" ${o.status === s[0] ? 'selected' : ''}>${s[1]}</option>`).join('')}</select></label>
       </div>
@@ -1574,7 +1575,8 @@ function admOrcEditor(id) {
       const v = (k) => el.querySelector(`[data-k="${k}"]`).value;
       return { ...i, desc: v('desc'), data: v('data'), hora: v('hora'), pax: +v('pax') || 1, valor: +v('valor') || 0,
                sinal: v('sinal') === '' ? null : +v('sinal'), obs: v('obs'), custo: +v('custo') || 0,
-               voo: el.querySelector('[data-k="voo"]') ? v('voo') : (i.voo || ''), alt: !!(el.querySelector('[data-k="alt"]') || {}).checked };
+               voo: el.querySelector('[data-k="voo"]') ? v('voo') : (i.voo || ''), alt: !!(el.querySelector('[data-k="alt"]') || {}).checked,
+               restoPara: el.querySelector('[data-k="restoPara"]') ? v('restoPara') : (i.restoPara || '') };
     });
     /* a hora passou pra noite (21h–6h) ou voltou pro dia: a tarifa da Tabela de preços acompanha */
     let retarifa = '';
@@ -1642,6 +1644,8 @@ function admOrcEditor(id) {
     if (!o.cliente.nome) { $('#orNome').focus(); return toast('Falta o nome do cliente.'); }
     const semData = o.itens.filter(i => i.tourId && !i.data);
     if (semData.length) return toast('Falta o dia em ' + semData.map(i => i.desc).join(', '));
+    const mud = Orc.mudouDesdeEnvio(o);
+    if (mud && !confirm(`Atenção: os valores mudaram depois que o cliente recebeu o orçamento.\n\nO cliente recebeu: total ${eur(mud.antes.total)} · sinal ${eur(mud.antes.sinal)}\nAgora está: total ${eur(mud.agora.total)} · sinal ${eur(mud.agora.sinal)}\n\nFechar mesmo assim?`)) return;
     const bs = Orc.fecha(id, { sinalRecebido: $('#orSinalOk').checked, conta: $('#orConta').value });
     if (!bs.length && Orc.erro) return toast('Antes de fechar: ' + Orc.erro);
     toast(`${bs.length} ${bs.length === 1 ? 'reserva criada' : 'reservas criadas'} 🎉`);

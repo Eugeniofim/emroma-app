@@ -403,6 +403,8 @@ function orcTextoCliente(t) {
   return String(t || '').trim()
     .replace(/\b(?:ela|ele|a cliente|o cliente|a ingrid|ingrid|a passageira|o passageiro)\s+(?:nos\s+|me\s+)?(?:informou|disse|falou|comentou|avisou|contou|mencionou)\b/gi, 'foi informado')
     .replace(/\bsegundo (?:ela|ele|a cliente|o cliente)\b/gi, 'conforme informado')
+    /* Doc 11/10 item 3: "criança conta como pessoa" é regra INTERNA, não vai para o cliente */
+    .replace(/\s*[(\-–—,;.]?\s*(?:beb[eê]s?\s*(?:e|ou)\s*)?crian[çc]as?\s+(?:tamb[eé]m\s+)?contam?\s+como\s+pessoas?\s*[)\.;,]?/gi, '')
     .replace(/(^|[.!?]\s+)foi informado/g, (m, a) => a + 'Foi informado');
 }
 /* TRANSFER SEM TODOS OS DADOS (Doc 07/10 item 5): só o que FALTA para este transfer, no texto dela */
@@ -470,12 +472,25 @@ const Orc = {
   /* Doc 08/10 item 5: orçamento (e voucher) sempre em ORDEM DE DATA E HORA — sem precisar apagar e
      cadastrar de novo. O ingresso/gestão que acompanha um passeio fica logo depois dele. Serviço sem data vai pro fim. */
   ordena(itens) {
+    /* Doc 11/10 item 1: em BLOCOS, como ela fazia — cada passeio completo antes do próximo:
+       opção 1 (3 h) → opção 2 (4 h) → ingressos → compra e gestão dos ingressos. Os blocos (e os
+       transfers) ficam em ordem de data e hora; dentro do bloco a ordem é a dela. */
     const L = (itens || []).slice(), porId = new Map(L.map(i => [i.id, i])), pos = new Map(L.map((i, k) => [i, k]));
-    const chave = (i) => { const pai = (i.vinculo || []).map(id => porId.get(id)).find(Boolean);
-      const base = pai && !i.data ? pai : i;
-      return (base.data || i.data || '9999-99-99') + '|' + ((pai && (pai.hora || '')) || i.hora || '99:99') + '|' + (pai ? '1' : '0'); };
-    return L.sort((a, b) => chave(a).localeCompare(chave(b)) || pos.get(a) - pos.get(b));
+    const cabeca = new Map();   // item -> cabeça do bloco
+    /* o mesmo passeio em opções: tira duração, veículo, malas e o que está entre parênteses ("Vaticano 3 h" = "Vaticano 4 h") */
+    const familia = (i) => String(i.desc || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\([^)]*\)/g, ' ')
+      .replace(/\b\d+\s*(h|hs|horas?)\b/g, ' ').replace(/\b(carro|minivans?|vans?|op[cç][aã]o\s*\d*|diurno|noturno|hor[aá]rio)\b/g, ' ').replace(/\d+/g, ' ').replace(/[^a-z]+/g, ' ').trim();
+    for (const i of L) { const pai = (i.vinculo || []).map(id => porId.get(id)).find(Boolean); if (pai) cabeca.set(i, pai); }
+    /* opções do mesmo dia (alt) viram um bloco só, com a 1ª delas na cabeça */
+    for (const i of L) { if (cabeca.has(i) || !i.alt) continue;
+      const irma = L.find(x => x !== i && x.alt && !cabeca.has(x) && x.data === i.data && pos.get(x) < pos.get(i) && !(x.vinculo || []).length && familia(x) === familia(i));
+      if (irma) cabeca.set(i, cabeca.get(irma) || irma); }
+    const raiz = (i) => { let c = i, k = 0; while (cabeca.has(c) && k++ < 5) c = cabeca.get(c); return c; };
+    const kBloco = (i) => { const r = raiz(i); return (r.data || '9999-99-99') + '|' + (r.hora || '99:99') + '|' + String(pos.get(r)).padStart(4, '0'); };
+    const tipo = (i) => cabeca.has(i) && (i.vinculo || []).length ? (/gest/i.test(i.desc || '') ? 3 : 2) : 1;
+    return L.sort((a, b) => kBloco(a).localeCompare(kBloco(b)) || tipo(a) - tipo(b) || pos.get(a) - pos.get(b));
   },
+
   all() { return [...(DB.orcamentos || [])].sort((a, b) => (b.criado || '').localeCompare(a.criado || '')); },
   get(id) { return (DB.orcamentos || []).find(o => o.id === id) || null; },
   cria(d) {
@@ -517,7 +532,7 @@ const Orc = {
              data: i.data || '', hora: i.hora || '', pax: Math.max(1, +i.pax || 1), opcao: +i.opcao || 0,
              valor: Math.max(0, +i.valor || 0), sinal: i.sinal != null && i.sinal !== '' ? Math.max(0, +i.sinal) : null,
              obs: orcTextoCliente(i.obs), sugestao: !!i.sugestao, voo: String(i.voo || '').trim(),
-             custo: Math.max(0, +i.custo || 0), cidade: String(i.cidade || '').trim(),
+             custo: Math.max(0, +i.custo || 0), restoPara: i.restoPara === 'ingrid' ? 'ingrid' : '', cidade: String(i.cidade || '').trim(),
              /* o cliente NAO quis este servico: fica no orcamento como perdido (estatistica dela),
                 fora do total e do que vai pro cliente; pode voltar se ele mudar de ideia */
              perdido: !!i.perdido, perdidoEm: i.perdido ? (i.perdidoEm || isoToday()) : '', motivoPerda: String(i.motivoPerda || '').trim(), porPasseio: !!(i.perdido && i.porPasseio),
@@ -648,18 +663,28 @@ const Orc = {
      de cada grupo de opcoes conta so uma (itensConta) */
   total(o) { return Math.round(Orc.itensConta(o).reduce((s, i) => s + (+i.valor || 0), 0) * 100) / 100; },
   sinalDoItem(o, i) {
+    /* Doc 11/10 item 2: quando a EmRoma paga o motorista/guia, o cliente paga TUDO à EmRoma (antes) —
+       "pagar no dia" (o que o cliente paga ao parceiro) fica zero; o custo continua só interno */
+    if (i.restoPara === 'ingrid') return +i.valor || 0;
     return i.sinal != null ? +i.sinal : Math.round((+i.valor || 0) * (+o.sinalPct || 0) / 100);
   },
   sinal(o) { return Math.round(Orc.itensConta(o).reduce((s, i) => s + Orc.sinalDoItem(o, i), 0) * 100) / 100; },
   salva(o) {
     const x = Orc.get(o.id); if (!x) return null;
+    const stAntes = x.status;
     Object.assign(x, o, { itens: Orc.ordena((o.itens || x.itens).map(Orc._item)) });
     if (typeof x.obs === 'string') x.obs = orcTextoCliente(x.obs);
+    if (typeof x.paxNota === 'string') x.paxNota = orcTextoCliente(x.paxNota);
     if (x.status === 'fechado') Orc.paraReservas(x);
+    /* Doc 11/10 item 6 (Bruna): o orçamento que o CLIENTE recebeu fica fotografado; se os valores mudarem
+       depois, o fechamento avisa antes ("era € 270 / sinal € 110, agora € 150 / € 30") */
+    if (x.status === 'enviado' && (stAntes !== 'enviado' || !x.foto)) x.foto = { total: Orc.total(x), sinal: Orc.sinal(x), em: new Date().toISOString(), n: Orc.itensConta(x).length };
     if (o.cliente) Orc._fichaDo(x);
     Orc.propaga(x); _opSave(); return x;
   },
-  status(id, st) { const o = Orc.get(id); if (!o) return; o.status = st; _opSave(); },
+  status(id, st) { const o = Orc.get(id); if (!o) return; const a = o.status; o.status = st; if (st === 'enviado' && (a !== 'enviado' || !o.foto)) o.foto = { total: Orc.total(o), sinal: Orc.sinal(o), em: new Date().toISOString(), n: Orc.itensConta(o).length }; _opSave(); },
+  /* o que mudou desde que o cliente recebeu: null = nada */
+  mudouDesdeEnvio(o) { if (!o || !o.foto) return null; const t = Orc.total(o), si = Orc.sinal(o); return (Math.abs(t - o.foto.total) > 0.009 || Math.abs(si - o.foto.sinal) > 0.009) ? { antes: o.foto, agora: { total: t, sinal: si } } : null; },
   linkAdd(id, nome, url) {
     const o = Orc.get(id); if (!o) return null;
     const u = String(url || '').trim(); if (!/^https?:\/\//i.test(u)) return { erro: 'o link precisa começar com http' };
@@ -782,7 +807,7 @@ const Orc = {
       Object.assign(b, { indicou: o.indicou || '', parceiroTxt: o.parceiroTxt || '', arquivo: Orc.nomeArquivo(o), links: [...(o.links || [])] });
       if (i.cidade) b.destino = i.cidade;
       /* o resto e pago no dia a quem faz o servico — o caso mais comum dela */
-      b.policy = 'sinal'; b.sinal = Orc.sinalDoItem(o, i);
+      b.policy = 'sinal'; b.sinal = Orc.sinalDoItem(o, i); b.restoPara = i.restoPara === 'ingrid' ? 'ingrid' : 'prestador';
       if (i.obs && !i.sugestao) b.obsOp = i.obs;
       if (i.voo) b.voo = i.voo;
       if (+i.custo > 0) b.custo = +i.custo;

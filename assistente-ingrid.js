@@ -759,6 +759,9 @@ const ING_PLANO = {
     if (i.sinal_recebido) { const ct = ingConta(i.conta); if (ct.erro) { i.sinal_recebido = false; i.conta = ''; assumiuFecha.push('fechei sem registrar o sinal — ' + ct.erro + ' (registre com registrar_pagamento, tipo sinal)'); } else i.conta = ct.id; }
     /* o que vira reserva: o mesmo critério de Orc.fecha (serviço do catálogo, ou da Tabela/escrito com dia) */
     const n = Orc.itensConta(o).filter(x => (x.tourId && Tours.get(x.tourId)) || (x.data && String(x.desc || '').trim() && !x.sugestao)).length;
+    /* Doc 11/10 item 6 (Bruna): fechou com valores diferentes do que o cliente recebeu → avisa no cartão */
+    const mud = Orc.mudouDesdeEnvio(o);
+    if (mud) assumiuFecha.unshift(`⚠️ ATENÇÃO: os valores MUDARAM depois que o cliente recebeu o orçamento — ele recebeu total ${eur(mud.antes.total)} · sinal ${eur(mud.antes.sinal)}; agora está total ${eur(Orc.total(o))} · sinal ${eur(Orc.sinal(o))}. Confira antes de confirmar.`);
     return { titulo: 'Fechar orçamento', assumiu: [...assumiuFecha, ...(i.sinal_recebido == null ? ['o sinal ainda não caiu — quando cair, registre com registrar_pagamento'] : [])], linhas: [['Orçamento', `${o.num} · ${o.cliente.nome}`], ['Vira', `${n} reserva(s)`], ['Sinal', `${eur(Orc.sinal(o))} ${i.sinal_recebido ? '— já caiu em ' + Contas.nome(i.conta) : '— ainda não caiu'}`]],
       fazer: () => { const bs = Orc.fecha(o.id, { sinalRecebido: !!i.sinal_recebido, conta: i.conta }); Tarefas.sincroniza(); const of = Orc.get(o.id) || o;
         const pendenteConta = assumiuFecha.length ? { proximo: 'o sinal JÁ CAIU mas a conta era ambígua: pergunte AGORA em qual conta caiu (uma pergunta, com as opções) e registre com registrar_pagamento tipo sinal — senão a Planilha fica sem o pagamento e sem a forma' } : {};
@@ -985,6 +988,14 @@ Você é o assistente de ${guiaNome()}, dona da ${guiaNegocio()} — receptivo t
 ## TEXTO QUE VAI PARA O CLIENTE (observações do orçamento e do voucher)
 Escreva sempre impessoal: "foi informado", "conforme informado" — NUNCA "ela informou", "a Ingrid disse", "o cliente falou" (o cliente lê). Num transfer sem voo/hora/hotel/malas, NÃO escreva a lista do que falta: o app já põe sozinho no orçamento "Caso queira reservar o transfer, precisamos de: …" só com o que falta.
 
+## REGRAS DA INGRID (Doc 11/10)
+- Só ponha no orçamento o que o CLIENTE pediu. Nunca acrescente passeio "de sugestão" (ex.: Roma iluminada) sem ela pedir.
+- Passeio com 3 h e 4 h: monte em bloco — opção 1 (3 h), opção 2 (4 h), ingressos, compra e gestão dos ingressos; o próximo passeio vem completo depois (o app ordena sozinho).
+- "Criança conta como pessoa" é regra INTERNA: nunca escreva isso em texto do cliente. Em pessoas_nota escreva só "2 adultos e 1 criança (8 anos)".
+- Fechar orçamento NUNCA muda preço: feche exatamente o que o cliente recebeu. Se o cartão avisar que os valores mudaram desde o envio, diga isso a ela em primeiro lugar e pergunte o que vale.
+- O sinal NÃO é porcentagem: é o da Tabela (ou o que ela digitar no serviço).
+- Cadeirinha infantil (quando perguntarem): nos veículos NCC, pela lei italiana, a cadeirinha não é obrigatória quando a criança vai no banco de trás com um adulto. Se a família preferir, pedimos ao motorista, mas não conseguimos garantir (o transfer é dinâmico e o motorista pode mudar por atrasos, adiantamentos ou ajustes).
+
 ## RESPONDA SÓ A ÚLTIMA MENSAGEM
 As mensagens anteriores da conversa JÁ foram respondidas. Responda apenas o que ela pediu agora; não volte a perguntas ou pedidos antigos, a não ser que ela fale deles de novo.
 
@@ -1031,7 +1042,7 @@ Meu dia: ver_hoje, buscar · Orçamentos (Sob consulta): ver_orcamentos, ler_con
 2. criar_orcamento ou editar_orcamento com preco_ref: valor, sinal e custo entram certos. Passeio com guia traz ingressos, fones e gestão sozinho — não escreva essas linhas. Carro OU minivan do mesmo trajeto, e 3 h OU 4 h do mesmo dia, viram OPÇÕES sozinhas (o total não soma as duas).
 3. Responda com as contas que a ferramenta devolveu e os serviços numerados. A descrição vem pronta da Tabela: não acrescente pessoas nem "Transfer Roma".
 4. Cliente escolheu → editar_orcamento acao "escolher" (não fecha: "anotei a escolha"). Não quis um serviço → editar_orcamento acao "tirar": fica no orçamento como PERDIDO (sai do total, fica na estatística dela); "voltar" se ele quiser de novo; "apagar" só erro de digitação. Fechou → fechar_orcamento (sinal_recebido + conta só se já caiu). "Fechado" só depois disso.
-Orçamento repetido do mesmo cliente → apagar_orcamento (pergunte qual fica; traga antes os serviços que faltarem com editar_orcamento). Bebê e criança contam como pessoa: escreva em pessoas_nota E passe as idades em idades (números) com adultos — é isso que faz o ingresso sair certo (criança grátis ou reduzido); lembre de carrinho e malas. 21h–6h é tarifa noturna sozinha. Desconto da "Transfer Roma 5%" só quando ela pedir. O orçamento nunca mostra o custo.
+Orçamento repetido do mesmo cliente → apagar_orcamento (pergunte qual fica; traga antes os serviços que faltarem com editar_orcamento). Bebê e criança contam como pessoa (regra INTERNA — não escreva isso para o cliente): em pessoas_nota escreva só quem vai ("2 adultos e 1 criança (8 anos)") E passe as idades em idades (números) com adultos — é isso que faz o ingresso sair certo (criança grátis ou reduzido); lembre de carrinho e malas. 21h–6h é tarifa noturna sozinha. Desconto da "Transfer Roma 5%" só quando ela pedir. O orçamento nunca mostra o custo.
 Exemplo — "Monta pra Mariana, whats +55 27 99912-3306, 2 pessoas com 2 malas grandes, chegam 15/10 às 22h30 em Fiumicino, dia 16 Roma Antiga": ver_precos(transfer, 2, aeroporto) e ver_precos(guia, 2, roma antiga) → criar_orcamento(cliente Mariana, whats, bagagem "2 malas grandes", itens: carro 15/10 22:30, minivan 15/10 22:30, Roma Antiga 3 h 16/10, Roma Antiga 4 h 16/10, cada um com seu preco_ref) → "Montei o ORC-0012 da Mariana: transfer noturno (carro ou minivan) e Roma Antiga 3 h ou 4 h, com ingressos e gestão. A partir de [total], sinal [sinal]. Marco o follow-up padrão?"
 
 ## MENSAGEM PARA O CLIENTE (quando ela pedir um texto para enviar)
