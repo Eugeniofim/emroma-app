@@ -501,7 +501,7 @@ const Orc = {
       status: d.status || 'novo', origem: d.origem || 'manual', pedidoId: d.pedidoId || '',
       cliente: { nome: String((d.cliente && d.cliente.nome) || '').trim(), whats: String((d.cliente && d.cliente.whats) || '').trim(),
                  email: String((d.cliente && d.cliente.email) || '').trim() },
-      clienteKey: d.clienteKey || '',
+      clienteKey: d.clienteKey || '', ...(d.veioPor ? { veioPor: d.veioPor } : {}), ...(d.indicou ? { indicou: String(d.indicou).trim() } : {}),
       itens: Orc.ordena((d.itens || []).map(Orc._item)),
       sinalPct: d.sinalPct != null ? +d.sinalPct : 30,
       validade: d.validade || addDays(isoToday(), 7),
@@ -697,7 +697,9 @@ const Orc = {
     if (o.arquivo) return o.arquivo;
     const d = (o.itens.filter(i => !i.perdido).map(i => i.data).filter(Boolean).sort()[0] || o.itens.map(i => i.data).filter(Boolean).sort()[0] || String(o.criado).slice(0, 10)).replace(/-/g, '_');
     const ag = o.veioPor === 'agencia' && String(o.indicou || '').trim() ? ` (${String(o.indicou).trim()})` : '';
-    return `${d} ${String(o.cliente.nome || 'Cliente').trim()}${ag}`.replace(/[\\/:*?"<>|]+/g, '-');
+    /* Guia 12: pedido de agência sem o nome do cliente → "2026_11_23 (Luisa Camargo Viagem e Turismo)" */
+    const nm = String(o.cliente.nome || '').trim() || (ag ? '' : 'Cliente');
+    return `${d}${nm ? ' ' + nm : ''}${ag}`.replace(/[\\/:*?"<>|]+/g, '-');
   },
   /* FOLLOW-UP planejado (pedido dela, 02/10): grava as datas nas colunas Follow-up 1/2/3 da
      Planilha E cria a tarefa de cada uma (no dia). Tarefa que já existe no mesmo dia pra
@@ -842,8 +844,8 @@ const CONV_SERVICOS = [
   ['noturno-3h', /noturno|[aà] noite/],
 ];
 const MESES_PT = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-function _isoDe(d, m, y) {
-  const hoje = isoToday();
+function _isoDe(d, m, y, ref) {
+  const hoje = ref || isoToday();   /* a data de referência de quem chamou (antes ignorava e usava o relógio) */
   let ano = y ? (+y < 100 ? 2000 + +y : +y) : +hoje.slice(0, 4);
   const iso = (a) => `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   if (!(+m >= 1 && +m <= 12 && +d >= 1 && +d <= 31)) return '';
@@ -1478,7 +1480,7 @@ function lerPrazo(txt, hoje) {
   else if (/\bhoje\b/.test(low)) data = hoje;
   else {
     const d = low.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
-    if (d) data = _isoDe(d[1], d[2], d[3]);
+    if (d) data = _isoDe(d[1], d[2], d[3], hoje);
     else {
       const w = DIAS_SEMANA.findIndex(n => new RegExp('\\b' + n + '(-feira)?\\b').test(low));
       if (w >= 0) {
@@ -1925,6 +1927,8 @@ function pacoteBackup() {
     arquivos: DB.arquivos || [],
     /* o diário do assistente (o que foi feito e decidido, dia a dia) */
     iaDiario: DB.iaDiario || [],
+    /* o manual operacional colado pela Ingrid (o assistente consulta por assunto) */
+    manualIA: DB.manualIA || [],
   };
 }
 function resumoBackup(p) {
@@ -2094,6 +2098,27 @@ function parceriaGabi() {
     if (!DB.parceiros.some(p => /viajandocomgabi/i.test([p.nome, p.contato, p.cupom].join(' ')))) DB.parceiros.push({ id: uid(), nome: '@viajandocomgabi', tipo: 'influencer', contato: 'Instagram @viajandocomgabi', cupom: '', desconto: 5, comissao: 0, obs: 'Doc 06/10: 5% de desconto, influencer', pagamentos: [] });
     DB.settings.parcGabi = true; _opSave();
   } catch (e) {}
+}
+/* MANUAL DA EMROMA (Doc 12–16/10 item 3): ela cola o manual operacional uma vez; o app parte em
+   trechos pelo título e o assistente consulta SÓ o trecho do assunto (ver_manual) — o manual inteiro
+   em toda pergunta custaria muito. Fica no banco DELA (não vai para o código público). */
+const manualTitulo = (l) => String(l).replace(/[#*\\]/g, '').replace(/^\s*\d{1,2}\.\s+(?=\D)/, '').replace(/\s+/g, ' ').trim().slice(0, 90) || 'Parte';
+function manualImporta(texto) {
+  const linhas = String(texto || '').replace(/\r/g, '').split('\n');
+  const ehTitulo = (l) => { const t = l.trim().replace(/^[#*\s]+|[*\s]+$/g, ''); if (!t || t.length > 90) return false;
+    return /^#{1,4}\s/.test(l.trim()) || /^\/[A-Z]/.test(t) || (/^[^a-zà-ú]*$/.test(t.replace(/[^A-Za-zÀ-ú]/g, '').slice(0, 30)) && t.replace(/[^A-Za-zÀ-ú]/g, '').length > 3) || /^\d{1,2}\.\s+\S/.test(t); };
+  const out = []; let cur = { titulo: 'Início', texto: '' };
+  for (const l of linhas) {
+    if (ehTitulo(l) && cur.texto.trim().length > 40) { out.push(cur); cur = { titulo: manualTitulo(l), texto: '' }; }
+    else if (ehTitulo(l) && !cur.texto.trim()) cur.titulo = manualTitulo(l);
+    else cur.texto += l + '\n';
+  }
+  if (cur.texto.trim()) out.push(cur);
+  /* trechos muito grandes viram pedaços de ~2.000 letras com o mesmo título */
+  const fim = [];
+  for (const x of out) { const t = x.texto.trim(); for (let k = 0; k < t.length; k += 2000) fim.push({ id: 'm' + fim.length, titulo: x.titulo + (t.length > 2000 ? ` (${Math.floor(k / 2000) + 1})` : ''), texto: t.slice(k, k + 2000) }); }
+  DB.manualIA = fim; DB.manualIAEm = new Date().toISOString(); _opSave();
+  return fim.length;
 }
 /* LIMPAR OS TESTES (pedido da Ingrid, 06/10: "a gente tem que deixar ele so coisa
    real... eu vou selecionar qual tem que apagar"). Apagar um cliente leva junto

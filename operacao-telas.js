@@ -1996,9 +1996,25 @@ function opDocOrc(id) {
 /* =====================================================
    AJUSTES — contas, termos e plantao
 ===================================================== */
+/* MANUAL DA EMROMA — o assistente consulta por assunto (Doc 12–16/10 item 3) */
+function manualAjustesHtml() {
+  const n = (DB.manualIA || []).length;
+  return `<section class="card" id="manualCartao">
+    <h3>📘 Manual da EmRoma (para o assistente)</h3>
+    <p class="why">Cole aqui o seu Manual Operacional (abra o Google Doc → selecione tudo → copiar → colar aqui). O assistente consulta só a parte do assunto quando precisa — não fica mais caro — e segue as suas regras e respostas prontas. Fica guardado só no seu banco de dados.</p>
+    <p class="bkp-estado">${n ? `✓ Manual guardado: <b>${n} partes</b>${DB.manualIAEm ? ' · atualizado em ' + new Date(DB.manualIAEm).toLocaleString('pt-BR') : ''}` : 'Ainda não tem manual guardado.'}</p>
+    <label class="fld">Texto do manual<textarea id="manTxt" rows="5" placeholder="Cole aqui o manual inteiro"></textarea></label>
+    <div class="btnrow"><button class="cta sm" id="manSalva">${n ? 'Trocar pelo manual colado' : 'Guardar o manual'}</button>${n ? '<button class="mini ghost danger" id="manApaga">apagar o manual</button>' : ''}</div>
+  </section>`;
+}
+function manualAjustesLiga() {
+  const re = () => { const c = document.getElementById('manualCartao'); if (c) { c.outerHTML = manualAjustesHtml(); manualAjustesLiga(); } };
+  const bs = document.getElementById('manSalva'); if (bs) bs.onclick = () => { const t = (document.getElementById('manTxt') || {}).value || ''; if (t.trim().length < 200) return toast('Cole o manual inteiro (o texto está curto demais)'); const n = manualImporta(t); toast(`📘 Manual guardado em ${n} partes — o assistente já consulta`); re(); };
+  const ba = document.getElementById('manApaga'); if (ba) ba.onclick = () => { if (!confirm('Apagar o manual do assistente?')) return; DB.manualIA = []; DB.manualIAEm = ''; _opSave(); toast('Manual apagado'); re(); };
+}
 function opAjustesHtml() {
   const s = DB.settings.termos || {};
-  return bkpAjustesHtml() + avAjustesHtml() + `<section class="card" id="opPontos">
+  return bkpAjustesHtml() + manualAjustesHtml() + avAjustesHtml() + `<section class="card" id="opPontos">
       <h3>Pontos de encontro</h3>
       <p class="why">A lista única de onde os clientes encontram a guia ou o motorista. Em cada passeio você marca quais valem; no voucher, escolhe o do cliente — e só ele sai no voucher.</p>
       ${Pontos.all().map(p => `<div class="pt-row"><div class="tinfo"><b>${esc(p.nome)}</b><small>${esc(p.endereco || '')}${p.instrucoes ? ' · ' + esc(p.instrucoes) : ''}</small></div>
@@ -2037,7 +2053,7 @@ function opAjustesHtml() {
     </section>`;
 }
 function opAjustesLiga() {
-  bkpAjustesLiga();
+  bkpAjustesLiga(); manualAjustesLiga();
   avAjustesLiga();
   visualLiga();
   $('#zeraTudo')?.addEventListener('click', () => {

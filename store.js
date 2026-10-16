@@ -332,7 +332,7 @@ function _seed() {
       photo: 'fotos/coliseu.jpg',
       tagline: { pt: 'O coração da Roma imperial', en: 'The heart of imperial Rome' },
       ingressos: [
-        { nome: { pt: 'Coliseu, Fórum e Palatino', en: 'Colosseum, Forum and Palatine' }, gratisAte: 17, inteiro: 18 },
+        { nome: { pt: 'Coliseu, Fórum e Palatino', en: 'Colosseum, Forum and Palatine' }, gratisAte: 18, inteiro: 18 },
       ],
       price: 420, priceMode: 'tabela',
       tabela: [420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420, 420],
@@ -364,7 +364,7 @@ function _seed() {
       photo: 'fotos/forum2.jpg',
       tagline: { pt: 'Coliseu, Palatino e Fórum, sem pressa', en: 'Colosseum, Palatine and Forum, unhurried' },
       ingressos: [
-        { nome: { pt: 'Coliseu, Fórum e Palatino', en: 'Colosseum, Forum and Palatine' }, gratisAte: 17, inteiro: 18 },
+        { nome: { pt: 'Coliseu, Fórum e Palatino', en: 'Colosseum, Forum and Palatine' }, gratisAte: 18, inteiro: 18 },
       ],
       price: 510, priceMode: 'tabela',
       tabela: [510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510, 510],

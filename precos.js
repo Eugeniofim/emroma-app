@@ -97,6 +97,11 @@ const Precos = {
         if (g && +g.inteiro === 24) g.inteiro = 25; }
       DB.settings.ingVat25 = true; mudou = true;
     }
+    /* 16/10 (Doc 12–16/10 item 1): Roma Antiga — criança até 18 anos (inclusive) não paga */
+    if (typeof DB.settings === 'object' && DB.settings && !DB.settings.ingRA18 && typeof Tours !== 'undefined') {
+      for (const x of Tours.all ? Tours.all() : (DB.tours || [])) if (/roma-antiga/.test(x.id || '')) for (const g of x.ingressos || []) if (/coliseu/i.test((g.nome && g.nome.pt) || '') && +g.gratisAte === 17) g.gratisAte = 18;
+      DB.settings.ingRA18 = true; mudou = true; if (typeof save === 'function') try { save(); } catch (e) {}
+    }
     /* 07/10: a aba "Tr Milao" da planilha de 06/10 entra como tabela nova (uma vez; ela edita depois) */
     if (Array.isArray(DB.precos) && DB.precos.length && !DB.precos.some(t => t.id === 'transfer-milao')) {
       DB.precos.push({ id: 'transfer-milao', nome: 'Transfer Milão', tipo: 'transfer', secoes: PRECOS_MILAO.map((x, si) => ({ id: 'm' + si, titulo: x.titulo,
