@@ -877,3 +877,6 @@ details.orc-links summary{cursor:pointer;color:var(--ink-2);font-size:var(--fs-3
 .orc-nota-int{background:#fffbea}
 .drv-fila-x{border:0;background:none;font-size:16px;cursor:pointer;min-width:36px;min-height:36px;border-radius:50%;color:inherit}
 @media (max-width:760px){.drv-fila-bar{top:calc(8px + env(safe-area-inset-top));bottom:auto;left:8px;right:8px;font-size:13px;padding:6px 8px 6px 12px}}
+/* Meu dia: calendário compacto (21/10) */
+.md-cal .agrid .agc{aspect-ratio:auto;min-height:48px;max-height:64px;padding:4px}
+.md-cal .agrid{gap:6px}

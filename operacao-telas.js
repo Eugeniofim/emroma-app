@@ -239,6 +239,51 @@ function opLigaCards(redesenha) {
 /* =====================================================
    HOJE — a planilha de 15 anos, agora no app
 ===================================================== */
+/* MEU DIA = AGENDA + TAREFAS (Doc 19–21/10 itens 4–6: "tiramos as abas Agenda e Tarefas e deixamos
+   tudo no Meu dia, com a aparência da Agenda"). O calendário do mês marca serviços e tarefas;
+   tocar num dia abre aquele dia aqui mesmo. Embaixo: quem deve e as tarefas. */
+function mdCalendarioHtml(dia) {
+  const cur = admHoje._m || dia.slice(0, 7), [Y, M] = cur.split('-').map(Number);
+  const daysIn = new Date(Y, M, 0).getDate(), startWd = (new Date(cur + '-01T12:00:00').getDay() + 6) % 7, hoje = isoToday();
+  const MN = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  let cells = '';
+  for (let i = 0; i < startWd; i++) cells += '<span class="agc empty"></span>';
+  for (let d = 1; d <= daysIn; d++) {
+    const iso = `${cur}-${String(d).padStart(2, '0')}`;
+    const nS = Op.doDia(iso).filter(b => b.status !== 'cancelled').length;
+    const nT = Tarefas.doDia(iso).filter(t => t.tipo === 'tarefa' && !t.feita).length;
+    cells += `<button class="agc ${nS ? 'has' : ''} ${iso === dia ? 'on' : ''} ${iso === hoje ? 'today' : ''}" data-dia="${iso}" title="${nS} serviço(s) · ${nT} tarefa(s)">
+      <b>${d}</b>${nS ? `<span class="agdots">${'<i></i>'.repeat(Math.min(4, nS))}</span>` : ''}${nT ? `<span class="ag-tf">✓${nT > 1 ? nT : ''}</span>` : ''}</button>`;
+  }
+  return `<section class="card md-cal"><div class="rp-cab"><h3>📅 ${MN[M - 1]} ${Y}</h3><div class="chips"><button class="mini" data-mes="-1" aria-label="mês anterior">←</button><button class="mini" data-mes="0">hoje</button><button class="mini" data-mes="1" aria-label="próximo mês">→</button></div></div>
+    <div class="agrid head">${['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map(w => `<span class="agwd">${w}</span>`).join('')}</div>
+    <div class="agrid">${cells}</div>
+    <p class="why">● serviço · ✓ tarefa — toque num dia para ver tudo dele aqui embaixo.</p></section>`;
+}
+function mdDevemHtml(hoje) {
+  /* quem deve à EmRoma (o que é pago no dia ao motorista/guia não entra) */
+  const por = new Map();
+  for (const b of DB.bookings || []) { if (b.status === 'cancelled') continue; const v = Op.dueIngrid(b); if (!(v > 0)) continue;
+    const k = b.clienteId || _nomeN(b.name); const x = por.get(k) || { nome: b.name, b, v: 0, venc: Bookings.dueDate(b) };
+    x.v += v; if (Bookings.dueDate(b) < x.venc) x.venc = Bookings.dueDate(b); por.set(k, x); }
+  const l = [...por.values()].sort((a, b) => String(a.venc).localeCompare(String(b.venc))); if (!l.length) return '';
+  return `<section class="card md-devem"><h3>💶 Quem deve à EmRoma <span class="tf-n">${l.length}</span></h3>
+    ${l.slice(0, 15).map(x => `<div class="deprow"><a href="${fichaHref((x.b.clienteId && Cadastro.get(x.b.clienteId)) || { nome: x.nome })}"><b>${esc(x.nome)}</b></a><span class="${x.venc < hoje ? 'tf-bad' : ''}">${eur(Math.round(x.v * 100) / 100)}${x.venc ? ' · ' + (x.venc < hoje ? 'venceu ' : 'vence ') + fmtDate(x.venc) : ''}</span></div>`).join('')}</section>`;
+}
+function mdTarefasHtml(hoje, dia) {
+  const G = Tarefas.grupos(hoje), outras = [...(dia === hoje ? [] : [...G.atrasadas, ...G.hoje]), ...G.semana, ...G.depois, ...G.semData];
+  return `<section class="card md-tarefas"><div class="rp-cab"><h3>✓ Tarefas</h3><a class="mini" href="#/adm/tarefas/notas">anotações</a></div>
+    <div class="frow"><label class="fld grow"><input id="mdTf" autocomplete="off" placeholder="Nova tarefa — ex.: ligar para a Ana amanhã 10h"></label><button class="cta sm" id="mdTfAdd">+ tarefa</button></div>
+    ${outras.length ? outras.slice(0, 30).map(t => `<div class="tf-item">${tfLinha(t, hoje)}</div>`).join('') : '<p class="why">Nenhuma outra tarefa em aberto.</p>'}
+    ${outras.length > 30 ? `<p class="why">Mostrando 30 de ${outras.length}.</p>` : ''}</section>`;
+}
+function mdLiga(dia) {
+  $$('[data-mes]').forEach(b => b.onclick = () => { const n = +b.dataset.mes; if (!n) { admHoje._m = isoToday().slice(0, 7); return go('/adm/today'); }
+    const [Y, M] = (admHoje._m || dia.slice(0, 7)).split('-').map(Number), k = Y * 12 + (M - 1) + n; admHoje._m = `${Math.floor(k / 12)}-${String(k % 12 + 1).padStart(2, '0')}`; admHoje(dia); });
+  const add = $('#mdTfAdd'); if (add) add.onclick = () => { const v = ($('#mdTf').value || '').trim(); if (!v) return $('#mdTf').focus(); const p = lerPrazo(v, isoToday());
+    Tarefas.cria({ texto: v, prazo: p.data || '', hora: p.hora || '', repete: p.repete || '' }); toast('Tarefa anotada'); admHoje(dia); };
+  const inp = $('#mdTf'); if (inp) inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); add && add.click(); } };
+}
 function admHoje(arg) {
   if (typeof parceriaGabi === 'function') parceriaGabi();
   const hoje = isoToday();
@@ -272,6 +317,7 @@ function admHoje(arg) {
       ${semPres.length ? `<a class="alert warn" href="#/adm/guias">👤 ${semPres.length} ${semPres.length > 1 ? 'serviços' : 'serviço'} sem guia/motorista nos próximos 3 dias →</a>` : ''}
       ${late.length ? `<a class="alert bad" href="#/adm/bookings">⚠ ${late.length} ${late.length > 1 ? 'pagamentos atrasados' : 'pagamento atrasado'} · ${eur(late.reduce((s, b) => s + Bookings.due(b), 0))} →</a>` : ''}
     </div>` : ''}
+    ${mdCalendarioHtml(dia)}
     <p class="op-resumo"><b>${fmtDate(dia)}</b> · ${lista.length} ${lista.length === 1 ? 'serviço' : 'serviços'} · ${pax} pessoas${noDia ? ` · <b>${eur(noDia)}</b> pagos no dia a guias e motoristas` : ''}</p>
     ${(() => {
       /* A AGENDA DO DIA (espelha o TI ARTES): serviços e tarefas numa linha do
@@ -287,15 +333,8 @@ function admHoje(arg) {
       const corpo = linha.map(it => it.k === 'svc' ? opCardServico(it.b) : `<div class="card tf-item">${tfLinha(it.x, hoje)}</div>`).join('');
       return cab + avisos + atr + corpo;
     })()}
-    ${dia === hoje ? (() => {
-      const prox = [];
-      for (let i = 1; i <= 21 && prox.length < 6; i++) {
-        const d = addDays(hoje, i), l = Op.doDia(d).filter(b => b.status !== 'cancelled');
-        if (l.length) prox.push({ d, n: l.length, pax: l.reduce((s, b) => s + (+b.pax || 0), 0), nomes: [...new Set(l.map(b => opPrimeiro(b.name)))].slice(0, 3).join(', ') });
-      }
-      return prox.length ? `<section class="card md-prox"><div class="rp-cab"><h3>📅 Próximos dias</h3><a class="mini" href="#/adm/agenda">ver agenda completa</a></div>
-        ${prox.map(x => `<button class="md-dia" data-dia="${x.d}"><span class="md-data">${esc(fmtDate(x.d))}</span><span class="md-n">${x.n} ${x.n === 1 ? 'serviço' : 'serviços'} · ${x.pax}p</span><small class="md-nomes">${esc(x.nomes)}</small></button>`).join('')}</section>` : '';
-    })() : ''}
+    ${mdDevemHtml(hoje)}
+    ${mdTarefasHtml(hoje, dia)}
   `);
   const vai = (d) => go('/adm/today/' + d);
   $$('[data-dia]').forEach(b => b.onclick = () => vai(b.dataset.dia));
@@ -320,6 +359,7 @@ function admHoje(arg) {
   };
   opLigaCards(() => admHoje(dia));
   tfLigaMini(() => admHoje(dia));
+  mdLiga(dia);
   /* o backup do dia sai sozinho na primeira abertura do painel */
   setTimeout(() => bkpDoDia(), 600);
   if (admHoje._foco) {
@@ -885,10 +925,11 @@ function admContabilidade() {
   /* o que ainda falta repassar a guias/motoristas (acertos não marcados) */
   const aRepassar = ac.filter(a => a.custo && !a.acertado && a.saldo > 0).reduce((s, a) => s + a.saldo, 0);
   const seuCaixa = soma(br) + soma(eu);
-  const tabela = (lista, vazio) => lista.length ? `<table class="tbl"><thead><tr><th>Data</th><th>Cliente</th><th>Serviço</th><th>Tipo</th><th>Conta</th><th class="right">Valor</th></tr></thead>
+  /* Doc 17/10 item 4: para o contador do BRASIL sai também o valor em reais que o cliente pagou */
+  const tabela = (lista, vazio, comReais) => lista.length ? `<table class="tbl"><thead><tr><th>Data</th><th>Cliente</th><th>Serviço</th><th>Tipo</th><th>Conta</th><th class="right">Valor</th>${comReais ? '<th class="right">Em reais</th>' : ''}</tr></thead>
     <tbody>${lista.map(r => `<tr><td class="mono">${r.date}</td><td>${esc(r.client)}</td><td>${esc(opNomeServ(r))}</td><td>${KIND[r.kind] || r.kind}</td>
-      <td>${esc(r.conta ? Contas.nome(r.conta) : formaPg(r.method))}</td><td class="mono right">${eur(r.amount)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="5"><b>Total</b></td><td class="mono right"><b>${eur(soma(lista))}</b></td></tr></tfoot></table>` : `<p class="empty">${vazio}</p>`;
+      <td>${esc(r.conta ? Contas.nome(r.conta) : formaPg(r.method))}</td><td class="mono right">${eur(r.amount)}</td>${comReais ? `<td class="mono right">${r.reais ? 'R$ ' + r.reais.toFixed(2).replace('.', ',') : '<small class="why">falta</small>'}</td>` : ''}</tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="5"><b>Total</b></td><td class="mono right"><b>${eur(soma(lista))}</b></td>${comReais ? `<td class="mono right"><b>R$ ${lista.reduce((s, r) => s + (r.reais || 0), 0).toFixed(2).replace('.', ',')}</b></td>` : ''}</tr></tfoot></table>` : `<p class="empty">${vazio}</p>`;
 
   admShell('money', `
     <div class="pagehead"><h1 class="pageh">Contabilidade · ${titulo}</h1>
@@ -920,7 +961,8 @@ function admContabilidade() {
     </section>
     <section class="card">
       <div class="pagehead"><span class="seclabel" style="flex:1">🇧🇷 Para o contador do Brasil</span><button class="mini" id="csvBr">baixar planilha (CSV)</button></div>
-      ${tabela(br, 'Nada entrou nas contas brasileiras no período.')}
+      ${tabela(br, 'Nada entrou nas contas brasileiras no período.', true)}
+      ${br.some(r => !r.reais) ? '<p class="why">"falta" = o valor em reais não foi anotado. Anote ao registrar o pagamento (campo "em reais") ou peça ao assistente: "a Ana pagou 600 reais de Pix".</p>' : ''}
     </section>
     <section class="card">
       <h3>Acerto com guias e motoristas</h3>
@@ -943,7 +985,7 @@ function admContabilidade() {
   const cab = ['Data', 'Cliente', 'Serviço', 'Tipo', 'Conta', 'Lado', 'Valor (EUR)', 'Código'];
   const lin = (l) => l.map(r => [r.date, r.client, opNomeServ(r), KIND[r.kind] || r.kind, r.conta ? Contas.nome(r.conta) : formaPg(r.method), r.lado, String(r.amount).replace('.', ','), r.code]);
   $('#csvEu').onclick = () => opBaixa(`contador-europa-${de}-a-${ate}.csv`, [cab, ...lin(eu)]);
-  $('#csvBr').onclick = () => opBaixa(`contador-brasil-${de}-a-${ate}.csv`, [cab, ...lin(br)]);
+  $('#csvBr').onclick = () => opBaixa(`contador-brasil-${de}-a-${ate}.csv`, [[...cab, 'Valor (R$)'], ...lin(br).map((l, k) => [...l, br[k].reais ? String(br[k].reais).replace('.', ',') : ''])]);
   $('#csvTudo').onclick = () => opBaixa(`recebimentos-${de}-a-${ate}.csv`, [cab, ...lin(rows)]);
   $('#csvAc').onclick = () => opBaixa(`acertos-${de}-a-${ate}.csv`, [['Dia', 'Quem', 'Serviço', 'Cliente', 'Custo', 'Recebeu do cliente', 'Saldo (positivo = você paga)', 'Acertado'],
     ...ac.map(a => [a.b.date, a.pessoa ? a.pessoa.nome : '', opNomeServ(a.b), a.b.name, a.custo, a.comPrestador, a.saldo, a.acertado ? 'sim' : 'não'])]);
@@ -1868,7 +1910,7 @@ function opDocVoucher(id) {
   const bs = voucherViagem(b);
   const c = b.clienteId ? Cadastro.get(b.clienteId) : null;
   const orc = bs.map(x => x.orcamentoId && Orc.get(x.orcamentoId)).find(Boolean) || null;
-  const cfg = bs.find(x => x.voucherFora || x.voucherNota || x.voucherPg) || {};
+  const cfg = bs.find(x => x.voucherFora || x.voucherNota || x.voucherPg || x.voucherMais) || {};
   const fora = new Set(cfg.voucherFora || []), nota = String(cfg.voucherNota || ''), pg = String(cfg.voucherPg || '');
   /* Doc 07/10 item 12: agência cobra comissão no dia — o cliente não pode ver total, sinal e "pagar no dia" */
   const semValores = fora.has('valores');
@@ -1877,7 +1919,11 @@ function opDocVoucher(id) {
   const bagagem = (orc && orc.bagagem) || (c && (c.bagagem || (c.viagem && c.viagem.bagagem))) || [...new Set(bs.map(x => x.malas).filter(Boolean))].join(' · ');
   const contas = bs.map(vchContaDe), T = contas.reduce((a, k) => ({ total: a.total + k.total, sinal: a.sinal + k.sinal, dia: a.dia + k.dia }), { total: 0, sinal: 0, dia: 0 });
   const r2 = (n) => Math.round(n * 100) / 100;
-  const blocos = voucherBlocosViagem(bs);
+  /* Doc 19–21/10 item 1: TODOS os blocos ficam à mão no "Editar este voucher" — os que o app escolheu
+     vêm marcados; ela pode acrescentar qualquer outro (chegada aeroporto, partida, porto, trem, passeios) */
+  const auto = voucherBlocosViagem(bs), mais = (cfg.voucherMais || []).filter(k => !auto.includes(k));
+  const blocos = typeof VOUCHER_ORDEM !== 'undefined' ? VOUCHER_ORDEM.filter(k => auto.includes(k) || mais.includes(k)) : [...auto, ...mais];
+  const todosBlocos = typeof VOUCHER_ORDEM !== 'undefined' ? VOUCHER_ORDEM : blocos;
   const falta = typeof voucherFalta === 'function' ? voucherFalta(bs) : [];
   const corpo = `
     ${falta.length ? `<div class="nao-imprime alert warn vch-falta"><b>Antes de mandar este voucher, falta:</b> ${falta.map(esc).join(' · ')}. <small>Preencha em "✏️ Editar este voucher" (dados do transfer) ou na ficha do cliente.</small></div>` : ''}
@@ -1906,7 +1952,7 @@ function opDocVoucher(id) {
     <p class="doc-ref">Reserva${bs.length > 1 ? 's' : ''} ${bs.map(x => esc(x.code)).join(' · ')}</p>
     <details class="nao-imprime vch-edita"><summary>✏️ Editar este voucher</summary>
       <p class="why">Tire o que não serve pra este cliente e escreva uma observação só dele. Os textos padrão você muda na aba Voucher.</p>
-      <div class="vch-blks"><label><input type="checkbox" data-vblk="valores" ${semValores ? '' : 'checked'}> <b>Valores</b> (total, sinal, pagar no dia) — tire quando for de agência</label>${blocos.map(k => `<label><input type="checkbox" data-vblk="${k}" ${fora.has(k) ? '' : 'checked'}> ${esc((VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome)}</label>`).join('')}</div>
+      <div class="vch-blks"><label><input type="checkbox" data-vblk="valores" ${semValores ? '' : 'checked'}> <b>Valores</b> (total, sinal, pagar no dia) — tire quando for de agência</label>${todosBlocos.map(k => `<label><input type="checkbox" data-vblk="${k}" ${blocos.includes(k) && !fora.has(k) ? 'checked' : ''}> ${esc((VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome)}${auto.includes(k) ? '' : ' <small>(acrescentar)</small>'}</label>`).join('')}</div>
       <label class="fld">Método de pagamento que o cliente escolheu (sai marcado ☑ no voucher)<select id="vchPg">${VCH_PG.map(([v, nm]) => `<option value="${v}" ${pg === v ? 'selected' : ''}>${nm}</option>`).join('')}</select></label>
       ${bs.filter(ehTransfer).map(x => `<fieldset class="vch-tr"><legend>${crmDataSem(x.date)} · ${esc(x.time || '')} — ${esc(opNomeServ(x)).slice(0, 60)}</legend>
         <div class="frow"><label class="fld sm">Voo/trem<input data-vtr="${esc(x.id)}" data-campo="voo" value="${esc(x.voo || '')}"></label>
@@ -1920,7 +1966,9 @@ function opDocVoucher(id) {
     arqNome('voucher', { bookingId: b.id, clienteId: b.clienteId }));
   $$('[data-pt]').forEach(s => s.onchange = () => { escolhePonto(s.dataset.pt, s.value); opDocVoucher(id); toast('Ponto de encontro escolhido'); });
   const vs = $('#vchSalva'); if (vs) vs.onclick = () => {
-    const f = $$('[data-vblk]').filter(i => !i.checked).map(i => i.dataset.vblk), n = $('#vchNota').value.trim();
+    const f = $$('[data-vblk]').filter(i => !i.checked && (i.dataset.vblk === 'valores' || auto.includes(i.dataset.vblk))).map(i => i.dataset.vblk), n = $('#vchNota').value.trim();
+    const maisN = $$('[data-vblk]').filter(i => i.checked && i.dataset.vblk !== 'valores' && !auto.includes(i.dataset.vblk)).map(i => i.dataset.vblk);
+    for (const x of bs) x.voucherMais = maisN;
     const pgN = ($('#vchPg') || {}).value || '';
     const bagN = (($('#vchBag') || {}).value || '').trim();
     if (bagN !== bagagem) { if (orc) { orc.bagagem = bagN; Orc.salva(orc); } for (const x of bs) { x.malas = bagN; } }
@@ -3369,7 +3417,7 @@ const ATALHO = {
       const falta = Bookings.due(b);
       d.querySelector('.at-lista').innerHTML = atLinhaReserva(b); d.querySelector('.at-q').hidden = true;
       d.querySelector('#atPg').innerHTML = `
-        <div class="frow"><label class="fld">Valor (€)<input id="atVal" inputmode="decimal" value="${falta}"></label>
+        <div class="frow"><label class="fld">Valor (€)<input id="atVal" inputmode="decimal" value="${falta}"></label><label class="fld">Em reais <small>(se foi Pix)</small><input id="atReais" inputmode="decimal" placeholder="R$"></label>
           <label class="fld">Onde caiu<select id="atConta"><option value="">escolha…</option>${Contas.all().map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join('')}<option value="${CONTA_PRESTADOR}">${esc(Contas.nome(CONTA_PRESTADOR))}</option></select></label></div>
         <label class="fld">Comprovante (foto ou PDF) — vai para a ficha e para a pasta do cliente no Google Drive<input id="atArq" type="file" accept="image/*,application/pdf"></label>
         <button class="cta sm" id="atPgOk">Registrar ${eur(falta)}</button>`;
@@ -3378,6 +3426,7 @@ const ATALHO = {
       bt.onclick = async () => {
         const conta = d.querySelector('#atConta').value; if (!conta) return toast('Em que conta caiu?');
         const p = registraPagamento(b.id, { valor: +String(val.value).replace(',', '.') || 0, conta }); if (!p) return toast('Nada a registrar (já está pago?)');
+        { const rr = +String((d.querySelector('#atReais') || {}).value || '').replace(/\./g, '').replace(',', '.'); if (rr > 0) { p.reais = rr; _opSaveBooking(b); } }
         const f = d.querySelector('#atArq').files[0];
         if (f) {
           const c = b.clienteId ? Cadastro.get(b.clienteId) : null;

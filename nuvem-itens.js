@@ -9,7 +9,14 @@
 
    As 4 pecas: SOMBRA (o que este aparelho sabe que ja esta no banco), FILA
    (o que ainda nao subiu — sobrevive a fechar o app), MARCA (ate que hora
-   ja leu) e EM_DIA (so depois da primeira sincronia o app manda coisas).
+   ja leu) e EM DIA (so depois da primeira sincronia o app manda coisas).
+
+   TRAVA CONTRA PERDA TOTAL (20/10/2026, igual a base): o "em dia" mora DENTRO
+   do DB (DB._itensEmDia), nao numa chave separada. Antes ele morava ao lado:
+   o botao "Sincronizar de novo" apagava o DB e deixava a sombra cheia, e o
+   primeiro envio depois marcava TUDO como apagado no banco. Agora, DB apagado
+   ou trocado = "em dia" some junto = o aparelho rele o banco inteiro antes de
+   mandar qualquer coisa, e o que so ele tinha sobe (junta, nao troca).
    Catalogo e reservas continuam no cloud.js, que ja estava testado.
    ===================================================== */
 'use strict';
@@ -21,9 +28,12 @@
 const ITENS_COLS = ['equipe', 'disp', 'contas', 'orcamentos', 'fichas', 'tarefas', 'clientes', 'parceiros', 'pontos', 'pedidos', 'lembretesVistos', 'interesse', 'precos', 'conversas', 'iaMemoria', 'arquivos', 'iaDiario', 'iaUso', 'manualIA'];   /* iaUso = gasto da IA por dia + créditos que ela pôs (07/10) */
 /* estas sao "dicionarios" no DB (chave -> valor); as outras sao listas com id */
 const ITENS_DIC = ['fichas', 'lembretesVistos', 'interesse', 'conversas'];
-const IT_SOMBRA = 'ingrid_sombra_v1', IT_FILA = 'ingrid_fila_v1', IT_MARCA = 'ingrid_marca_v1', IT_EMDIA = 'ingrid_emdia_v1';
+const IT_SOMBRA = 'ingrid_sombra_v1', IT_FILA = 'ingrid_fila_v1', IT_MARCA = 'ingrid_marca_v1';
+/* a chave antiga do "em dia" (ate 18/10): nao vale mais nada, so e apagada */
+const IT_EMDIA_VELHO = 'ingrid_emdia_v1';
 const itLe = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
 const itGrava = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const itEmDia = () => typeof DB !== 'undefined' && !!DB && DB._itensEmDia === true;
 
 /* id de cada registro: o proprio id; disponibilidade e guia|dia|turno */
 function itemId(col, x, chave) {
@@ -41,7 +51,7 @@ const itPronto = () => typeof temNuvem === 'function' && temNuvem() && typeof is
 
 /* compara com a SOMBRA e poe na FILA so o que mudou (e o que sumiu vira apagado) */
 function itEnfileirar() {
-  if (!itPronto() || !itLe(IT_EMDIA, false)) return 0;
+  if (!itPronto() || !itEmDia()) return 0;
   const sombra = itLe(IT_SOMBRA, {}), fila = itLe(IT_FILA, {});
   let n = 0;
   for (const col of ITENS_COLS) {
@@ -74,10 +84,12 @@ async function itEnviarFila() {
 }
 /* aplica no DB o que veio do banco; grava so no aparelho (nunca re-enfileira) */
 function itAplicar(linhas) {
-  const sombra = itLe(IT_SOMBRA, {});
+  const sombra = itLe(IT_SOMBRA, {}), fila = itLe(IT_FILA, {});
   let mudou = 0;
   for (const l of linhas) {
     const col = l.colecao; if (!ITENS_COLS.includes(col)) continue;
+    /* o que este aparelho mexeu e ainda nao subiu vale mais que a copia do banco */
+    if (fila[col + '\u0001' + l.id]) continue;
     const s = sombra[col] = sombra[col] || {};
     if (ITENS_DIC.includes(col)) {
       DB[col] = DB[col] || {};
@@ -111,18 +123,34 @@ async function itPuxar() {
   if (linhas.length) itGrava(IT_MARCA, linhas[linhas.length - 1].atualizado_em);
   return { ok: true, n };
 }
+/* DB sem a marca = aparelho novo, navegador limpo, "Sincronizar de novo" ou
+   a primeira abertura com esta versao (a chave antiga nao vale: o DB pode ter
+   sido trocado com ela "em dia"). A sombra e a marca de leitura que sobraram
+   nao valem mais nada: zera e rele o banco inteiro. Sem isto, a sombra cheia
+   + DB vazio virava "ela apagou tudo" no primeiro envio. Da fila so fica o
+   que ainda e igual no DB de agora (o que ela mexeu sem rede e nao subiu);
+   apagado e coisa de um DB que nao existe mais vao embora. */
+function itRecomecar() {
+  const fila = itLe(IT_FILA, {}), atual = {}, resto = {};
+  for (const col of ITENS_COLS) for (const [id, x] of itensDe(col)) atual[col + '\u0001' + id] = JSON.stringify(x);
+  for (const [k, l] of Object.entries(fila)) if (l && !l.apagado && atual[k] === JSON.stringify(l.dados)) resto[k] = l;
+  itGrava(IT_SOMBRA, {}); itGrava(IT_MARCA, ''); itGrava(IT_FILA, resto);
+  try { localStorage.removeItem(IT_EMDIA_VELHO); } catch (e) {}
+}
 /* O RITUAL DE ABRIR: le o banco (insistindo — o plano gratis dorme), junta o
    que este aparelho tinha e o banco nao, e so entao passa a mandar. */
 async function itSincronizarAoAbrir() {
   if (!itPronto()) return { ok: false };
+  if (!itEmDia()) itRecomecar();
   let r = { ok: false };
   for (let k = 0; k < 3 && !r.ok; k++) { r = await itPuxar(); if (!r.ok) await new Promise(ok => setTimeout(ok, 1500 * (k + 1))); }
   if (!r.ok) return r;
   /* banco lido: agora sim o texto antigo dos orçamentos vira o de hoje (v1.94) */
   if (typeof Precos !== 'undefined' && Precos.migraTextos) try { Precos.migraTextos(); } catch (e) {}
-  if (!itLe(IT_EMDIA, false)) {
-    /* primeira vez neste aparelho: o que so ele tinha sobe (junta, nao troca) */
-    itGrava(IT_EMDIA, true);
+  if (!itEmDia()) {
+    /* primeira leitura deste DB: o que so ele tinha sobe (junta, nao troca) */
+    DB._itensEmDia = true;
+    try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch (e) {}
   }
   itEnfileirar();
   await itEnviarFila();
@@ -131,7 +159,7 @@ async function itSincronizarAoAbrir() {
 /* depois de qualquer gravacao: enfileira e manda em ~1 s */
 let itT = null;
 function itAgendar() {
-  if (!itPronto() || !itLe(IT_EMDIA, false)) return;
+  if (!itPronto() || !itEmDia()) return;
   clearTimeout(itT);
   itT = setTimeout(() => { itEnfileirar(); itEnviarFila(); }, 900);
 }
@@ -142,11 +170,18 @@ async function itPedidoPublico(colecao, x) {
   try { const r = await supaFetch('itens', { method: 'POST', body: JSON.stringify({ colecao, id: x.id, dados: x, apagado: false }) }); return r.ok || r.status === 409; }
   catch (e) { return false; }
 }
-/* de 25 em 25 s, e quando a internet volta (nunca depender so do aviso na hora) */
+/* de 25 em 25 s, e quando a internet volta (nunca depender so do aviso na hora).
+   O relogio tambem pega o que foi gravado sem passar pelo save(), e refaz o
+   ritual de abrir se o DB perdeu a marca no meio do caminho. */
 let itRelogio = null;
 function itLigar(onChange) {
   if (itRelogio || !itPronto()) return;
   itSincronizarAoAbrir().then(r => { if (r.ok && r.n && onChange) onChange(r); });
-  itRelogio = setInterval(async () => { if (!itPronto()) return; itEnfileirar(); await itEnviarFila(); const r = await itPuxar(); if (r.ok && r.n && onChange) onChange(r); }, 25000);
+  itRelogio = setInterval(async () => {
+    if (!itPronto()) return;
+    if (!itEmDia()) { const r0 = await itSincronizarAoAbrir(); if (r0.ok && r0.n && onChange) onChange(r0); return; }
+    itEnfileirar(); await itEnviarFila();
+    const r = await itPuxar(); if (r.ok && r.n && onChange) onChange(r);
+  }, 25000);
   if (typeof addEventListener === 'function') addEventListener('online', () => { itEnfileirar(); itEnviarFila(); });
 }

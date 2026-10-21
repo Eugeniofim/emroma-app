@@ -1464,7 +1464,7 @@ function renderBook() {
 /* O menu em grupos (como o TI ARTES): cada grupo tem um título e as abas.
    A Planilha (o CRM dela, a planilha mais importante) fica SEMPRE no menu. */
 const ADM_GROUPS = [
-  { h: 'O dia a dia',           tabs: [['today', 'admToday'], ['conversas', 'admConversas'], ['agenda', 'admAgenda'], ['tarefas', 'admTarefas']] },
+  { h: 'O dia a dia',           tabs: [['today', 'admToday'], ['conversas', 'admConversas']] },   /* Agenda e Tarefas agora moram no Meu dia (Doc 19–21/10) */
   { h: 'Orçamentos e clientes', tabs: [['planilha', 'admPlanilha'], ['pipeline', 'admPipeline'], ['consulta', 'admConsulta'], ['clients', 'admClients'], ['bookings', 'admBookings']] },
   { h: 'Em Roma',               tabs: [['guias', 'admGuias'], ['transfer', 'admTransfer'], ['tours', 'admTours'], ['precos', 'admPrecos'], ['voucher', 'admVoucher']] },
   { h: 'Dinheiro',              tabs: [['money', 'admMoney'], ['reports', 'admReports'], ['coupons', 'admCoupons']] },
@@ -2157,6 +2157,12 @@ function situacaoPgto(b, hoje) {
 
   if (b.status === 'cancelled') return { classe: 'n', titulo: t('cancelled'), conta, aberta: false };
   if (falta <= 0)               return { classe: 'ok', titulo: t('stPago'), conta, aberta: false };
+  /* Doc 17/10 item 2: o que o cliente paga NO DIA ao motorista/guia não é dívida com a EmRoma —
+     antes aparecia como "não pago/atrasado" e a contabilidade saía errada */
+  if (typeof Op !== 'undefined' && Op.restoPara(b) === 'prestador' && Op.dueIngrid(b) <= 0) {
+    const nd = Op.dueNoDia(b);
+    return { classe: 'ok', titulo: b.date < hoje ? 'Pago (o resto no dia ao motorista/guia)' : 'Sinal pago', conta: `${eur(pago)} à EmRoma · ${eur(nd)} pago no dia direto ao motorista/guia`, aberta: false };
+  }
 
   const prazo = Bookings.dueDate(b);
   if (prazo < hoje) {
@@ -2906,8 +2912,8 @@ function admAgenda() {
     .forEach(b => {
       const lista = byDay[b.date] = byDay[b.date] || [];
       if (lista.some(d => d.time === b.time && d.tour && d.tour.id === b.tourId)) return;
-      const x = Tours.get(b.tourId);
-      if (!x) return;
+      /* serviço montado no orçamento ou à mão (transfer avulso…) também é agenda (Doc 19–21/10 item 2) */
+      const x = Tours.get(b.tourId) || { id: b.tourId, max: +b.pax || 1, name: { pt: (typeof nomeDoServico === 'function' ? nomeDoServico(b) : b.servicoTxt) || 'Serviço', en: b.servicoTxt || 'Service' } };
       const cap = x.max || 0;
       const left = Cal.seatsLeft(x.id, b.date, b.time, cap);
       lista.push({ date: b.date, time: b.time, capacity: cap, tour: x, left, booked: cap - left, pastOnly: true });
@@ -2977,9 +2983,11 @@ function admAgenda() {
     admAgenda._d = sel; admAgenda();
   };
 
+  /* sem toISOString: no fuso da Itália o "dia 1º às 0h" virava o dia 31 do mês anterior em UTC
+     e a seta → não saía do mês (Doc 19–21/10 item 3) */
   const shift = (n) => {
-    const d = new Date(Y, M - 1 + n, 1);
-    admAgenda._m = d.toISOString().slice(0, 7); admAgenda._d = null; admAgenda();
+    const k = (Y * 12 + (M - 1)) + n;
+    admAgenda._m = `${Math.floor(k / 12)}-${String(k % 12 + 1).padStart(2, '0')}`; admAgenda._d = null; admAgenda();
   };
   $('#agPrev').onclick = () => shift(-1);
   $('#agNext').onclick = () => shift(1);

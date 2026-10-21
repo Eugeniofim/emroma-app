@@ -332,7 +332,7 @@ function extratoContas(de, ate) {
     for (const p of b.payments || []) {
       if (p.date < de || p.date > ate) continue;
       linhas.push({ date: p.date, client: b.name, tourId: b.tourId, code: b.code, bookingId: b.id,
-                    amount: p.amount, kind: p.kind, method: p.method, conta: p.conta || '',
+                    amount: p.amount, reais: +p.reais || 0, kind: p.kind, method: p.method, conta: p.conta || '',
                     lado: ladoDoPagamento(p) });
     }
   }
@@ -1219,7 +1219,7 @@ function voucherSalvaBloco(k, txt) {
 }
 /* que tipo de transfer é este (pra escolher o bloco certo) */
 function voucherTipoTransfer(b) {
-  const AERO = /\b(fco|cia)\b|fiumicino|ciampino|aeroport/i, PORTO = /civitavecchia|\bporto\b|navio|cruzeiro|\bcais\b/i, TREM = /termini|tiburtina|stazione|esta[cç][aã]o|\btrem\b|\btreno\b|centrale/i;
+  const AERO = /\b(fco|cia|mxp|lin|bgy)\b|fiumicino|ciampino|malpensa|linate|bergamo|aeroport/i, PORTO = /civitavecchia|\bporto\b|navio|cruzeiro|\bcais\b/i, TREM = /termini|tiburtina|stazione|esta[cç][aã]o|\btrem\b|\btreno\b|centrale/i;
   const dest = String(b.destino || '').toLowerCase();
   if (AERO.test(dest) || PORTO.test(dest) || TREM.test(dest)) return 'partida';
   /* a descrição já diz o sentido ("Centro → FCO" = partida) — Doc dela de 06/10: a partida não era reconhecida */
@@ -1960,6 +1960,9 @@ function restauraBackup(txt) {
   novo.settings = fillSettings(p.configuracoes || {});
   /* voltou dado de verdade: nao e mais demonstracao, e as sementes nao voltam */
   novo.demo = false; novo.opSeed = OP_SEED; novo.tarefasSeed = 1; novo.seedVer = typeof SEED_VER !== 'undefined' ? SEED_VER : 1;
+  /* restaurar é de propósito, como o "apagar tudo": quem estava em dia com a
+     nuvem continua, e o backup é o que vale (nuvem-itens.js) */
+  if (DB && DB._itensEmDia) novo._itensEmDia = true;
   DB = novo;
   try { if (typeof Mkt !== 'undefined' && Array.isArray(p.memoriaAssistente)) { const m = Mkt.get(); m.memoria = p.memoriaAssistente; Mkt.salva(); } } catch (e) {}
   opGarante();
@@ -2093,7 +2096,7 @@ function parceriaGabi() {
   try {
     if (!DB.settings || DB.settings.parcGabi) return;
     /* só depois que os dados dela chegaram da nuvem (senão um aparelho novo criaria uma repetida) */
-    if (typeof temNuvem === 'function' && temNuvem()) { let emDia = false; try { emDia = JSON.parse(localStorage.getItem('ingrid_emdia_v1')) === true; } catch (e) {} if (!emDia) return; }
+    if (typeof temNuvem === 'function' && temNuvem()) { if (DB._itensEmDia !== true) return; }   /* a marca mora no DB (nuvem-itens.js, 20/10) */
     DB.parceiros = Array.isArray(DB.parceiros) ? DB.parceiros : [];
     if (!DB.parceiros.some(p => /viajandocomgabi/i.test([p.nome, p.contato, p.cupom].join(' ')))) DB.parceiros.push({ id: uid(), nome: '@viajandocomgabi', tipo: 'influencer', contato: 'Instagram @viajandocomgabi', cupom: '', desconto: 5, comissao: 0, obs: 'Doc 06/10: 5% de desconto, influencer', pagamentos: [] });
     DB.settings.parcGabi = true; _opSave();
@@ -2365,7 +2368,7 @@ function _contaDaForma(v) {
 }
 const LINKS_PLANILHA = [['lPdf', 'PDF'], ['lOrc', 'Orçamento'], ['lVoucher', 'Voucher'], ['lComprov', 'Comprovante'], ['lAval', 'Avaliação']];
 /* os dois servicos "avulsos": o que ela escreve a mao (planilha) nao cabe no catalogo */
-const RE_TRANSFER = /\b(FCO|CIA|MXP|LIN|BGY|VCE|NAP|FLR|PSA)\b|transfer|aeroporto|porto|esta[cç][aã]o| x /i;
+const RE_TRANSFER = /\b(FCO|CIA|MXP|LIN|BGY|VCE|NAP|FLR|PSA)\b|transfer|aeroporto|porto|esta[cç][aã]o|civitavecchia|termini|tiburtina|centrale|navio|cruzeiro|malpensa|linate|fiumicino|ciampino| x /i;
 function tourAvulso(tipo) {
   const id = tipo === 'transfer' ? 'avulso-transfer' : 'avulso-servico';
   if (!Tours.get(id)) DB.tours.push({ id, type: tipo === 'transfer' ? 'transfer' : 'walk', region: tipo === 'transfer' ? 'transfer' : 'roma',
@@ -2777,7 +2780,7 @@ function crmPainel(linhas, hoje) {
   return {
     abertos: { n: abertos.length, valor: abertos.reduce((s2, p) => s2 + (p.r.totalPedido || 0), 0), naoMandados: abertos.filter(p => p.r.o && (p.r.o.status === 'novo' || p.r.o.status === 'rascunho')).length },
     confirmados: { n: new Set(conf.map(r => r.pedido)).size, valor: conf.reduce((s2, r) => s2 + (r.clientePaga || 0), 0),
-      recebido: conf.reduce((s2, r) => s2 + Bookings.paid(r.b), 0), falta: conf.reduce((s2, r) => s2 + Bookings.due(r.b), 0) },
+      recebido: conf.reduce((s2, r) => s2 + Bookings.paid(r.b), 0), falta: conf.reduce((s2, r) => s2 + Op.dueIngrid(r.b), 0) },   /* só o que é da EmRoma (o do dia vai ao motorista/guia) */
     fecha: { fechados: fechados.length, perdidos: perdidos.length, taxa: fechados.length + perdidos.length ? fechados.length / (fechados.length + perdidos.length) : null,
       motivo: Object.entries(motivos).sort((x, y) => y[1] - x[1])[0] || null },
     comissoes: { n: comissoes.length, valor: Math.round(comissoes.reduce((s2, y) => s2 + y.c.saldo, 0) * 100) / 100 },
@@ -2946,7 +2949,7 @@ const Painel = {
       const bs = Painel._ativos().filter(b => b.date >= de && b.date <= ate);
       const total = bs.reduce((s, b) => s + (+b.total || 0), 0);
       const pago = bs.reduce((s, b) => s + Bookings.paid(b), 0);
-      out.push({ de, ate, rot: de.slice(8, 10) + '/' + de.slice(5, 7), total, pago, falta: Math.max(0, total - pago), n: bs.length, pax: bs.reduce((s, b) => s + (+b.pax || 0), 0) });
+      out.push({ de, ate, rot: de.slice(8, 10) + '/' + de.slice(5, 7), total, pago, falta: Math.round(bs.reduce((s, b) => s + Op.dueIngrid(b), 0) * 100) / 100, noDia: Math.round(bs.reduce((s, b) => s + Op.dueNoDia(b), 0) * 100) / 100, n: bs.length, pax: bs.reduce((s, b) => s + (+b.pax || 0), 0) });
     }
     return out;
   },
