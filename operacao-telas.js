@@ -286,6 +286,8 @@ function mdLiga(dia) {
 }
 function admHoje(arg) {
   if (typeof parceriaGabi === 'function') parceriaGabi();
+  { const lf = typeof limparFicticiosAuto === 'function' ? limparFicticiosAuto() : null;
+    if (lf && !lf.nada) setTimeout(() => toast(`🧹 Tirei os exemplos do app: ${lf.clientes} cliente(s) fictício(s), ${lf.reservas} reserva(s), ${lf.guias} guia(s)/motorista(s) e ${lf.tarefas} tarefa(s) de exemplo. Se precisar, Clientes → 🧹 → Lixeira → desfazer.`), 800); }
   const hoje = isoToday();
   const dia = /^\d{4}-\d{2}-\d{2}$/.test(arg || '') ? arg : hoje;
   const lista = Op.doDia(dia);
@@ -2093,23 +2095,12 @@ function opAjustesHtml() {
       <label class="fld">Número de plantão (sai no voucher)<input id="tmPlantao" value="${esc(DB.settings.plantao || '')}" placeholder="+39 ..."></label>
       <button class="cta sm" id="tmSalva">Salvar</button>
     </section>
-    <section class="card" id="zeraCard">
-      <h3>Começar do zero</h3>
-      <p class="why">Apaga os <b>exemplos</b> — clientes, reservas, guias, parceiros e tarefas — para você começar com os seus dados de verdade. O <b>catálogo de passeios, os preços e os pontos de encontro continuam</b>.</p>
-      ${(() => { const n = (DB.bookings || []).filter(b => b.status !== 'cancelled').length, c = Cadastro.all().length; return (n || c) ? `<p class="why">Agora há <b>${c} ${c === 1 ? 'cliente' : 'clientes'}</b> e <b>${n} ${n === 1 ? 'reserva' : 'reservas'}</b> de exemplo.</p>` : '<p class="why">✓ O app já está zerado — pode começar.</p>'; })()}
-      <button class="mini ghost danger" id="zeraTudo">Apagar os exemplos e começar do zero</button>
-    </section>`;
+`;
 }
 function opAjustesLiga() {
   bkpAjustesLiga(); manualAjustesLiga();
   avAjustesLiga();
   visualLiga();
-  $('#zeraTudo')?.addEventListener('click', () => {
-    if (!confirm('Apagar os exemplos (clientes, reservas, guias, parceiros e tarefas) e começar do zero?\n\nO catálogo de passeios, os preços e os pontos de encontro continuam.')) return;
-    zerarExemplos();
-    toast('Pronto — app zerado. É só começar!');
-    setTimeout(() => go('/adm/today'), 500);
-  });
   $('#ptSalva').onclick = () => {
     const r = Pontos.salva({ id: $('#ptId').value, nome: $('#ptNome').value, endereco: $('#ptEnd').value, mapa: $('#ptMapa').value, instrucoes: $('#ptIns').value });
     if (r.erro) return toast(r.erro);

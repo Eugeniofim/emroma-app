@@ -2102,6 +2102,52 @@ function parceriaGabi() {
     DB.settings.parcGabi = true; _opSave();
   } catch (e) {}
 }
+/* CLIENTES FICTÍCIOS (pedido da Ingrid, 21/10: "tem uns clientes fictícios que precisa sumir").
+   Só sai o que o APP criou de exemplo, reconhecido pela marca: reservas "demo…"/"op…", clientes de
+   e-mail "@email.com", guias/motoristas "op-…", as tarefas e parcerias de exemplo. O que ela
+   cadastrou não é tocado. Os clientes vão pela Limpeza (com lixeira e desfazer). */
+const FICT_TAREFAS = ['Confirmar com o Luca o transfer da Juliana (voo AZ 673)', 'Comprar os ingressos do Coliseu com arena para a Camila (4 pessoas)', 'Responder a Patrícia sobre o Natal em Roma',
+  'Pagar a guia do bate e volta de Pompeia (agência Viagens Sol)', 'Montar a tabela de preços de Florença com a Sofia', 'Mandar o extrato do Nubank para a Aurea (contadora)', 'Renovar o seguro do carro do Paolo'];
+const FICT_PARCEIROS = ['Lu Viaja (RPV)', 'Carol pelo Mundo'];
+const ehReservaFict = (b) => /^(demo|op)\d+$/.test(String(b && b.id || ''));
+const ehClienteFict = (c) => /@email\.com$/i.test(String(c && c.email || '')) || /^(demo|op)\d+$/.test(String(c && c.id || ''));
+function ficticios() {
+  const cli = Cadastro.all().filter(c => ehClienteFict(c) || (Cadastro.reservas(c).length && Cadastro.reservas(c).every(ehReservaFict) && !(DB.orcamentos || []).some(o => o.clienteId === c.id)));
+  const ids = new Set(cli.map(c => c.id));
+  const soltas = (DB.bookings || []).filter(b => ehReservaFict(b) && !ids.has(b.clienteId));
+  const equipe = (DB.equipe || []).filter(p => /^op-[gm]\d+$/.test(p.id));
+  const tarefas = (DB.tarefas || []).filter(t => FICT_TAREFAS.includes(t.texto));
+  const parceiros = (DB.parceiros || []).filter(p => FICT_PARCEIROS.includes(p.nome));
+  /* o pedido de exemplo que chega "de madrugada" (Fernanda Lima, +55 48 99612 7788) */
+  const fernanda = (o) => o && o.cliente && o.cliente.nome === 'Fernanda Lima' && String(o.cliente.whats || '').replace(/\D/g, '').endsWith('48996127788');
+  for (const o of DB.orcamentos || []) if (fernanda(o) && o.clienteId && Cadastro.get(o.clienteId) && !ids.has(o.clienteId)) { cli.push(Cadastro.get(o.clienteId)); ids.add(o.clienteId); }
+  const orcs = (DB.orcamentos || []).filter(o => fernanda(o) && !ids.has(o.clienteId));
+  return { cli, soltas, equipe, tarefas, parceiros, orcs, total: cli.length + soltas.length + equipe.length + tarefas.length + parceiros.length + orcs.length };
+}
+function limparFicticios() {
+  const f = ficticios(); if (!f.total) return { ok: true, nada: true };
+  const r = f.cli.length ? Limpeza.apaga(f.cli.map(c => c.id)) : { clientes: 0, reservas: 0 };
+  const sIds = new Set(f.soltas.map(b => b.id));
+  for (const b of f.soltas) { b.apagado = true; b.status = 'cancelled'; if (typeof cloudUpdateBooking === 'function' && b.naNuvem) cloudUpdateBooking(b); }
+  DB.bookings = (DB.bookings || []).filter(b => !sIds.has(b.id));
+  const eIds = new Set(f.equipe.map(p => p.id));
+  DB.equipe = (DB.equipe || []).filter(p => !eIds.has(p.id)); DB.disp = (DB.disp || []).filter(d => !eIds.has(d.pessoaId));
+  for (const b of DB.bookings) if (eIds.has(b.prestadorId)) b.prestadorId = '';
+  const tIds = new Set(f.tarefas.map(t => t.id)); DB.tarefas = (DB.tarefas || []).filter(t => !tIds.has(t.id));
+  const pIds = new Set(f.parceiros.map(p => p.id)); DB.parceiros = (DB.parceiros || []).filter(p => !pIds.has(p.id));
+  const oIds = new Set(f.orcs.map(o => o.id)); DB.orcamentos = (DB.orcamentos || []).filter(o => !oIds.has(o.id));
+  _opSave();
+  return { ok: true, clientes: r.clientes || 0, reservas: (r.reservas || 0) + f.soltas.length, guias: f.equipe.length, tarefas: f.tarefas.length, parceiros: f.parceiros.length, lote: r.lote };
+}
+/* roda sozinho UMA vez, depois que os dados dela chegaram da nuvem (senão um aparelho novo não acharia nada) */
+function limparFicticiosAuto() {
+  try {
+    if (!DB.settings || DB.settings.ficticiosLimpos) return null;
+    if (typeof temNuvem === 'function' && temNuvem()) { let emDia = false; try { emDia = JSON.parse(localStorage.getItem('ingrid_emdia_v1')) === true; } catch (e) {} if (!emDia) return null; }
+    if (DB.demo && !(typeof temNuvem === 'function' && temNuvem())) return null;   /* a demonstração pública continua com exemplos */
+    const r = limparFicticios(); DB.settings.ficticiosLimpos = new Date().toISOString(); _opSave(); return r;
+  } catch (e) { return null; }
+}
 /* MANUAL DA EMROMA (Doc 12–16/10 item 3): ela cola o manual operacional uma vez; o app parte em
    trechos pelo título e o assistente consulta SÓ o trecho do assunto (ver_manual) — o manual inteiro
    em toda pergunta custaria muito. Fica no banco DELA (não vai para o código público). */
