@@ -24,7 +24,9 @@ function opCurta(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : 
 function opFicha(b) { return '#/adm/clients/' + encodeURIComponent(b.clienteId ? 'c:' + b.clienteId : chaveCliente(b)); }
 function opPapel(b) {
   const x = Tours.get(b.tourId);
-  return x && (x.priceMode === 'transfer' || x.type === 'transfer') ? 'motorista' : 'guia';
+  if (x && (x.priceMode === 'transfer' || x.type === 'transfer')) return 'motorista';
+  /* Doc 19–21/10 item 8: transfer que veio do orçamento (texto livre) também pede MOTORISTA */
+  return typeof RE_TRANSFER !== 'undefined' && RE_TRANSFER.test([b.servicoTxt, b.origem, b.destino, b.voo].filter(Boolean).join(' ')) ? 'motorista' : 'guia';
 }
 function opPrimeiro(n) { return String(n || '').split(' ')[0]; }
 function opBaixa(nome, linhas) {
@@ -284,6 +286,48 @@ function mdLiga(dia) {
     Tarefas.cria({ texto: v, prazo: p.data || '', hora: p.hora || '', repete: p.repete || '' }); toast('Tarefa anotada'); admHoje(dia); };
   const inp = $('#mdTf'); if (inp) inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); add && add.click(); } };
 }
+/* relógios: Itália, Brasil e o do aparelho (áudio da Ingrid 23/10 — ela viaja por vários fusos) */
+function mdRelogiosHtml() {
+  const agora = new Date(), h = (tz) => agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', ...(tz ? { timeZone: tz } : {}) });
+  const aqui = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const l = [['🇮🇹 Itália', h('Europe/Rome')], ['🇧🇷 Brasil', h('America/Sao_Paulo')]];
+  if (h() !== l[0][1] && h() !== l[1][1]) l.push(['📍 Aqui', h()]);
+  return l.map(([n, v]) => `<span class="md-rel">${n} <b>${v}</b></span>`).join('');
+}
+/* no celular, a faixa da semana no lugar do mês */
+function mdSemanaHtml(dia) {
+  const d0 = new Date(dia + 'T12:00:00'), seg = addDays(dia, -((d0.getDay() + 6) % 7)), hoje = isoToday();
+  const W = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
+  return `<div class="md-semana">${W.map((w, i) => { const iso = addDays(seg, i), n = Op.doDia(iso).filter(b => b.status !== 'cancelled').length;
+    return `<button class="md-sd ${iso === dia ? 'on' : ''} ${iso === hoje ? 'today' : ''}" data-dia="${iso}"><small>${w}</small><b>${+iso.slice(8)}</b>${n ? '<i></i>' : ''}</button>`; }).join('')}</div>`;
+}
+function mdEventoHtml(b) {
+  const pres = b.prestadorId ? Equipe.get(b.prestadorId) : null, nome = opNomeServ(b);
+  const transfer = typeof RE_TRANSFER !== 'undefined' && RE_TRANSFER.test(nome + ' ' + (b.origem || '') + ' ' + (b.destino || ''));
+  const sub = [esc(opPrimeiro(b.name || '')), b.pax ? `${b.pax} ${+b.pax === 1 ? 'pessoa' : 'pessoas'}` : '', (b.origem || b.destino) ? esc((b.origem || '?') + (b.destino ? ' → ' + b.destino : '')) : ''].filter(Boolean).join(' • ');
+  const falta = b.status !== 'cancelled' ? Op.dueIngrid(b) : 0;
+  const pills = b.status === 'cancelled' ? '<span class="md-pill bad">cancelado</span>' : [
+    pres ? `<span class="md-pill ok">${pres.tipo === 'motorista' ? 'Motorista' : 'Guia'}: ${esc(opPrimeiro(pres.nome))}</span>` : `<span class="md-pill warn">sem ${transfer ? 'motorista' : 'guia'}</span>`,
+    b.voucherEm ? '<span class="md-pill ok">Voucher enviado</span>' : '',
+    falta > 0 ? `<span class="md-pill bad">falta ${eur(Math.round(falta * 100) / 100)}</span>` : ''].join('');
+  return `<div class="md-ev reserva ${b.status === 'cancelled' ? 'cancel' : ''}">
+    <button class="md-ev-lin" data-mdabre="${esc(b.id)}" aria-expanded="false">
+      <span class="md-h">${esc(b.time || '')}</span><span class="md-ico" aria-hidden="true">${transfer ? '🚐' : '🎟'}</span>
+      <span class="md-tx"><b>${esc(nome)}</b><small>${sub}</small></span><span class="md-pills">${pills}</span><span class="md-seta" aria-hidden="true">▸</span></button>
+    <div class="md-det" id="mdd-${esc(b.id)}" hidden>${opCardServico(b)}</div></div>`;
+}
+function mdAtrasadosHtml(late, hoje) {
+  if (!late.length) return '';
+  const tot = late.reduce((s, b) => s + Op.dueIngrid(b), 0), dd = (iso) => Math.round((new Date(hoje + 'T12:00:00') - new Date(iso + 'T12:00:00')) / 864e5);
+  return `<section class="card md-atras"><div class="rp-cab"><h3>Pagamentos atrasados</h3><b class="md-tot">${eur(Math.round(tot * 100) / 100)}</b></div>
+    <p class="why">${late.length} ${late.length > 1 ? 'pendências' : 'pendência'} de todas as datas</p>
+    ${late.sort((a, b) => String(Bookings.dueDate(a)).localeCompare(String(Bookings.dueDate(b)))).slice(0, 12).map(b => { const v = Bookings.dueDate(b), n = dd(v);
+      return `<div class="md-at">
+      <div class="md-at-l"><a href="${b.clienteId ? fichaHref({ id: b.clienteId }) : '#/adm/clients/' + encodeURIComponent(chaveCliente(b))}"><b>${esc(b.name)}</b></a><b class="md-at-v">${eur(Math.round(Op.dueIngrid(b) * 100) / 100)}</b></div>
+      <small>${esc(opNomeServ(b))} · venceu em ${opCurta(v)} · ${n} ${n === 1 ? 'dia' : 'dias'}</small>
+      <div class="btnrow"><button class="mini" data-mdver="${esc(b.id)}">Ver reserva</button><button class="mini strong" data-mdpg="${esc(b.id)}">Registrar pagamento</button></div></div>`; }).join('')}
+    <a class="mini md-fin" href="#/adm/money">Ver financeiro →</a></section>`;
+}
 function admHoje(arg) {
   if (typeof parceriaGabi === 'function') parceriaGabi();
   { const lf = typeof limparFicticiosAuto === 'function' ? limparFicticiosAuto() : null;
@@ -301,42 +345,52 @@ function admHoje(arg) {
   const noDia = lista.reduce((s, b) => { const n = Op.noDia(b); return s + (n.para === 'prestador' ? n.valor : 0); }, 0);
   const pax = lista.filter(b => b.status !== 'cancelled').reduce((s, b) => s + (+b.pax || 0), 0);
   const dias = [[hoje, 'Hoje'], [addDays(hoje, 1), 'Amanhã'], [addDays(hoje, 2), 'Depois de amanhã']];
+  const f = admHoje._f || 'tudo';
   admShell('today', `
-    <div class="pagehead"><h1 class="pageh">${dia === hoje ? t('goodMorning') : 'Dia ' + opCurta(dia)}</h1>
-      <div class="chips">
-        ${dias.map(([d, l]) => `<button class="chip ${d === dia ? 'on' : ''}" data-dia="${d}">${l}</button>`).join('')}
-        <button class="mini" data-dia="${addDays(dia, -1)}" aria-label="dia anterior">←</button>
-        <input type="date" id="hjData" class="op-date" value="${dia}" aria-label="escolher dia">
-        <button class="mini" data-dia="${addDays(dia, 1)}" aria-label="próximo dia">→</button>
-      </div></div>
+    <div class="md-topo">
+      <div class="md-ola"><h1 class="pageh">${t('goodMorning')}</h1>
+        <p class="md-data">${new Date(hoje + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <div class="md-relogios" id="mdRel">${mdRelogiosHtml()}</div></div>
+      <div class="md-acoes"><button class="mini strong" id="mdTfBtn">+ Tarefa</button></div>
+    </div>
+    <div class="frow md-novatf" id="mdNovaTf" hidden><label class="fld grow"><input id="mdTf" autocomplete="off" placeholder="Nova tarefa — ex.: ligar para a Ana amanhã 10h"></label><button class="cta sm" id="mdTfAdd">Anotar</button></div>
     <div class="op-busca">
       <input id="hjBusca" type="search" autocomplete="off" placeholder="🔎 Buscar em tudo: nome, palavra-chave, voo ou os 4 últimos números do telefone">
       <div id="hjRes"></div>
     </div>
-    ${dia === hoje && (late.length || semPres.length || novos) ? `<div class="op-pend">
+    ${dia === hoje && (semPres.length || novos) ? `<div class="op-pend">
       ${novos ? `<a class="alert warn" href="#/adm/consulta">🧾 ${novos} ${novos > 1 ? 'pedidos esperando orçamento' : 'pedido esperando orçamento'} →</a>` : ''}
       ${(() => { const n = transfersDe(isoToday(), addDays(isoToday(), 7), 'roma').filter(b => !b.ncc).length; return n ? `<a class="alert warn" href="#/adm/transfer">🚐 ${n} ${n > 1 ? 'transfers' : 'transfer'} dos próximos 7 dias ainda não ${n > 1 ? 'pedidos' : 'pedido'} na ${esc(nccConfig().nome)} →</a>` : ''; })()}
       ${semPres.length ? `<a class="alert warn" href="#/adm/guias">👤 ${semPres.length} ${semPres.length > 1 ? 'serviços' : 'serviço'} sem guia/motorista nos próximos 3 dias →</a>` : ''}
-      ${late.length ? `<a class="alert bad" href="#/adm/bookings">⚠ ${late.length} ${late.length > 1 ? 'pagamentos atrasados' : 'pagamento atrasado'} · ${eur(late.reduce((s, b) => s + Bookings.due(b), 0))} →</a>` : ''}
     </div>` : ''}
-    ${mdCalendarioHtml(dia)}
-    <p class="op-resumo"><b>${fmtDate(dia)}</b> · ${lista.length} ${lista.length === 1 ? 'serviço' : 'serviços'} · ${pax} pessoas${noDia ? ` · <b>${eur(noDia)}</b> pagos no dia a guias e motoristas` : ''}</p>
+    <div class="md-grade">
+      <div class="md-esq">
+        ${mdCalendarioHtml(dia)}
+        ${mdSemanaHtml(dia)}
+        ${mdAtrasadosHtml(late, hoje)}
+      </div>
+      <div class="md-dir">
     ${(() => {
-      /* A AGENDA DO DIA (espelha o TI ARTES): serviços e tarefas numa linha do
-         tempo única, em ordem de horário. As atrasadas vêm primeiro. */
+      /* AGENDA DO DIA compacta (proposta 23/10 + áudio da Ingrid): uma linha por coisa,
+         tocar abre os detalhes do serviço. Tarefas futuras saíram daqui — ela vê indo de data em data. */
       const taskHoje = dia === hoje ? tfHoje.hoje : Tarefas.doDia(dia).filter(x => x.tipo === 'tarefa' && !x.feita);
+      const atrasadas = dia === hoje ? tfHoje.atrasadas : [];
       const linha = [...lista.map(b => ({ h: b.time || '99:99', k: 'svc', b })), ...taskHoje.map(x => ({ h: x.hora || '99:98', k: 'task', x }))]
         .sort((a, b) => String(a.h).localeCompare(String(b.h)));
-      const atrasadas = dia === hoje ? tfHoje.atrasadas : [];
-      if (!linha.length && !atrasadas.length && !sozinhas.length) return `<div class="emptybox"><p>Nada marcado para este dia.</p><a class="mini" href="#/adm/consulta">Ver pedidos sob consulta</a></div>`;
-      const cab = `<div class="md-ag-cab"><h3>📅 Agenda ${dia === hoje ? 'de hoje' : 'do dia'}</h3>${atrasadas.length ? `<span class="tf-bad">${atrasadas.length} atrasada${atrasadas.length > 1 ? 's' : ''}</span>` : ''}<a class="mini" href="#/adm/tarefas">todas as tarefas</a></div>`;
+      const nS = lista.length, nT = taskHoje.length + atrasadas.length;
+      const cab = `<div class="md-ag-cab"><h3>Agenda ${dia === hoje ? 'de hoje' : 'de ' + opCurta(dia)}</h3>
+        <div class="chips md-filtro">${[['tudo', 'Tudo'], ['res', 'Reservas · ' + nS], ['tf', 'Tarefas · ' + nT]].map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''}" data-mdf="${k}">${l}</button>`).join('')}</div>
+        <div class="chips md-dianav"><button class="mini" data-dia="${addDays(dia, -1)}" aria-label="dia anterior">←</button><input type="date" id="hjData" class="op-date" value="${dia}" aria-label="escolher dia"><button class="mini" data-dia="${addDays(dia, 1)}" aria-label="próximo dia">→</button>${dia !== hoje ? `<button class="mini" data-dia="${hoje}">hoje</button>` : ''}</div></div>
+        <p class="op-resumo">${nS} ${nS === 1 ? 'serviço' : 'serviços'} · ${pax} pessoas${noDia ? ` · <b>${eur(noDia)}</b> pagos no dia a guias e motoristas` : ''}</p>`;
+      if (!linha.length && !atrasadas.length && !sozinhas.length) return cab + `<div class="emptybox"><p>Nada marcado para este dia.</p></div>`;
       const avisos = sozinhas.length ? `<div class="card md-avisos">${sozinhas.map(x => `<p class="why">✨ ${esc(x.texto)} — ${esc(x.obsFim)}</p>`).join('')}</div>` : '';
-      const atr = atrasadas.map(x => `<div class="card tf-item atrasada">${tfLinha(x, hoje)}</div>`).join('');
-      const corpo = linha.map(it => it.k === 'svc' ? opCardServico(it.b) : `<div class="card tf-item">${tfLinha(it.x, hoje)}</div>`).join('');
-      return cab + avisos + atr + corpo;
+      const atr = f === 'res' ? '' : atrasadas.map(x => `<div class="md-ev tarefa atrasada">${tfLinha(x, hoje)}</div>`).join('');
+      const corpo = linha.filter(it => f === 'tudo' || (f === 'res' ? it.k === 'svc' : it.k === 'task'))
+        .map(it => it.k === 'svc' ? mdEventoHtml(it.b) : `<div class="md-ev tarefa"><span class="md-h">${esc(it.x.hora || '')}</span>${tfLinha(it.x, hoje)}</div>`).join('');
+      return cab + avisos + `<div class="md-lista">${atr}${corpo || '<p class="why">Nada neste filtro.</p>'}</div>`;
     })()}
-    ${mdDevemHtml(hoje)}
-    ${mdTarefasHtml(hoje, dia)}
+      </div>
+    </div>
   `);
   const vai = (d) => go('/adm/today/' + d);
   $$('[data-dia]').forEach(b => b.onclick = () => vai(b.dataset.dia));
@@ -362,11 +416,20 @@ function admHoje(arg) {
   opLigaCards(() => admHoje(dia));
   tfLigaMini(() => admHoje(dia));
   mdLiga(dia);
+  $$('[data-mdf]').forEach(x => x.onclick = () => { admHoje._f = x.dataset.mdf; admHoje(dia); });
+  $$('[data-mdabre]').forEach(x => x.onclick = () => { const d = $('#mdd-' + x.dataset.mdabre), ab = d.hidden; d.hidden = !ab; x.setAttribute('aria-expanded', ab); x.parentNode.classList.toggle('aberto', ab); });
+  const ir = (id, pg) => { const b = Bookings.get(id); if (!b) return; admHoje._foco = b.id; admHoje._pg = pg; admHoje._f = 'tudo'; b.date === dia ? admHoje(dia) : vai(b.date); };
+  $$('[data-mdver]').forEach(x => x.onclick = () => ir(x.dataset.mdver, false));
+  $$('[data-mdpg]').forEach(x => x.onclick = () => ir(x.dataset.mdpg, true));
+  $('#mdTfBtn').onclick = () => { const w = $('#mdNovaTf'); w.hidden = !w.hidden; if (!w.hidden) $('#mdTf').focus(); };
+  clearInterval(admHoje._rel); admHoje._rel = setInterval(() => { const r = $('#mdRel'); if (!r) return clearInterval(admHoje._rel); r.innerHTML = mdRelogiosHtml(); }, 30000);
   /* o backup do dia sai sozinho na primeira abertura do painel */
   setTimeout(() => bkpDoDia(), 600);
   if (admHoje._foco) {
+    const d = $('#mdd-' + admHoje._foco); if (d) { d.hidden = false; d.parentNode.classList.add('aberto'); }
+    if (admHoje._pg) { const pb = document.querySelector(`[data-abre="pg-${admHoje._foco}"]`); if (pb) pb.click(); }
     const el = document.getElementById('svc-' + admHoje._foco);
-    admHoje._foco = null;
+    admHoje._foco = null; admHoje._pg = false;
     if (el) { el.classList.add('foco'); setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60); }
   }
   Coach.start([
@@ -588,7 +651,7 @@ function cadastroDaRota(arg) {
   if (b && b.clienteId) return Cadastro.get(b.clienteId);
   return Cadastro.acha({ nome: k, email: k, whats: k });
 }
-const fichaHref = (c) => '#/adm/clients/' + encodeURIComponent('c:' + c.id);
+const fichaHref = (c) => '#/adm/clients/' + encodeURIComponent(c.id ? 'c:' + c.id : 'g:' + (c.nome || ''));
 
 /* =====================================================
    FICHA DO CLIENTE — a planilha "2026_10_26 Camyla Foresti", no app
@@ -1160,7 +1223,8 @@ function admPrecos(sub) {
   const tabs = Precos.all();
   const atual = tabs.find(t => t.id === sub) || tabs[0];
   const tipo = Precos.base(atual).tipo, deriva = !!atual.derivaDe, editavel = !deriva;
-  const cols = PR_COLS[tipo];
+  /* Doc 17/10 item 6: "tirar valores de cartão SOMENTE dos transfers de Roma" (Milão mantém) */
+  const cols = tipo === 'transfer' && !/mil[aã]o/i.test(atual.id + ' ' + atual.nome) ? PR_COLS.transfer.filter(c => !/cartao/i.test(c.key || '')) : PR_COLS[tipo];
   const secoes = Precos.secoesView(atual);
   const seg = `<div class="pr-seg">${tabs.map(t => `<a class="pr-seg-b ${t.id === atual.id ? 'on' : ''}" href="#/adm/precos/${t.id}">${esc(t.nome)}</a>`).join('')}</div>`;
   const cel = (col, c) => {
@@ -2560,6 +2624,12 @@ function tfPrazoTxt(t, hoje) {
 }
 function tfClienteHref(t) {
   if (t.clienteKey) return '#/adm/clients/' + encodeURIComponent(t.clienteKey);
+  /* Doc 21–23/10 item 7: o nome marrom tem que abrir SEMPRE (Jordana abria, Gilton não) —
+     sem chave, acha pela reserva ou pelo nome */
+  const bid = t.bookingId || (t.liga && t.liga.bookingId), b = bid && Bookings.get(bid);
+  if (b && b.clienteId) return fichaHref({ id: b.clienteId });
+  if (b) return '#/adm/clients/' + encodeURIComponent(chaveCliente(b));
+  if (t.clienteNome) { const c = Cadastro.acha({ nome: t.clienteNome, whats: t.whats || '' }); return fichaHref(c || { nome: t.clienteNome }); }
   return '';
 }
 function tfBaixaIcs(t) {

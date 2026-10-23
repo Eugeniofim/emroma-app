@@ -880,3 +880,77 @@ details.orc-links summary{cursor:pointer;color:var(--ink-2);font-size:var(--fs-3
 /* Meu dia: calendário compacto (21/10) */
 .md-cal .agrid .agc{aspect-ratio:auto;min-height:48px;max-height:64px;padding:4px}
 .md-cal .agrid{gap:6px}
+
+/* ===== MEU DIA v1.137 — proposta de 23/10 (agenda compacta, relógios, atrasados à vista) ===== */
+.md-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.md-ola .pageh{margin:0}
+.md-data{margin:2px 0 6px;color:var(--ink-2);font-size:var(--fs-3);text-transform:none}
+.md-data::first-letter{text-transform:uppercase}
+.md-novatf[hidden],.md-det[hidden]{display:none!important}
+.md-relogios{display:flex;gap:6px;flex-wrap:wrap}
+.md-rel{font-size:var(--fs-2);color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-pill);padding:3px 10px}
+.md-rel b{color:var(--ink);font-family:var(--f-mono);font-weight:var(--t-strong)}
+.md-acoes{display:flex;gap:8px;align-items:center}
+.md-novatf{margin:0 0 12px}
+.md-grade{display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:20px;align-items:start;margin-top:8px}
+.md-esq{display:flex;flex-direction:column;gap:14px;position:sticky;top:12px}
+.md-esq .md-cal{margin:0}
+.md-esq .md-cal .agrid .agc{min-height:34px;max-height:40px;padding:2px}
+.md-esq .md-cal .why{display:none}
+.md-semana{display:none}
+.md-dir .md-ag-cab{margin:0 0 4px;align-items:center}
+.md-dir .md-ag-cab .mini{margin-left:0}
+.md-dianav{margin-left:auto;align-items:center}
+.md-lista{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.md-ev{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.md-ev.aberto{border-color:var(--accent-line);box-shadow:var(--sh-1)}
+.md-ev.cancel{opacity:.55}
+.md-ev-lin{all:unset;box-sizing:border-box;display:grid;grid-template-columns:52px 26px 1fr auto 14px;gap:10px;align-items:center;width:100%;padding:10px 12px;cursor:pointer;min-height:52px}
+.md-ev-lin:hover{background:var(--surface-2)}
+.md-ev-lin:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.md-h{font-family:var(--f-mono);font-size:var(--fs-2);color:var(--ink-2);font-weight:var(--t-strong)}
+.md-ico{font-size:18px;text-align:center}
+.md-tx{display:flex;flex-direction:column;min-width:0}
+.md-tx b{font-size:var(--fs-3);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.md-tx small{color:var(--ink-3);font-size:var(--fs-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.md-pills{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.md-pill{font-size:var(--fs-1);border-radius:var(--r-pill);padding:2px 8px;white-space:nowrap;border:1px solid var(--line);color:var(--ink-2)}
+.md-pill.ok{background:var(--ok-wash);color:var(--ok);border-color:transparent}
+.md-pill.warn{background:var(--highlight-wash);color:var(--highlight-text);border-color:transparent}
+.md-pill.bad{background:var(--accent-wash);color:var(--danger);border-color:transparent}
+.md-seta{color:var(--ink-3);transition:transform .18s}
+.md-ev.aberto .md-seta{transform:rotate(90deg)}
+.md-det{padding:0 8px 8px}
+.md-det>.card{margin:0;box-shadow:none}
+.md-ev.tarefa{display:grid;grid-template-columns:52px 1fr;align-items:center;padding:4px 12px 4px 12px}
+.md-ev.tarefa.atrasada{grid-template-columns:1fr;border-color:var(--danger)}
+.md-ev.tarefa .tf-row{border:0;padding:6px 0;background:none}
+.md-atras{margin:0;border-left:3px solid var(--danger)}
+.md-atras h3{margin:0;font-size:var(--fs-4)}
+.md-tot{color:var(--danger);font-size:var(--fs-4);font-family:var(--f-mono)}
+.md-at{padding:10px 0;border-top:1px solid var(--line)}
+.md-at-l{display:flex;justify-content:space-between;gap:8px}
+.md-at-v{font-family:var(--f-mono);color:var(--danger)}
+.md-at small{display:block;color:var(--ink-3);margin:2px 0 6px}
+.md-fin{display:inline-block;margin-top:8px}
+@media(max-width:860px){
+  .md-grade{grid-template-columns:1fr}
+  .md-esq{position:static;display:contents}
+  .md-esq .md-cal{display:none}
+  .md-semana{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;order:-1}
+  .md-sd{all:unset;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 0;border-radius:var(--r-sm);cursor:pointer;min-height:48px;position:relative}
+  .md-sd small{font-size:var(--fs-1);color:var(--ink-3)}
+  .md-sd b{font-size:var(--fs-3)}
+  .md-sd i{width:5px;height:5px;border-radius:50%;background:var(--accent)}
+  .md-sd.today b{color:var(--accent)}
+  .md-sd.on{background:var(--accent);color:#fff}
+  .md-sd.on small,.md-sd.on b{color:#fff}.md-sd.on i{background:#fff}
+  .md-grade{display:flex;flex-direction:column}
+  .md-atras{order:3}
+  .md-dir{order:2}
+  .md-ev-lin{grid-template-columns:44px 1fr 14px;grid-template-areas:"h tx s" ". p p"}
+  .md-ev-lin .md-h{grid-area:h}.md-ev-lin .md-ico{display:none}.md-ev-lin .md-tx{grid-area:tx}.md-ev-lin .md-pills{grid-area:p;justify-content:flex-start}.md-ev-lin .md-seta{grid-area:s}
+  .md-ev.tarefa{grid-template-columns:44px 1fr}
+  .md-dianav{margin-left:0}
+}
+.md-det .svc{margin:0;box-shadow:none;border-radius:var(--r)}

@@ -102,6 +102,11 @@ const Precos = {
       for (const x of Tours.all ? Tours.all() : (DB.tours || [])) if (/roma-antiga/.test(x.id || '')) for (const g of x.ingressos || []) if (/coliseu/i.test((g.nome && g.nome.pt) || '') && +g.gratisAte === 17) g.gratisAte = 18;
       DB.settings.ingRA18 = true; mudou = true; if (typeof save === 'function') try { save(); } catch (e) {}
     }
+    /* 23/10 (Doc 17/10 item 8): Vaticano — reduzido até 17 anos completos (não 18) */
+    if (typeof DB.settings === 'object' && DB.settings && !DB.settings.ingVat17 && typeof Tours !== 'undefined') {
+      for (const x of Tours.all ? Tours.all() : (DB.tours || [])) for (const g of x.ingressos || []) if (/vaticano/i.test((g.nome && g.nome.pt) || '') && +g.reduzidoAte === 18) g.reduzidoAte = 17;
+      DB.settings.ingVat17 = true; mudou = true; if (typeof save === 'function') try { save(); } catch (e) {}
+    }
     /* 07/10: a aba "Tr Milao" da planilha de 06/10 entra como tabela nova (uma vez; ela edita depois) */
     if (Array.isArray(DB.precos) && DB.precos.length && !DB.precos.some(t => t.id === 'transfer-milao')) {
       DB.precos.push({ id: 'transfer-milao', nome: 'Transfer Milão', tipo: 'transfer', secoes: PRECOS_MILAO.map((x, si) => ({ id: 'm' + si, titulo: x.titulo,

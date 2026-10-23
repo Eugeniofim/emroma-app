@@ -396,7 +396,7 @@ function _seed() {
       photo: 'fotos/museus.jpg',
       tagline: { pt: 'Dos museus à Capela Sistina', en: 'From the museums to the Sistine Chapel' },
       ingressos: [
-        { nome: { pt: 'Museus do Vaticano', en: 'Vatican Museums' }, gratisAte: 6, reduzido: 15, reduzidoAte: 18, inteiro: 25 },
+        { nome: { pt: 'Museus do Vaticano', en: 'Vatican Museums' }, gratisAte: 6, reduzido: 15, reduzidoAte: 17, inteiro: 25 },
         { nome: { pt: 'Fones de ouvido', en: 'Headsets' }, inteiro: 1.5, noDia: true },
       ],
       price: 420, priceMode: 'tabela',
@@ -429,7 +429,7 @@ function _seed() {
       photo: 'fotos/spedro-int.jpg',
       tagline: { pt: 'Museus, Sistina e São Pedro num dia só', en: 'Museums, Sistine and St Peter’s in one day' },
       ingressos: [
-        { nome: { pt: 'Museus do Vaticano', en: 'Vatican Museums' }, gratisAte: 6, reduzido: 15, reduzidoAte: 18, inteiro: 25 },
+        { nome: { pt: 'Museus do Vaticano', en: 'Vatican Museums' }, gratisAte: 6, reduzido: 15, reduzidoAte: 17, inteiro: 25 },
         { nome: { pt: 'Basílica de São Pedro', en: 'St Peter’s Basilica' }, inteiro: 7, guia: 7 },
         { nome: { pt: 'Fones de ouvido', en: 'Headsets' }, inteiro: 1.5, noDia: true },
       ],
