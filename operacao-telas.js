@@ -657,6 +657,7 @@ const fichaHref = (c) => '#/adm/clients/' + encodeURIComponent(c.id ? 'c:' + c.i
    FICHA DO CLIENTE — a planilha "2026_10_26 Camyla Foresti", no app
 ===================================================== */
 function admFicha(arg) {
+  juntoMigra();
   const c = cadastroDaRota(arg);
   if (!c) { admShell('clients', cliTopo('clientes') + '<h1 class="pageh">Cliente não encontrado</h1><a class="mini" href="#/adm/clients">← clientes</a>'); return; }
   const hoje = isoToday(), R = Cadastro.resumo(c, hoje);
@@ -678,6 +679,9 @@ function admFicha(arg) {
   for (const b of ativas) for (const p of participantesDe(b)) if (p.clienteId !== c.id && _nomeN(p.nome) !== _nomeN(c.nome)) {
     const kk = p.clienteId || _nomeN(p.nome); const x = junto.get(kk) || { ...p, vezes: 0 }; x.vezes++; junto.set(kk, x);
   }
+  /* quem foi cadastrado como "veio junto com: <esta cliente>" também aparece aqui (Doc 23/10 item 10) */
+  for (const x of Cadastro.trouxe(c)) if (!junto.has(x.id)) junto.set(x.id, { nome: x.nome, nasc: x.nasc, clienteId: x.id, vezes: 0 });
+  const proxDela = ativas.filter(b => b.clienteId === c.id && b.date >= isoToday()), vaiTb = !proxDela.length || proxDela.some(b => b.compradorVai !== false);
   /* a tabela dos servicos, como a planilha dela */
   const linhaServ = (b) => {
     const nd = Op.noDia(b), pres = b.prestadorId ? Equipe.get(b.prestadorId) : null, pago = Bookings.paid(b);
@@ -710,9 +714,9 @@ function admFicha(arg) {
       <div class="fc-id">
         <h1 class="pageh" style="margin:0">${esc(c.nome)}</h1>
         <div class="chips" style="margin:8px 0 0">
-          ${c.veioPor ? `<span class="pill conta">veio por: ${esc(veioPorNome(c.veioPor))}${ind ? ` — <a href="${fichaHref(ind)}">${esc(ind.nome)}</a>` : c.indicadoNome ? ' — ' + esc(c.indicadoNome) : ''}</span>` : '<span class="pill warn">veio por: ?</span>'}
+          ${c.veioPor === 'junto' ? (quemComprou ? '' : `<span class="pill">veio junto com ${esc(c.indicadoNome || '?')}</span>`) : c.veioPor ? `<span class="pill conta">veio por: ${esc(veioPorNome(c.veioPor))}${ind ? ` — <a href="${fichaHref(ind)}">${esc(ind.nome)}</a>` : c.indicadoNome ? ' — ' + esc(c.indicadoNome) : ''}</span>` : '<span class="pill warn">veio por: ?</span>'}
           ${par ? `<span class="pill conta">🤝 ${esc(par.nome)}${par.cupom ? ' · ' + esc(par.cupom) : ''}</span>` : ''}
-          ${quemComprou ? `<span class="pill">veio junto de <a href="${fichaHref(quemComprou)}">${esc(quemComprou.nome)}</a></span>` : ''}
+          ${quemComprou ? `<span class="pill">viaja junto com <a href="${fichaHref(quemComprou)}">${esc(quemComprou.nome)}</a></span>` : ''}
           ${R.reservas > 1 ? `<span class="pill ok">${R.reservas} passeios</span>` : ''}
           ${String(f.tags || '').split(',').map(x => x.trim()).filter(Boolean).map(x => `<span class="pill conta">${esc(x)}</span>`).join('')}
         </div>
@@ -773,6 +777,7 @@ function admFicha(arg) {
           <div class="frow" style="margin-top:8px"><label class="fld grow"><input id="fcTf" placeholder="Nova tarefa: mandar o voucher sexta 10h"></label><button class="mini strong" id="fcTfAdd">+ tarefa</button><button class="mini" id="fcNtAdd">+ anotação</button></div>
         </section>
         <section class="card"><h3>Quem viaja com ${esc(opPrimeiro(c.nome))}</h3>
+          ${proxDela.length ? `<label class="optin"><input type="checkbox" id="fcVaiTb" ${vaiTb ? 'checked' : ''}><span><b>${esc(opPrimeiro(c.nome))} (quem comprou) também viaja</b><small>desmarque se comprou só para outras pessoas — vale para os ${proxDela.length} serviço(s) marcados</small></span></label>` : ''}
           ${[...junto.values()].map(p => `<div class="deprow">${p.clienteId ? `<a href="${fichaHref({ id: p.clienteId })}">${esc(p.nome)}</a>` : esc(p.nome)}<small class="mono">${idadeDe(p.nasc) != null ? idadeDe(p.nasc) + ' anos' : esc(p.nasc || '')}${p.vezes > 1 ? ' · ' + p.vezes + ' passeios' : ''}</small></div>`).join('') || '<p class="why">Ninguém ainda.</p>'}
         </section>
         ${indicou.length ? `<section class="card"><h3>Indicou · ${indicou.length}</h3>${indicou.map(x => `<div class="deprow"><a href="${fichaHref(x)}">${esc(x.nome)}</a><small>${x.criado ? new Date(x.criado).toLocaleDateString('pt-BR') : ''}</small></div>`).join('')}</section>` : ''}
@@ -797,9 +802,10 @@ function admFicha(arg) {
     const nasc = $('#fcNasc').value.trim();
     if (nasc && !nascOk(nasc)) { $('#fcNasc').focus(); return toast('Nascimento em dd/mm/aaaa'); }
     Cadastro.salva(c.id, { nome: $('#fcNome').value, nasc, whats: $('#fcWa').value, email: $('#fcEm').value, insta: $('#fcIg').value, pais: $('#fcPais').value,
-      veioPor: $('#fcVeio').value, indicadoPor: indC ? indC.id : '', indicadoNome: indC ? indC.nome : indNome, parceiroId: $('#fcPar').value, idioma: $('#fcIdi').value });
+      ...veioPatch($('#fcVeio').value, indNome, c.id), parceiroId: $('#fcPar').value, idioma: $('#fcIdi').value });
     toast('Cadastro salvo'); re();
   };
+  if ($('#fcVaiTb')) $('#fcVaiTb').onchange = (e) => { for (const b of proxDela) { b.compradorVai = e.target.checked; _opSaveBooking(b); } toast(e.target.checked ? 'Anotado: quem comprou também viaja' : 'Anotado: quem comprou não viaja'); re(); };
   mascaraNasc($('#fcNasc'));
   $('#fcSalva').onclick = () => { Fichas.salva(k, { notas: $('#fcNotas').value, tags: $('#fcTags').value }); toast('Anotações salvas'); re(); };
   const nova = (tipo) => {
@@ -957,7 +963,7 @@ function admClientes() {
   $('#ncSalva').onclick = () => {
     const nome = $('#ncNome').value.trim(); if (!nome) return toast('Falta o nome.');
     const indN = $('#ncInd').value.trim(), indC = indN ? Cadastro.all().find(x => _nomeN(x.nome) === _nomeN(indN)) : null;
-    const c = Cadastro.novo({ nome, whats: $('#ncWa').value, veioPor: $('#ncVeio').value || (indN ? 'indicacao' : ''), indicadoPor: indC ? indC.id : '', indicadoNome: indC ? indC.nome : indN });
+    const c = Cadastro.novo({ nome, whats: $('#ncWa').value, ...veioPatch($('#ncVeio').value || (indN ? 'indicacao' : ''), indN) });
     if (c) go(fichaHref(c).slice(1)); else toast('Não cadastrou');
   };
   $('#clCsv').onclick = () => {
@@ -1795,16 +1801,17 @@ function opVoucherTexto(b) {
   const bs = voucherViagem(b), orc = bs.map(x => x.orcamentoId && Orc.get(x.orcamentoId)).find(Boolean) || null;
   const pMax = Math.max(...bs.map(x => +x.pax || 0)), r2 = (n) => Math.round(n * 100) / 100;
   const semValores = bs.some(x => (x.voucherFora || []).includes('valores'));   /* agência: sem valores também no texto */
+  const soDia = !semValores && bs.some(x => (x.voucherFora || []).includes('sodia'));   /* Doc 23/10 item 11: só o "pagar no dia" */
   const l = [`Voucher — ${guiaNegocio()}`, '', `Nome: ${b.name}`, `Pessoas: ${(orc && orc.paxNota) || pMax + ' pessoa' + (pMax > 1 ? 's' : '')}`];
   if (orc && orc.bagagem) l.push(`Bagagem: ${orc.bagagem}`);
   l.push('');
   let T = 0, S = 0, D = 0;
   bs.forEach((x, n) => { const q = vchContaDe(x); T += q.total; S += q.sinal; D += q.dia;
-    l.push(`${n + 1}. ${opCurta(x.date)} ${diaSemanaCurto(x.date)} ${x.time || ''} — ${opNomeServ(x)}`); if (!semValores) l.push(`   Total ${eur(q.total)} · Sinal ${eur(q.sinal)}${q.pendente ? ' (a pagar)' : ''} · Pagar no dia ${eur(q.dia)}`);
+    l.push(`${n + 1}. ${opCurta(x.date)} ${diaSemanaCurto(x.date)} ${x.time || ''} — ${opNomeServ(x)}`); if (soDia) l.push(`   Pagar no dia ${eur(q.dia)}`); else if (!semValores) l.push(`   Total ${eur(q.total)} · Sinal ${eur(q.sinal)}${q.pendente ? ' (a pagar)' : ''} · Pagar no dia ${eur(q.dia)}`);
     const e = vchEncontro(x);
     l.push(`   Encontro: ${e.txt}${e.ponto && linkMapa(e.ponto) ? ' · ' + linkMapa(e.ponto) : ''}`);
     if (x.voo) l.push(`   Voo/trem: ${x.voo}`); });
-  if (!semValores) l.push('', `TOTAL: ${eur(r2(T))} · Sinal: ${eur(r2(S))} · Pagar no dia: ${eur(r2(D))}`);
+  if (soDia) l.push('', `Pagar no dia: ${eur(r2(D))}`); else if (!semValores) l.push('', `TOTAL: ${eur(r2(T))} · Sinal: ${eur(r2(S))} · Pagar no dia: ${eur(r2(D))}`);
   if (DB.settings.plantao) l.push('', `Suporte (plantão): ${DB.settings.plantao}`);
   l.push('', 'O voucher completo (pagamento, suporte e as instruções de cada serviço) segue em PDF.', guiaNome());
   return l.join('\n');
@@ -1979,7 +1986,7 @@ function opDocVoucher(id) {
   const cfg = bs.find(x => x.voucherFora || x.voucherNota || x.voucherPg || x.voucherMais) || {};
   const fora = new Set(cfg.voucherFora || []), nota = String(cfg.voucherNota || ''), pg = String(cfg.voucherPg || '');
   /* Doc 07/10 item 12: agência cobra comissão no dia — o cliente não pode ver total, sinal e "pagar no dia" */
-  const semValores = fora.has('valores');
+  const semValores = fora.has('valores'), soDia = !semValores && fora.has('sodia');
   const pMax = Math.max(...bs.map(x => +x.pax || 0));
   const pessoas = (orc && orc.paxNota) || (pMax ? pMax + ' pessoa' + (pMax > 1 ? 's' : '') : '');
   const bagagem = (orc && orc.bagagem) || (c && (c.bagagem || (c.viagem && c.viagem.bagagem))) || [...new Set(bs.map(x => x.malas).filter(Boolean))].join(' · ');
@@ -1999,11 +2006,11 @@ function opDocVoucher(id) {
       <tr><th>Pessoas:</th><td>${esc(pessoas)}${bs.some(x => (x.group || []).length) ? `<br><small>${esc([...new Set(bs.flatMap(x => (x.group || []).map(g => g.nome)))].join(', '))}</small>` : ''}</td></tr>
       <tr><th>Bagagem:</th><td>${esc(bagagem)}</td></tr>
     </tbody></table>
-    <div class="doc-tblwrap"><table class="tbl doc-tbl doc-orc"><thead><tr><th>Data</th><th>Hora</th><th>Serviço</th>${semValores ? '' : '<th class="right">Total</th><th class="right">Sinal</th><th class="right">Pagar no dia</th>'}</tr></thead><tbody>
+    <div class="doc-tblwrap"><table class="tbl doc-tbl doc-orc"><thead><tr><th>Data</th><th>Hora</th><th>Serviço</th>${semValores ? '' : soDia ? '<th class="right">Pagar no dia</th>' : '<th class="right">Total</th><th class="right">Sinal</th><th class="right">Pagar no dia</th>'}</tr></thead><tbody>
       ${bs.map((x, k) => { const q = contas[k]; return `<tr><td class="mono">${crmDataSem(x.date)}</td><td class="mono">${esc(x.time || '')}</td>
         <td>${esc(opNomeServ(x))}${x.voo && !String(opNomeServ(x)).toUpperCase().includes(String(x.voo).toUpperCase()) ? `<br><small>voo/trem ${esc(x.voo)}</small>` : ''}${!semValores && q.dia > 0 && q.paraIngrid ? `<br><small>a pagar à ${esc(guiaNegocio())} até ${fmtDate(Bookings.dueDate(x))}</small>` : ''}</td>
-        ${semValores ? '' : `<td class="mono right">${eur(q.total)}</td><td class="mono right">${eur(q.sinal)}${q.pendente ? '<br><small>a pagar</small>' : ''}</td><td class="mono right">${eur(q.dia)}</td>`}</tr>`; }).join('')}
-    </tbody>${semValores ? '' : `<tfoot><tr><td colspan="3"><b>TOTAL</b></td><td class="mono right"><b>${eur(r2(T.total))}</b></td><td class="mono right"><b>${eur(r2(T.sinal))}</b></td><td class="mono right"><b>${eur(r2(T.dia))}</b></td></tr></tfoot>`}</table></div>
+        ${semValores ? '' : soDia ? `<td class="mono right">${eur(q.dia)}</td>` : `<td class="mono right">${eur(q.total)}</td><td class="mono right">${eur(q.sinal)}${q.pendente ? '<br><small>a pagar</small>' : ''}</td><td class="mono right">${eur(q.dia)}</td>`}</tr>`; }).join('')}
+    </tbody>${semValores ? '' : soDia ? `<tfoot><tr><td colspan="3"><b>PAGAR NO DIA</b></td><td class="mono right"><b>${eur(r2(T.dia))}</b></td></tr></tfoot>` : `<tfoot><tr><td colspan="3"><b>TOTAL</b></td><td class="mono right"><b>${eur(r2(T.total))}</b></td><td class="mono right"><b>${eur(r2(T.sinal))}</b></td><td class="mono right"><b>${eur(r2(T.dia))}</b></td></tr></tfoot>`}</table></div>
     ${(() => { /* Doc 07/10 item 11: sem "ONDE E QUANDO" repetindo a tabela — só o que ela NÃO diz
          (o ponto de encontro do passeio, ou o destino que não está no nome do serviço) */
       const linhas = bs.map(x => { const ops = !ehTransfer(x) ? Pontos.doPasseio(x.tourId) : [], at = vchEncontro(x).ponto;
@@ -2018,7 +2025,7 @@ function opDocVoucher(id) {
     <p class="doc-ref">Reserva${bs.length > 1 ? 's' : ''} ${bs.map(x => esc(x.code)).join(' · ')}</p>
     <details class="nao-imprime vch-edita"><summary>✏️ Editar este voucher</summary>
       <p class="why">Tire o que não serve pra este cliente e escreva uma observação só dele. Os textos padrão você muda na aba Voucher.</p>
-      <div class="vch-blks"><label><input type="checkbox" data-vblk="valores" ${semValores ? '' : 'checked'}> <b>Valores</b> (total, sinal, pagar no dia) — tire quando for de agência</label>${todosBlocos.map(k => `<label><input type="checkbox" data-vblk="${k}" ${blocos.includes(k) && !fora.has(k) ? 'checked' : ''}> ${esc((VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome)}${auto.includes(k) ? '' : ' <small>(acrescentar)</small>'}</label>`).join('')}</div>
+      <div class="vch-blks"><label><input type="checkbox" data-vblk="valores" ${semValores ? '' : 'checked'}> <b>Valores</b> (total, sinal, pagar no dia) — tire quando for de agência</label><label><input type="checkbox" data-vblk="sodia" ${soDia ? 'checked' : ''}> <b>Só o "pagar no dia"</b> — esconde total e sinal, mostra só o que se paga no dia</label>${todosBlocos.map(k => `<label><input type="checkbox" data-vblk="${k}" ${blocos.includes(k) && !fora.has(k) ? 'checked' : ''}> ${esc((VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome)}${auto.includes(k) ? '' : ' <small>(acrescentar)</small>'}</label>`).join('')}</div>
       <label class="fld">Método de pagamento que o cliente escolheu (sai marcado ☑ no voucher)<select id="vchPg">${VCH_PG.map(([v, nm]) => `<option value="${v}" ${pg === v ? 'selected' : ''}>${nm}</option>`).join('')}</select></label>
       ${bs.filter(ehTransfer).map(x => `<fieldset class="vch-tr"><legend>${crmDataSem(x.date)} · ${esc(x.time || '')} — ${esc(opNomeServ(x)).slice(0, 60)}</legend>
         <div class="frow"><label class="fld sm">Voo/trem<input data-vtr="${esc(x.id)}" data-campo="voo" value="${esc(x.voo || '')}"></label>
@@ -2032,8 +2039,8 @@ function opDocVoucher(id) {
     arqNome('voucher', { bookingId: b.id, clienteId: b.clienteId }));
   $$('[data-pt]').forEach(s => s.onchange = () => { escolhePonto(s.dataset.pt, s.value); opDocVoucher(id); toast('Ponto de encontro escolhido'); });
   const vs = $('#vchSalva'); if (vs) vs.onclick = () => {
-    const f = $$('[data-vblk]').filter(i => !i.checked && (i.dataset.vblk === 'valores' || auto.includes(i.dataset.vblk))).map(i => i.dataset.vblk), n = $('#vchNota').value.trim();
-    const maisN = $$('[data-vblk]').filter(i => i.checked && i.dataset.vblk !== 'valores' && !auto.includes(i.dataset.vblk)).map(i => i.dataset.vblk);
+    const f = $$('[data-vblk]').filter(i => i.dataset.vblk === 'sodia' ? i.checked : !i.checked && (i.dataset.vblk === 'valores' || auto.includes(i.dataset.vblk))).map(i => i.dataset.vblk), n = $('#vchNota').value.trim();
+    const maisN = $$('[data-vblk]').filter(i => i.checked && !['valores', 'sodia'].includes(i.dataset.vblk) && !auto.includes(i.dataset.vblk)).map(i => i.dataset.vblk);
     for (const x of bs) x.voucherMais = maisN;
     const pgN = ($('#vchPg') || {}).value || '';
     const bagN = (($('#vchBag') || {}).value || '').trim();
@@ -3455,7 +3462,7 @@ const ATALHO = {
     const d = opJanela('👤 Novo cliente', `
       <div class="frow"><label class="fld">Nome completo<input id="atNome" autocomplete="off"></label><label class="fld">WhatsApp<input id="atWa" inputmode="tel" autocomplete="off"></label></div>
       <div class="frow"><label class="fld">E-mail<input id="atEm" type="email" autocomplete="off"></label><label class="fld">Nascimento<input id="atNasc" placeholder="dd/mm/aaaa" inputmode="numeric"></label></div>
-      <div class="frow"><label class="fld">Veio por<select id="atVeio"><option value="">—</option>${VEIO_POR.filter(v => v[0] !== 'junto').map(([vv, nn]) => `<option value="${vv}">${nn}</option>`).join('')}</select></label>
+      <div class="frow"><label class="fld">Veio por<select id="atVeio"><option value="">—</option>${VEIO_POR.map(([vv, nn]) => `<option value="${vv}">${nn}</option>`).join('')}</select></label>
         <label class="fld">Agência · indicação · influencer<input id="atQuem" list="atQuemL" placeholder="quem mandou esta cliente"></label></div>
       <datalist id="atQuemL">${[...Parceiros.all().map(p => p.nome), ...Cadastro.all().map(c => c.nome)].map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <button class="cta sm" id="atCad">Cadastrar e abrir a ficha</button>`);
@@ -3466,8 +3473,8 @@ const ATALHO = {
       const quem = d.querySelector('#atQuem').value.trim(), par = quem ? Parceiros.all().find(p => _nomeN(p.nome) === _nomeN(quem)) : null;
       const indC = quem && !par ? Cadastro.all().find(x => _nomeN(x.nome) === _nomeN(quem)) : null;
       let veio = d.querySelector('#atVeio').value || (par ? (par.tipo === 'agencia' ? 'agencia' : 'influencer') : quem ? 'indicacao' : '');
-      const c = Cadastro.novo({ nome, whats: d.querySelector('#atWa').value, email: d.querySelector('#atEm').value, nasc, veioPor: veio,
-        parceiroId: par ? par.id : '', indicadoPor: indC ? indC.id : '', indicadoNome: par ? par.nome : indC ? indC.nome : quem });
+      const c = Cadastro.novo({ nome, whats: d.querySelector('#atWa').value, email: d.querySelector('#atEm').value, nasc,
+        ...(veio === 'junto' ? veioPatch('junto', quem) : { veioPor: veio, parceiroId: par ? par.id : '', indicadoPor: indC ? indC.id : '', indicadoNome: par ? par.nome : indC ? indC.nome : quem }) });
       if (!c) return toast('Não cadastrou');
       d.close(); toast('Cliente cadastrada'); go(fichaHref(c).slice(1));
     };

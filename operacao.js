@@ -1993,13 +1993,23 @@ const Backup = {
 /* "VEIO POR" do jeito dela (Doc 07/10 parte 2, item 7): agência, indicação de guia, influencer,
    indicação de um cliente, Instagram, YouTube, outro — e o "por quem" (nome / agência / de onde veio)
    fica no campo ao lado. As opções antigas continuam lidas nos registros que já existem. */
-const VEIO_CURTO = { agencia: 'Agência', guia: 'Indicação de guia', influencer: 'Influencer', indicacao: 'Indicação de cliente', instagram: 'Instagram', youtube: 'YouTube', outro: 'Outro', junto: 'Veio junto',
+const VEIO_CURTO = { agencia: 'Agência', guia: 'Indicação de guia', influencer: 'Influencer', indicacao: 'Indicação de cliente', instagram: 'Instagram', youtube: 'YouTube', outro: 'Outro', junto: 'Veio junto com',
   status: 'Status WhatsApp', google: 'Google / site', voltou: 'Já era cliente' };
 const VEIO_POR = [
   ['agencia', 'Agência'], ['guia', 'Indicação de guia'], ['influencer', 'Influencer'], ['indicacao', 'Indicação de um cliente'],
-  ['instagram', 'Instagram'], ['youtube', 'YouTube'], ['outro', 'Outro'], ['junto', 'Veio junto com alguém'],
+  ['instagram', 'Instagram'], ['youtube', 'YouTube'], ['outro', 'Outro'], ['junto', 'Veio junto com:'],
 ];
 const VEIO_ANTIGO = { status: 'Status do WhatsApp', google: 'Google / site', voltou: 'Já era cliente' };
+/* Doc 23/10 itens 8–9: "veio junto com: Fulana" = viaja com ela (grupoDe), NÃO é indicação */
+function veioPatch(veio, quem, selfId) {
+  const nome = String(quem || '').trim(), c = nome ? Cadastro.all().find(x => x.id !== selfId && _nomeN(x.nome) === _nomeN(nome)) : null;
+  if (veio === 'junto') return { veioPor: 'junto', grupoDe: c ? c.id : '', indicadoPor: '', indicadoNome: c ? c.nome : nome };
+  return { veioPor: veio, grupoDe: '', indicadoPor: c ? c.id : '', indicadoNome: c ? c.nome : nome };
+}
+function juntoMigra() {
+  let n = 0; for (const c of DB.clientes || []) if (c.veioPor === 'junto' && c.indicadoPor && !c.grupoDe && c.indicadoPor !== c.id) { c.grupoDe = c.indicadoPor; c.indicadoPor = ''; n++; }
+  if (n) _opSave(); return n;
+}
 const veioPorNome = (v) => (VEIO_POR.find(x => x[0] === v) || [0, VEIO_ANTIGO[v] || v || '—'])[1];
 /* as origens antigas das reservas viram o "veio por" */
 const ORIGEM_PARA_VEIO = { instagram: 'instagram', friend: 'indicacao', whatsapp: 'status', agency: 'agencia', site: 'google' };

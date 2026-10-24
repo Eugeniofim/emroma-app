@@ -390,9 +390,9 @@ function viewHub() {
           `<a class="rede ${r.c}" href="${esc(r.u)}" target="_blank" rel="noopener" aria-label="${r.n}" title="${r.n}">${r.ic}</a>`).join('')}</div>` : ''}
         ${langBar('center')}
       </div>
-      <button class="lk main" id="goTours">
+      ${vitrineSoTransfer() ? '' : `<button class="lk main" id="goTours">
         <span class="ic">📍</span><span><b>${t('seeTours')}</b><small>${t('seeToursSub')}</small></span><span class="go" aria-hidden="true">→</span>
-      </button>
+      </button>`}
       ${temTransfer ? `<button class="lk" id="goTransfer">
         <span class="ic">🚘</span><span><b>${t('hubTransfer')}</b><small>${t('hubTransferSub')}</small></span><span class="go" aria-hidden="true">→</span>
       </button>` : ''}
@@ -410,17 +410,18 @@ function viewHub() {
       ${links.length ? `<p class="hubsec">${t('hubViagem')}</p>
       ${links.map(l => `<a class="lk parc" href="${esc(l.url)}" target="_blank" rel="noopener sponsored">
         <span class="ic">${esc(l.icone || '🔗')}</span><span><b>${esc(txt(l.titulo))}</b>${txt(l.sub) ? `<small>${esc(txt(l.sub))}</small>` : ''}</span><span class="go" aria-hidden="true">↗</span></a>`).join('')}` : ''}
-      <button class="adm-entry" id="admEntry">🔒 ${t('admEntry')}</button>
+      ${/* Doc 23/10 item 13: o cliente não vê a "Área da Ingrid" — só aparece no aparelho dela (já logada ou no protótipo) */
+        (typeof isLoggedIn === 'function' && isLoggedIn()) || (typeof temNuvem === 'function' && !temNuvem()) ? `<button class="adm-entry" id="admEntry">🔒 ${t('admEntry')}</button>` : ''}
     </div>
   </div>`;
   bindLang(app);
-  $('#goTours').onclick = () => { viewShowcase._f = 'all'; go('/tours'); };
+  if ($('#goTours')) $('#goTours').onclick = () => { viewShowcase._f = 'all'; go('/tours'); };
   if ($('#goTransfer')) $('#goTransfer').onclick = () => { viewShowcase._f = 'transfer'; go('/tours'); };
   $('#goRoteiro').onclick = () => go('/roteiro');
   fallbackPhoto($('#hubFace'), '☺');
   $('#goAbout').onclick = () => go('/about');
   if ($('#goAval')) $('#goAval').onclick = () => go('/avaliacoes');
-  $('#admEntry').onclick = () => go('/adm/today');
+  if ($('#admEntry')) $('#admEntry').onclick = () => go('/adm/today');
   Coach.start([
     { sel: '#goTours',  audio: 'hub-1', txt: { pt: 'Seu cliente começa aqui: toca e vê todos os passeios com datas reais.', en: 'Your guest starts here: all tours with live dates.' } },
     { sel: '#admEntry', audio: 'hub-2', txt: { pt: 'E esta é a SUA porta, ' + guiaNome() + ' — o painel onde você controla tudo.', en: 'And this is YOUR door, ' + guiaNome() + ' — the panel where you control everything.' } },
@@ -860,7 +861,7 @@ function msgOrcamento(x, S) {
 const ORDEM_TIPOS = ['walk', 'day', 'barco', 'transfer', 'papal', 'trem', 'conexao', 'photo', 'session', 'bike'];
 
 function viewShowcase() {
-  const tours = Tours.live();
+  const tours = Tours.live().filter(x => !vitrineSoTransfer() || x.type === 'transfer');
   const filter = viewShowcase._f || 'all';
   /* Onde (cidade/regiao) e O que (tipo). As regioes sao as que ela
      cadastrou nos Ajustes; so aparecem as que tem passeio publicado. */
@@ -1265,7 +1266,19 @@ function renderBook() {
   const ing = ingressosDe(x, S.adultos, S.idades);
   const total = base - S.discount + ing.total;
 
-  if (S.step === 1) {
+  /* Doc 23/10 item 12: transfer não tem saída marcada — o cliente escolhe QUALQUER dia e horário */
+  if (S.step === 1 && x.priceMode === 'transfer') {
+    const amanha = addDays(isoToday(), 1);
+    book.innerHTML = `
+      <div class="bhead"><span class="bprice">${priceLine}</span></div>
+      <div class="bstep">${t('step1')}</div>
+      <div class="frow"><label class="fld">${L('Dia', 'Date')}<input type="date" id="trDia" min="${amanha}" value="${esc(S.date || '')}"></label>
+        <label class="fld">${L('Horário (do voo, trem ou da busca)', 'Time (flight, train or pick-up)')}<input type="time" id="trHora" value="${esc(S.time || '')}"></label></div>
+      <button class="cta" id="next1" ${S.date && S.time ? '' : 'disabled'}>${t('cont')}</button>`;
+    const pronto = () => { S.date = $('#trDia').value || null; S.time = $('#trHora').value || null; S.cap = 20; $('#next1').disabled = !(S.date && S.time && S.date >= amanha); };
+    $('#trDia').oninput = pronto; $('#trHora').oninput = pronto;
+    $('#next1').onclick = () => { S.step = 2; renderBook(); };
+  } else if (S.step === 1) {
     const today = isoToday();
     const deps = Cal.departures(x.id, today, addDays(today, 120));
     const byDate = {};
@@ -1580,11 +1593,15 @@ function admToday(arg) {
 
 /* ---- Passeios ---- */
 const STATUS_PILL = { live: ['ok', 'live'], draft: ['n', 'draft'], seasonal: ['warn', 'seasonal'] };
+/* Doc 23/10 item 12: "por enquanto pode esconder os passeios" — a vitrine mostra só transfer */
+const vitrineSoTransfer = () => DB.settings.vitrinePasseios === false;
 function admTours() {
+  if (!DB.settings.vitSoTrf2310) { DB.settings.vitSoTrf2310 = true; DB.settings.vitrinePasseios = false; save(); }
   const tours = Tours.all();
   admShell('tours', `
     <div class="pagehead"><h1 class="pageh">${t('admTours')}</h1>
       <button class="cta sm" id="newTour">${t('newTour')}</button></div>
+    <label class="optin"><input type="checkbox" id="vitPas" ${vitrineSoTransfer() ? '' : 'checked'}><span><b>Mostrar os passeios na vitrine</b><small>desligado = o cliente vê só os transfers (os passeios continuam aqui e no orçamento)</small></span></label>
     ${tours.length ? `<div class="tlist">${tours.map(x => {
       const [cls, k] = STATUS_PILL[x.status] || STATUS_PILL.draft;
       return `<div class="trow">
@@ -1600,6 +1617,7 @@ function admTours() {
         </div></div>`;
     }).join('')}</div>`
     : `<div class="emptybox"><p>${t('emptyTours')}</p><button class="cta" id="newTour2">${t('firstTour')}</button></div>`}`);
+  $('#vitPas').onchange = (e) => { DB.settings.vitrinePasseios = e.target.checked; save(); toast(e.target.checked ? 'Passeios voltam para a vitrine' : 'Vitrine só com transfers'); };
   $('#newTour')?.addEventListener('click', () => admTourEdit('new'));
   $('#newTour2')?.addEventListener('click', () => admTourEdit('new'));
   $$('[data-edit]').forEach(b => b.onclick = () => go('/adm/tours/' + b.dataset.edit));
