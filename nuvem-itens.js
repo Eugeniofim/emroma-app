@@ -49,19 +49,43 @@ function itensDe(col) {
 /* a dona, logada e com banco: so assim o app manda e le os itens */
 const itPronto = () => typeof temNuvem === 'function' && temNuvem() && typeof isLoggedIn === 'function' && isLoggedIn();
 
+/* DUAS JANELAS (26/10/2026 — a Ingrid perdeu os guias e as folgas de dezembro):
+   a sombra mora no localStorage, que as janelas do mesmo navegador DIVIDEM, mas
+   cada janela tem o seu DB na memória. Uma janela aberta antes (sem os guias
+   novos) olhava a sombra cheia, não achava os guias no DB DELA e mandava
+   "apagado" para o banco. Agora: (1) só apaga o que ESTA janela tinha e tirou;
+   (2) o que está na sombra e esta janela nunca viu veio de outra janela → entra
+   no DB, não sai; (3) o apagado leva junto o último conteúdo (dá para recuperar). */
+const itConhecidos = {};
+let itResgatados = 0;
+function itConhecer() {
+  for (const col of ITENS_COLS) { const k = itConhecidos[col] = itConhecidos[col] || new Set(); for (const [id] of itensDe(col)) k.add(id); }
+}
+function itAdota(col, id, json) {
+  let x; try { x = JSON.parse(json); } catch (e) { return false; }
+  if (ITENS_DIC.includes(col)) { DB[col] = DB[col] || {}; if (!(id in DB[col])) DB[col][id] = x; }
+  else { DB[col] = Array.isArray(DB[col]) ? DB[col] : []; if (!DB[col].some(y => itemId(col, y) === id)) DB[col].push(x); }
+  (itConhecidos[col] = itConhecidos[col] || new Set()).add(id);
+  return true;
+}
 /* compara com a SOMBRA e poe na FILA so o que mudou (e o que sumiu vira apagado) */
 function itEnfileirar() {
   if (!itPronto() || !itEmDia()) return 0;
   const sombra = itLe(IT_SOMBRA, {}), fila = itLe(IT_FILA, {});
-  let n = 0;
+  let n = 0, adotou = 0;
   for (const col of ITENS_COLS) {
-    const s = sombra[col] = sombra[col] || {}, vivos = new Set();
+    const s = sombra[col] = sombra[col] || {}, vivos = new Set(), conhe = itConhecidos[col] = itConhecidos[col] || new Set();
     for (const [id, x] of itensDe(col)) {
-      vivos.add(id); const j = JSON.stringify(x);
+      vivos.add(id); conhe.add(id); const j = JSON.stringify(x);
       if (s[id] !== j) { s[id] = j; fila[col + '\u0001' + id] = { colecao: col, id, dados: x, apagado: false }; n++; }
     }
-    for (const id of Object.keys(s)) if (!vivos.has(id)) { delete s[id]; fila[col + '\u0001' + id] = { colecao: col, id, dados: {}, apagado: true }; n++; }
+    for (const id of Object.keys(s)) if (!vivos.has(id)) {
+      if (!conhe.has(id)) { if (itAdota(col, id, s[id])) adotou++; continue; }   /* veio de outra janela: fica */
+      let ult = {}; try { ult = JSON.parse(s[id]) || {}; } catch (e) {}
+      delete s[id]; conhe.delete(id); fila[col + '\u0001' + id] = { colecao: col, id, dados: ult, apagado: true }; n++;
+    }
   }
+  if (adotou) try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch (e) {}
   itGrava(IT_SOMBRA, sombra); itGrava(IT_FILA, fila);
   return n;
 }
@@ -90,6 +114,13 @@ function itAplicar(linhas) {
     const col = l.colecao; if (!ITENS_COLS.includes(col)) continue;
     /* o que este aparelho mexeu e ainda nao subiu vale mais que a copia do banco */
     if (fila[col + '\u0001' + l.id]) continue;
+    /* RESGATE (26/10/2026): "apagado" SEM conteúdo veio do defeito das duas janelas
+       (o apagar de verdade agora leva o conteúdo junto). Se este aparelho ainda tem
+       o registro, ele NÃO apaga: devolve para o banco. */
+    if (l.apagado && String(l.atualizado_em || '') >= '2026-10-24' && (!l.dados || !Object.keys(l.dados).length)) {
+      const local = ITENS_DIC.includes(col) ? (DB[col] || {})[l.id] : (Array.isArray(DB[col]) ? DB[col] : []).find(x => itemId(col, x) === l.id);
+      if (local) { fila[col + '\u0001' + l.id] = { colecao: col, id: l.id, dados: local, apagado: false }; itGrava(IT_FILA, fila); itResgatados++; continue; }
+    }
     const s = sombra[col] = sombra[col] || {};
     if (ITENS_DIC.includes(col)) {
       DB[col] = DB[col] || {};
@@ -104,6 +135,7 @@ function itAplicar(linhas) {
     mudou++;
   }
   itGrava(IT_SOMBRA, sombra);
+  itConhecer();
   if (mudou) try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch (e) {}
   /* chegou orçamento do formato antigo: o texto vira o de hoje (v1.94) */
   if (mudou && typeof Precos !== 'undefined' && Precos.migraTextos) try { Precos.migraTextos(); } catch (e) {}
@@ -174,8 +206,20 @@ async function itPedidoPublico(colecao, x) {
    O relogio tambem pega o que foi gravado sem passar pelo save(), e refaz o
    ritual de abrir se o DB perdeu a marca no meio do caminho. */
 let itRelogio = null;
+/* outra janela gravou: esta janela passa a olhar o MESMO DB (nunca fica com o velho) */
+if (typeof addEventListener === 'function') addEventListener('storage', (e) => {
+  if (e.key !== DB_KEY || !e.newValue) return;
+  try {
+    const novo = JSON.parse(e.newValue); if (!novo || !novo.tours) return;
+    DB = novo; if (typeof fillSettings === 'function') DB.settings = fillSettings(DB.settings);
+    itConhecer();
+    const ae = document.activeElement, digitando = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
+    if (!digitando && typeof route === 'function') route();
+  } catch (err) {}
+});
 function itLigar(onChange) {
   if (itRelogio || !itPronto()) return;
+  itConhecer();
   itSincronizarAoAbrir().then(r => { if (r.ok && r.n && onChange) onChange(r); });
   itRelogio = setInterval(async () => {
     if (!itPronto()) return;
