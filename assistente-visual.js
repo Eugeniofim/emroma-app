@@ -255,6 +255,10 @@ body.ia-dock #iaGaveta.iav{background:var(--v-bg)!important}
 #iaGaveta.iav .iaSug,#iaGaveta.iav .iaSug *{background:transparent!important;color:var(--v-tx3)!important;border-color:var(--v-line)!important}
 #iaGaveta.iav #iaClip,#iaGaveta.iav #iaForm button:not(#iaEnviar){background:var(--v-s2)!important;color:var(--v-tx2)!important;border:1px solid var(--v-line)!important}
 #iaGaveta.iav #iaAnexo,#iaGaveta.iav #iaAnexo *{background-color:transparent}
+/* 26/10: a fila no escuro */
+#iaGaveta.iav #iaFila .iaFilaIt{background:var(--v-s1);border-color:var(--v-sky);color:var(--v-tx2)}
+#iaGaveta.iav #iaFila .iaFilaIt button{background:var(--v-s2);color:var(--v-tx2)}
+#iaGaveta.iav #iaFila small{color:var(--v-tx3)}
 `;
   const st = document.createElement('style'); st.id = 'iavgCss'; st.textContent = css; document.head.appendChild(st);
 })();

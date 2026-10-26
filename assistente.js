@@ -1134,6 +1134,10 @@ function iaHistSeguro(h) {
 }
 
 let iaOcupado = false, iaAbortar = false;
+/* 24/10 (Mari: "não consigo logo enviar a mensagem, parece que tranca"): ela mandou uma mensagem nova com
+   um cartão de confirmação aberto. O cartão fecha sem gravar e a volta termina aqui, sem outra chamada à IA —
+   a mensagem nova vem a seguir, da fila (assistente-voz.js). */
+let iaCartaoTrocado = false;
 async function iaConversa(texto, fotos) {
   fotos = !fotos ? [] : Array.isArray(fotos) ? fotos : [fotos];
   if (iaOcupado) return;
@@ -1163,8 +1167,9 @@ async function iaConversa(texto, fotos) {
       if (txt) iaBolha('assistant', txt, pensando);
       if (resp.stop_reason !== 'tool_use') break;
       const res = [];
-      for (const b of resp.content.filter(b => b.type === 'tool_use')) res.push({ type: 'tool_result', tool_use_id: b.id, content: JSON.stringify(await iaRodaFerramenta(b.name, b.input)) });
+      for (const b of resp.content.filter(b => b.type === 'tool_use')) res.push({ type: 'tool_result', tool_use_id: b.id, content: JSON.stringify(iaCartaoTrocado ? { cancelado: true, aviso: 'ela mandou outra mensagem; nada foi feito' } : await iaRodaFerramenta(b.name, b.input)) });
       hist.push({ role: 'user', content: res });
+      if (iaCartaoTrocado) { iaCartaoTrocado = false; const t = 'Tudo bem, deixei isso de lado.'; hist.push({ role: 'assistant', content: [{ type: 'text', text: t }] }); iaBolha('assistant', t, pensando); break; }
     }
     if (hist[hist.length - 1].role === 'user') { hist.pop(); hist.pop(); }
     iaGrava(IA_HIST, iaAparaHist(hist));

@@ -1236,7 +1236,11 @@ const ingPararFala = () => { try { ING_SINTESE && ING_SINTESE.cancel(); } catch 
    (ouve), quando o assistente pensa e quando ele le em voz alta */
 function ingOrbe(estado, liga) { const g = iaEl && iaEl.g; if (g) g.classList.toggle('ing-' + estado, !!liga); }
 const _ingTravado = iaTravado;
-iaTravado = function (sim) { ingOrbe('pensa', sim); return _ingTravado(sim); };
+iaTravado = function (sim) { ingOrbe('pensa', sim); const r = _ingTravado(sim);
+  /* 26/10: o enviar fica ligado mesmo ocupado (a mensagem vai para a fila) */
+  const f = iaEl && iaEl.g.querySelector('#iaForm'); if (f) f.classList.toggle('ocupado', !!sim);
+  const b = iaEl && iaEl.g.querySelector('#iaEnviar'); if (b) b.disabled = false;
+  return r; };
 
 /* a resposta que chega depois de ela perguntar e lida em voz alta —
    o historico redesenhado ao abrir a gaveta, nao */
@@ -1309,9 +1313,49 @@ iaMostraAnexo = function () {
   const el = iaEl && iaEl.g.querySelector('#iaAnexo');
   if (el) el.querySelectorAll('img[src^="data:application/pdf"]').forEach(im => { const sp = document.createElement('span'); sp.className = 'ia-pdf'; sp.textContent = '📄 PDF'; im.replaceWith(sp); });
 };
+/* =====================================================
+   NADA SE PERDE (veio da Mari, 24/10/2026; aqui desde 26/10)
+   Mari: "quando falo com o assistente pelo telefone ou escrevo não consigo logo enviar a mensagem,
+   parece que tranca". Era isto: com o assistente ocupado (pensando, ou esperando o toque no cartão
+   de Confirmar), o enviar ficava desligado e o que se FALAVA ia embora — o motor descartava a
+   mensagem em silêncio e o campo já estava limpo.
+   Agora: ocupado → a mensagem entra na fila (aparece acima do campo, dá para tirar) e vai sozinha
+   quando ele terminar. Com cartão aberto, mensagem nova = "deixa isso pra lá": o cartão fecha sem
+   gravar e a nova segue. O enviar fica sempre ligado.
+   ===================================================== */
+const iaFila = [];
+function ingManda(texto, fotos) {
+  texto = String(texto || '').trim(); fotos = !fotos ? [] : Array.isArray(fotos) ? fotos : [fotos];
+  if (!texto && !fotos.length) return;
+  if (!iaOcupado) { iaConversa(texto, fotos); return; }
+  if (iaFila.length >= 3) { toast('Já tem 3 mensagens esperando — espere ele responder'); return; }
+  iaFila.push({ texto, anexos: fotos });
+  if (iaCartaoPendente) { iaCartaoTrocado = true; try { iaCartaoPendente(false); } catch (e) {} }
+  ingPintaFila();
+}
+function ingPintaFila() {
+  const el = iaEl && iaEl.g.querySelector('#iaFila'); if (!el) return;
+  el.hidden = !iaFila.length;
+  el.innerHTML = iaFila.map((m, k) => `<div class="iaFilaIt"><span>Na fila: “${esc(m.texto.length > 70 ? m.texto.slice(0, 70) + '…' : (m.texto || 'anexo'))}”</span><button type="button" data-tira="${k}" aria-label="Tirar da fila">×</button></div>`).join('')
+    + (iaFila.length ? '<small>Vai sozinha assim que ele terminar de responder.</small>' : '');
+  el.querySelectorAll('[data-tira]').forEach(b => b.onclick = () => { iaFila.splice(+b.dataset.tira, 1); ingPintaFila(); });
+}
+/* no celular, o teclado cobria o campo e o botão de enviar: a gaveta acompanha a parte VISÍVEL da tela */
+if (window.visualViewport && !window.__iavTeclado) {
+  window.__iavTeclado = true;
+  const vv = window.visualViewport;
+  const ajusta = () => {
+    const g = document.getElementById('iaGaveta'); if (!g) return;
+    if (window.innerWidth > 640 || !g.classList.contains('aberta')) { g.style.top = ''; g.style.height = ''; g.style.bottom = ''; return; }
+    g.style.top = Math.round(vv.offsetTop) + 'px'; g.style.height = Math.round(vv.height) + 'px'; g.style.bottom = 'auto';
+    const m = g.querySelector('#iaMsgs'); if (m && document.activeElement && document.activeElement.id === 'iaTxt') m.scrollTop = m.scrollHeight;
+  };
+  vv.addEventListener('resize', ajusta); vv.addEventListener('scroll', ajusta);
+  document.addEventListener('focusin', (e) => { if (e.target && e.target.id === 'iaTxt') setTimeout(ajusta, 250); });
+}
 const _ingConversa = iaConversa;
 iaConversa = async function (texto, fotos) {
-  if (iaOcupado) return;                         // o motor também recusa: sem isto o anexo entrava na lista e a numeração desencontrava
+  if (iaOcupado) { ingManda(texto, fotos); return; }   // 26/10: ocupado → fila (antes sumia, inclusive a ditada); o anexo só entra na lista quando ela for
   /* o vigia de dinheiro começa a conversa sabendo o que ela disse, a situação do dia, a memória e o diário */
   ingFerrTurno = 0; ingConferiu = false; ingEscTurno = 0;
   ingNumerosTurno = new Set(); try { for (const v of ingNumerosDoHistorico(iaLe(IA_HIST, []))) ingNumerosTurno.add(v); ingColheNumeros(texto); ingColheNumeros(iaAgora()); ingColheNumeros((Mkt.get().memoria || []).map(x => x.texto).join(' ')); if (typeof ingDiarioTexto === 'function') ingColheNumeros(ingDiarioTexto(14)); } catch (e) {}
@@ -1324,7 +1368,12 @@ iaConversa = async function (texto, fotos) {
   const nota = novos.length ? `\n\n⟦Ela anexou ${novos.map(a => `${a.ref} (${a.nome})`).join(', ')} — você CONSEGUE ler (imagem e PDF). Se for comprovante de pagamento: leia o valor e o nome, ache a reserva (buscar) e chame registrar_pagamento com anexo — fica na ficha e na pasta do cliente no Google Drive. Outro documento do cliente → arquivar.⟧` : '';
   /* não salva o anexo nas fotos de marketing nem deixa o motor gerar nota de "foto para criativo" */
   const _gf = guardaFoto; guardaFoto = () => null;
-  try { return await _ingConversa((texto || (novos.length ? 'Te mandei um arquivo.' : '')) + nota, fotos); } finally { guardaFoto = _gf; ingVozEspera = false; }
+  /* "Pensando… 12 s": o modelo forte leva uns segundos — sem o relógio parecia travado */
+  const t0 = Date.now(), rel = setInterval(() => { const p = iaEl && iaEl.g.querySelector('#iaMsgs .iaB.pensa'); const s = Math.round((Date.now() - t0) / 1000);
+    if (p && s >= 3) p.textContent = (s >= 25 ? 'Ainda pensando — é um pedido grande' : 'Pensando') + '… ' + s + ' s'; }, 1000);
+  try { return await _ingConversa((texto || (novos.length ? 'Te mandei um arquivo.' : '')) + nota, fotos); }
+  finally { clearInterval(rel); guardaFoto = _gf; ingVozEspera = false;
+    if (iaFila.length) setTimeout(() => { if (iaOcupado || !iaFila.length) return; const n = iaFila.shift(); ingPintaFila(); iaConversa(n.texto, n.anexos); }, 60); }
 };
 const _ingCenario = iaRodaCenario;
 iaRodaCenario = async function (c) {
@@ -1388,6 +1437,9 @@ const _ingDesenha = iaDesenha;
 iaDesenha = function () {
   _ingDesenha();
   const g = iaEl && iaEl.g, f = g && g.querySelector('#iaForm');
+  const anx = g && g.querySelector('#iaAnexo');
+  if (anx && !g.querySelector('#iaFila')) anx.insertAdjacentHTML('afterend', '<div id="iaFila" hidden></div>');
+  ingPintaFila();
   const arq = g && g.querySelector('#iaArq');
   if (arq && !arq.dataset.pdf) {
     arq.dataset.pdf = '1'; arq.accept = 'image/*,application/pdf';
@@ -1487,6 +1539,14 @@ iaFecha = function () { ingPararFala(); if (ingOuvindo) ingOuvDescarta(); return
 @keyframes ingOnda{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
 @media(prefers-reduced-motion:reduce){.ingBarras i{animation:none}}
 .iaOuv b{font-variant-numeric:tabular-nums}
+/* 26/10: a fila (mensagem mandada com ele ocupado — vai sozinha quando ele terminar) */
+#iaFila{margin:0 12px 6px;display:grid;gap:4px}
+#iaFila[hidden]{display:none}
+#iaFila .iaFilaIt{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 12px;border-radius:12px;background:color-mix(in srgb,var(--accent) 8%,transparent);border:1px dashed color-mix(in srgb,var(--accent) 45%,transparent);color:var(--ink);font-size:13px}
+#iaFila .iaFilaIt span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#iaFila .iaFilaIt button{width:30px;height:30px;flex:none;border-radius:50%;border:0;background:color-mix(in srgb,var(--ink) 8%,transparent);color:inherit;font-size:17px;line-height:1;cursor:pointer}
+#iaFila small{color:var(--ink-2);font-size:11.5px;padding-left:4px}
+#iaForm.ocupado #iaEnviar{opacity:.85}
 .iaOuv #iaOuvTxt{flex:1;min-width:120px;color:var(--ink-2);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .iaOuv button{border:0;border-radius:999px;padding:5px 11px;font-weight:600;font-size:12.5px;cursor:pointer;background:var(--surface);color:var(--ink)}
 .iaOuv #iaOuvManda{background:var(--accent);color:var(--accent-ink)}
