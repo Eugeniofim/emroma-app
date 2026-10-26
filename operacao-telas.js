@@ -2025,7 +2025,10 @@ function opDocVoucher(id) {
     <p class="doc-ref">Reserva${bs.length > 1 ? 's' : ''} ${bs.map(x => esc(x.code)).join(' · ')}</p>
     <details class="nao-imprime vch-edita"><summary>✏️ Editar este voucher</summary>
       <p class="why">Tire o que não serve pra este cliente e escreva uma observação só dele. Os textos padrão você muda na aba Voucher.</p>
-      <div class="vch-blks"><label><input type="checkbox" data-vblk="valores" ${semValores ? '' : 'checked'}> <b>Valores</b> (total, sinal, pagar no dia) — tire quando for de agência</label><label><input type="checkbox" data-vblk="sodia" ${soDia ? 'checked' : ''}> <b>Só o "pagar no dia"</b> — esconde total e sinal, mostra só o que se paga no dia</label>${todosBlocos.map(k => `<label><input type="checkbox" data-vblk="${k}" ${blocos.includes(k) && !fora.has(k) ? 'checked' : ''}> ${esc((VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome)}${auto.includes(k) ? '' : ' <small>(acrescentar)</small>'}</label>`).join('')}</div>
+      <div class="vch-blks"><fieldset class="vch-val"><legend><b>Valores no voucher</b> <small>(salva ao tocar)</small></legend>
+        <label><input type="radio" name="vchVal" value="tudo" ${!semValores && !soDia ? 'checked' : ''}> Total, sinal e pagar no dia</label>
+        <label><input type="radio" name="vchVal" value="sodia" ${soDia ? 'checked' : ''}> Só o "pagar no dia"</label>
+        <label><input type="radio" name="vchVal" value="nada" ${semValores ? 'checked' : ''}> Nenhum valor <small>(agência)</small></label></fieldset>${todosBlocos.map(k => `<label><input type="checkbox" data-vblk="${k}" ${blocos.includes(k) && !fora.has(k) ? 'checked' : ''}> ${esc((VOUCHER_BLOCOS_META.find(m => m.k === k) || { nome: k }).nome)}${auto.includes(k) ? '' : ' <small>(acrescentar)</small>'}</label>`).join('')}</div>
       <label class="fld">Método de pagamento que o cliente escolheu (sai marcado ☑ no voucher)<select id="vchPg">${VCH_PG.map(([v, nm]) => `<option value="${v}" ${pg === v ? 'selected' : ''}>${nm}</option>`).join('')}</select></label>
       ${bs.filter(ehTransfer).map(x => `<fieldset class="vch-tr"><legend>${crmDataSem(x.date)} · ${esc(x.time || '')} — ${esc(opNomeServ(x)).slice(0, 60)}</legend>
         <div class="frow"><label class="fld sm">Voo/trem<input data-vtr="${esc(x.id)}" data-campo="voo" value="${esc(x.voo || '')}"></label>
@@ -2039,8 +2042,9 @@ function opDocVoucher(id) {
     arqNome('voucher', { bookingId: b.id, clienteId: b.clienteId }));
   $$('[data-pt]').forEach(s => s.onchange = () => { escolhePonto(s.dataset.pt, s.value); opDocVoucher(id); toast('Ponto de encontro escolhido'); });
   const vs = $('#vchSalva'); if (vs) vs.onclick = () => {
-    const f = $$('[data-vblk]').filter(i => i.dataset.vblk === 'sodia' ? i.checked : !i.checked && (i.dataset.vblk === 'valores' || auto.includes(i.dataset.vblk))).map(i => i.dataset.vblk), n = $('#vchNota').value.trim();
-    const maisN = $$('[data-vblk]').filter(i => i.checked && !['valores', 'sodia'].includes(i.dataset.vblk) && !auto.includes(i.dataset.vblk)).map(i => i.dataset.vblk);
+    const val = (document.querySelector('[name="vchVal"]:checked') || {}).value || 'tudo';
+    const f = [...(val === 'nada' ? ['valores'] : val === 'sodia' ? ['sodia'] : []), ...$$('[data-vblk]').filter(i => !i.checked && auto.includes(i.dataset.vblk)).map(i => i.dataset.vblk)], n = $('#vchNota').value.trim();
+    const maisN = $$('[data-vblk]').filter(i => i.checked && !auto.includes(i.dataset.vblk)).map(i => i.dataset.vblk);
     for (const x of bs) x.voucherMais = maisN;
     const pgN = ($('#vchPg') || {}).value || '';
     const bagN = (($('#vchBag') || {}).value || '').trim();
@@ -2050,11 +2054,8 @@ function opDocVoucher(id) {
     toast('Voucher salvo'); opDocVoucher(id);
   };
   /* Doc 25/10 item 2: "só o pagar no dia" não salvava — o botão ficava escondido no quadro. Agora salva ao marcar. */
-  const ckSo = $('[data-vblk="sodia"]'), ckVal = $('[data-vblk="valores"]');
-  if (vs && ckSo && ckVal) {
-    ckSo.onchange = () => { if (ckSo.checked) ckVal.checked = true; vs.click(); };
-    ckVal.onchange = () => { if (!ckVal.checked) ckSo.checked = false; vs.click(); };
-  }
+  /* 25/10 item 3: "se seleciono um, seleciona os 2" — agora é UMA escolha entre três */
+  if (vs) $$('[name="vchVal"]').forEach(r => r.onchange = () => vs.click());
   /* mandou: o lembrete "mandar o voucher" some sozinho (de todos os serviços da viagem) */
   const vw = $('#docVoucherWa');
   if (vw) vw.addEventListener('click', () => { for (const x of bs) { x.voucherEm = isoToday(); _opSaveBooking(x); } });

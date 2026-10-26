@@ -954,3 +954,5 @@ details.orc-links summary{cursor:pointer;color:var(--ink-2);font-size:var(--fs-3
   .md-dianav{margin-left:0}
 }
 .md-det .svc{margin:0;box-shadow:none;border-radius:var(--r)}
+.vch-val{border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 12px;margin:0 0 10px;display:flex;flex-wrap:wrap;gap:6px 16px}
+.vch-val legend{padding:0 6px}

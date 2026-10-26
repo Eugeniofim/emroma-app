@@ -244,7 +244,7 @@ const Op = {
     const R = {
       servicos: Op.busca(q).slice(0, 8),
       clientes: (typeof Cadastro !== 'undefined' ? Cadastro.all() : []).filter(c => tem(c.nome, c.whats, c.email, c.indicadoNome, c.pais)).slice(0, 8),
-      orcamentos: (typeof Orc !== 'undefined' ? Orc.all() : []).filter(o => tem(o.cliente.nome, o.cliente.whats, o.cliente.email, o.num, o.obs, (o.itens || []).map(x => x.desc).join(' '))).slice(0, 8),
+      orcamentos: (typeof Orc !== 'undefined' ? Orc.all() : []).filter(o => tem(o.cliente.nome, o.cliente.whats, o.cliente.email, o.num, o.obs, o.indicou, o.parceiroTxt, Orc.nomeArquivo ? Orc.nomeArquivo(o) : '', (o.itens || []).map(x => x.desc).join(' '))).slice(0, 8),
       tarefas: T.filter(t => t.tipo !== 'nota' && !t.feita && Tarefas.casa(t, q)).slice(0, 8),
       notas: T.filter(t => t.tipo === 'nota' && Tarefas.casa(t, q)).slice(0, 6),
       equipe: (typeof Equipe !== 'undefined' ? Equipe.all() : []).filter(p => tem(p.nome, p.whats, p.obs, (p.cidades || []).join(' '))).slice(0, 6),
@@ -258,7 +258,7 @@ const Op = {
     const s = n(q).trim(); if (s.length < 2) return [];
     const dig = s.replace(/\D/g, '');
     return DB.bookings.filter(b => {
-      if ([b.name, b.code, b.voo, b.origem, b.destino, b.email].some(v => n(v).includes(s))) return true;
+      if ([b.name, b.code, b.voo, b.origem, b.destino, b.email, b.indicou, b.parceiroTxt, b.servicoTxt].some(v => n(v).includes(s))) return true;   /* Doc 25/10 item 4: acha pela agência também */
       if (dig.length >= 4 && String(b.whats || '').replace(/\D/g, '').endsWith(dig.slice(-8))) return true;   // 4 últimos números do telefone
       return (b.group || []).some(g => n(g.nome).includes(s));
     }).sort((a, b) => Math.abs(new Date(a.date) - new Date(isoToday())) - Math.abs(new Date(b.date) - new Date(isoToday())));
