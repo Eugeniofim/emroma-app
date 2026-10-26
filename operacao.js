@@ -54,7 +54,8 @@ function turnosDoServico(b) {
 
 /* ---------- guias e motoristas ---------- */
 function _opSave() {
-  localStorage.setItem(DB_KEY, JSON.stringify(DB));
+  /* memória cheia não pode impedir a linha de subir para o banco (store.js gravaLocal) */
+  if (typeof gravaLocal === 'function') gravaLocal(); else localStorage.setItem(DB_KEY, JSON.stringify(DB));
   /* a linha que mudou sobe para o banco em ~1 s (nuvem-itens.js) */
   if (typeof itAgendar === 'function') itAgendar();
 }
@@ -1947,6 +1948,10 @@ function pacoteBackup() {
     arquivos: DB.arquivos || [],
     /* o diário do assistente (o que foi feito e decidido, dia a dia) */
     iaDiario: DB.iaDiario || [],
+    /* o que ela ensinou ao assistente e o gasto da IA (26/10: faltavam no backup) */
+    iaMemoria: DB.iaMemoria || [], iaUso: DB.iaUso || [],
+    /* a lixeira dos clientes apagados (30 dias) também vai junto: apagar sempre tem volta */
+    lixeira: (typeof Limpeza !== 'undefined' && Limpeza.lixeira) ? Limpeza.lixeira() : [],
     /* o manual operacional colado pela Ingrid (o assistente consulta por assunto) */
     manualIA: DB.manualIA || [],
   };
@@ -1975,6 +1980,11 @@ function restauraBackup(txt) {
     precos: Array.isArray(p.precos) ? p.precos : [], conversas: (p.conversas && typeof p.conversas === 'object') ? p.conversas : {},
     arquivos: Array.isArray(p.arquivos) ? p.arquivos : [],
     iaDiario: Array.isArray(p.iaDiario) ? p.iaDiario : [],
+    /* 26/10: o manual ia no backup mas não voltava — e, com o aparelho "em dia", o envio
+       seguinte APAGAVA o manual do banco. Backup antigo sem o campo: fica o que já tem. */
+    manualIA: Array.isArray(p.manualIA) ? p.manualIA : ((DB && DB.manualIA) || []),
+    iaMemoria: Array.isArray(p.iaMemoria) ? p.iaMemoria : ((DB && DB.iaMemoria) || []),
+    iaUso: Array.isArray(p.iaUso) ? p.iaUso : ((DB && DB.iaUso) || []),
   });
   novo.cadastroFeito = Array.isArray(p.clientes) ? 1 : 0; novo.parceirosSeed = 1; novo.pontosSeed = 1;
   novo.settings = fillSettings(p.configuracoes || {});
@@ -1984,6 +1994,8 @@ function restauraBackup(txt) {
      nuvem continua, e o backup é o que vale (nuvem-itens.js) */
   if (DB && DB._itensEmDia) novo._itensEmDia = true;
   DB = novo;
+  /* a lixeira que veio no backup se junta à deste aparelho (nada que estava lá some) */
+  try { if (Array.isArray(p.lixeira) && p.lixeira.length && typeof Limpeza !== 'undefined') { const l = Limpeza.lixeira(), tem = new Set(l.map(x => x.id)); Limpeza._guardaLixo(l.concat(p.lixeira.filter(x => x && !tem.has(x.id)))); } } catch (e) {}
   try { if (typeof Mkt !== 'undefined' && Array.isArray(p.memoriaAssistente)) { const m = Mkt.get(); m.memoria = p.memoriaAssistente; Mkt.salva(); } } catch (e) {}
   opGarante();
   if (typeof save === 'function') save();

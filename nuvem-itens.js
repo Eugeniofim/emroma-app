@@ -165,7 +165,10 @@ async function itPuxar() {
 function itRecomecar() {
   const fila = itLe(IT_FILA, {}), atual = {}, resto = {};
   for (const col of ITENS_COLS) for (const [id, x] of itensDe(col)) atual[col + '\u0001' + id] = JSON.stringify(x);
-  for (const [k, l] of Object.entries(fila)) if (l && !l.apagado && atual[k] === JSON.stringify(l.dados)) resto[k] = l;
+  /* 26/10/2026: o que só estava na FILA (feito sem rede/sem sessão) e o DB novo nem tem
+     também fica — é trabalho dela que nunca subiu. Antes ia para o lixo sem volta. Só sai
+     da fila o que o DB novo tem DIFERENTE (o DB de agora é mais novo) e os "apagado". */
+  for (const [k, l] of Object.entries(fila)) if (l && !l.apagado && (atual[k] === undefined || atual[k] === JSON.stringify(l.dados))) resto[k] = l;
   itGrava(IT_SOMBRA, {}); itGrava(IT_MARCA, ''); itGrava(IT_FILA, resto);
   try { localStorage.removeItem(IT_EMDIA_VELHO); } catch (e) {}
 }

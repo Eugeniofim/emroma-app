@@ -67,7 +67,8 @@ function supaFetch(path, opts = {}) {
 
 /* ---------- fila offline ---------- */
 function qAll() { try { return JSON.parse(localStorage.getItem(QUEUE_KEY)) || []; } catch (e) { return []; } }
-function qPush(job) { const q = qAll(); q.push(job); localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+/* do catálogo só vale o ÚLTIMO envio (ele já tem tudo o que este aparelho sabe) */
+function qPush(job) { let q = qAll(); if (String(job.path || '').startsWith('appstate')) q = q.filter(j => !String(j.path || '').startsWith('appstate')); q.push(job); try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch (e) {} }
 async function qFlush() {
   const q = qAll(); if (!q.length) return;
   const rest = [];
@@ -80,11 +81,23 @@ async function qFlush() {
       if (!t || !t.length) continue;
     }
     try {
+      /* PERDA DE DADOS (26/10/2026): o catálogo guardado na fila é o documento INTEIRO de
+         horas atrás. Reenviar como estava apagava o que o outro aparelho criou nesse meio
+         tempo. Agora ele junta com o que está na nuvem, e só sai da fila se o banco gravou
+         de verdade (sessão expirada responde 200 sem gravar nada). */
+      if (job.path && job.path.startsWith('appstate')) {
+        const nv = await stLeNuvem(false);
+        if (!nv) { rest.push(job); continue; }
+        const j = stJunta(job.body.data, nv.data, job.base || null);
+        const r = await patchConta(job.path, { data: j.data, updated_at: new Date().toISOString() });
+        if (!r.ok || !r.linhas) rest.push(job);
+        continue;
+      }
       const r = await supaFetch(job.path, { method: job.method, body: JSON.stringify(job.body) });
       if (!r.ok && r.status !== 409) rest.push(job);
     } catch (e) { rest.push(job); }
   }
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(rest));
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(rest)); } catch (e) {}
 }
 
 /* ---------- estado (tudo menos reservas) ---------- */
@@ -92,6 +105,39 @@ function statePayload() {
   return { tours: DB.tours, rules: DB.rules, departures: DB.departures,
            blocks: DB.blocks, coupons: DB.coupons, settings: DB.settings };
 }
+/* JUNTAR EM VEZ DE TROCAR (26/10/2026). O catálogo é UM documento: quem enviava por último
+   trocava o documento inteiro. Celular cria o passeio "Vaticano"; o computador, aberto desde
+   antes, muda um preço e envia o catálogo DELE — o Vaticano sumia. Agora, antes de enviar,
+   o aparelho olha se a nuvem mudou desde a última leitura; se mudou, o que está lá e ele
+   nunca viu (passeio, regra, data, bloqueio, cupom de outro aparelho) entra junto. O que ele
+   viu e tirou continua tirado (é apagar de propósito). Mesmo registro nos dois: este vence. */
+const ST_COLS = ['tours', 'rules', 'departures', 'blocks', 'coupons'];
+const stChave = (x) => (x && (x.id || x.code)) || '';
+let stBase = null;          /* o que este aparelho viu na última leitura da nuvem: {col: [chaves]} */
+function stIds(data) { const o = {}; for (const c of ST_COLS) o[c] = ((data && data[c]) || []).map(stChave).filter(Boolean); return o; }
+function stJunta(local, remoto, base) {
+  const out = { ...local }; let novos = 0;
+  if (!remoto || !Array.isArray(remoto.tours) || !remoto.tours.length) return { data: out, novos };
+  for (const c of ST_COLS) {
+    const meus = new Set((local[c] || []).map(stChave)), sabia = new Set((base && base[c]) || []);
+    const extra = (remoto[c] || []).filter(x => { const k = stChave(x); return k && !meus.has(k) && !sabia.has(k); });
+    if (extra.length) { out[c] = (local[c] || []).concat(extra); novos += extra.length; }
+  }
+  return { data: out, novos };
+}
+/* lê a nuvem (só a data primeiro, que o catálogo com fotos passa de 1 MB). null = não deu */
+async function stLeNuvem(soSeMudou) {
+  try {
+    if (soSeMudou && lastStamp) {
+      const h = await supaFetch('appstate?id=eq.1&select=updated_at', { headers: { Prefer: '' } });
+      if (h.ok) { const x = (await h.json())[0]; if (x && x.updated_at === lastStamp) return { igual: true }; }
+    }
+    const r = await supaFetch('appstate?id=eq.1&select=data,updated_at', { headers: { Prefer: '' } });
+    if (!r.ok) return null;
+    const j = await r.json(); return (Array.isArray(j) && j[0]) || { data: null };
+  } catch (e) { return null; }
+}
+
 /* A trancada do banco devolve HTTP 200 mesmo quando descarta a escrita:
    quem não é a dona simplesmente não altera nenhuma linha. Se a gente
    confiar no 200, o guia vê "salvo" e perde o trabalho. Por isso
@@ -146,11 +192,22 @@ function cloudPushState() {
   alteracaoPendente = true;              /* marca JA, nao daqui a 700ms */
   clearTimeout(pushT);
   pushT = setTimeout(async () => {
-    const body = { data: statePayload(), updated_at: new Date().toISOString() };
+    let data = statePayload();
+    try {
+      const nv = await stLeNuvem(true);
+      if (nv && !nv.igual && nv.data) {
+        const j = stJunta(data, nv.data, stBase);
+        if (j.novos) { for (const c of ST_COLS) DB[c] = j.data[c]; data = statePayload(); try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch (e) {} }
+      }
+    } catch (e) {}
+    const body = { data, updated_at: new Date().toISOString() };
     try {
       const r = await patchConta('appstate?id=eq.1', body);
-      if (!r.ok) { qPush({ path: 'appstate?id=eq.1', method: 'PATCH', body }); return; }
+      if (!r.ok) { qPush({ path: 'appstate?id=eq.1', method: 'PATCH', body, base: stBase }); return; }
       if (r.linhas === 0) {                 /* o banco recusou em silêncio */
+        /* sessão expirada: guarda na fila — depois de 1 minuto a nuvem volta a mandar
+           no aparelho, e sem a fila o que ela fez sumia. Volta sozinho quando ela entrar. */
+        qPush({ path: 'appstate?id=eq.1', method: 'PATCH', body, base: stBase });
         cloudRejected = true;
         if (typeof onCloudRejected === 'function') onCloudRejected();
         return;                             /* segue pendente: nao foi salvo */
@@ -158,7 +215,8 @@ function cloudPushState() {
       cloudRejected = false;
       alteracaoPendente = false;            /* agora sim a nuvem tem o que temos */
       lastStamp = body.updated_at;          /* evita reler o que nos mesmos escrevemos */
-    } catch (e) { qPush({ path: 'appstate?id=eq.1', method: 'PATCH', body }); }
+      stBase = stIds(body.data);
+    } catch (e) { qPush({ path: 'appstate?id=eq.1', method: 'PATCH', body, base: stBase }); }
   }, 700);
 }
 
@@ -256,7 +314,9 @@ async function cloudPull() {
        tivesse nada. Uma coisa nao pode derrubar a outra. */
     if (!stR.ok) return { ok: false };
     const st = (await stR.json())[0];
-    if (st) lastStamp = st.updated_at;
+    /* segurando (há edição local subindo), a nuvem não foi aplicada: a data dela não pode
+       virar "já li", senão o envio acha que nada mudou e não junta o que veio de fora */
+    if (st && !seguraNuvem()) { lastStamp = st.updated_at; if (st.data) stBase = stIds(st.data); }
 
     const reservasOk = bkR.ok;
     let bk = [];

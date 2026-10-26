@@ -1481,8 +1481,19 @@ function load() {
   DB.settings = fillSettings(DB.settings);
   return DB;
 }
+/* MEMÓRIA CHEIA (26/10/2026): com fotos, o navegador pode recusar gravar (QuotaExceeded).
+   Antes o erro estourava ANTES do envio para a nuvem: a edição ficava só na memória da tela e
+   sumia ao fechar. Agora: tenta gravar, e mesmo se não der, a nuvem recebe — e o app avisa. */
+let memoriaCheia = false;
+function gravaLocal() {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); memoriaCheia = false; return true; }
+  catch (e) {
+    if (!memoriaCheia && typeof toast === 'function') try { toast('⚠️ A memória deste navegador encheu: o que você fez foi para a nuvem, mas faça um backup e apague fotos grandes.'); } catch (e2) {}
+    memoriaCheia = true; return false;
+  }
+}
 function save() {
-  localStorage.setItem(DB_KEY, JSON.stringify(DB));
+  gravaLocal();
   if (typeof cloudPushState === 'function') cloudPushState();
   if (typeof itAgendar === 'function') itAgendar();
 }
@@ -1505,11 +1516,29 @@ const Tours = {
     cp.name = { pt: src.name.pt + ' (cópia)', en: src.name.en + ' (copy)' };
     DB.tours.push(cp); save(); return cp;
   },
+  /* LIXEIRA DOS PASSEIOS (26/10/2026): apagar um passeio levava junto as regras e as datas,
+     sem volta. Agora o que sai fica guardado (nos ajustes, que vão para a nuvem — os passeios
+     já são públicos) e volta com Tours.desfaz(id). Guarda os 30 últimos. */
   remove(id) {
+    const t = Tours.get(id);
+    if (t) {
+      const lx = Array.isArray(DB.settings.lixeiraPasseios) ? DB.settings.lixeiraPasseios : [];
+      lx.unshift({ em: new Date().toISOString(), tour: t, rules: DB.rules.filter(r => r.tourId === id), departures: DB.departures.filter(d => d.tourId === id) });
+      DB.settings.lixeiraPasseios = lx.slice(0, 30);
+    }
     DB.tours = DB.tours.filter(t => t.id !== id);
     DB.rules = DB.rules.filter(r => r.tourId !== id);
     DB.departures = DB.departures.filter(d => d.tourId !== id);
     save();
+  },
+  lixeira() { return Array.isArray(DB.settings.lixeiraPasseios) ? DB.settings.lixeiraPasseios : []; },
+  desfaz(id) {
+    const lx = Tours.lixeira(), i = lx.findIndex(x => x.tour && x.tour.id === id); if (i < 0) return null;
+    const x = lx[i];
+    if (!Tours.get(id)) DB.tours.push(x.tour);
+    for (const r of x.rules || []) if (!DB.rules.some(y => y.id === r.id)) DB.rules.push(r);
+    for (const d of x.departures || []) if (!DB.departures.some(y => y.id === d.id)) DB.departures.push(d);
+    lx.splice(i, 1); DB.settings.lixeiraPasseios = lx; save(); return x.tour;
   },
   futureBookings(id) {
     const today = isoToday();
