@@ -1235,19 +1235,39 @@ function voucherTipoTransfer(b) {
    antes/depois desta — em ordem de data e hora. */
 /* REGRA DELA PARA O VOUCHER (Doc 06/10) — chegada de aeroporto: só depois do print/PDF do pagamento e com
    nome, WhatsApp, quantidade e tamanho das malas, aeroporto, número do voo e endereço do hotel. Devolve o que FALTA. */
+/* Doc 25/10 item 1: malas num lugar só — o orçamento da viagem. Lê de qualquer orçamento
+   das reservas (o primeiro que tiver), depois da reserva e do cadastro antigo. Grava em todos. */
+function malasDaViagem(bs) {
+  const orcs = (bs || []).map(x => x.orcamentoId && typeof Orc !== 'undefined' && Orc.get(x.orcamentoId)).filter(Boolean);
+  const o = orcs.find(x => String(x.bagagem || '').trim());
+  const c = bs && bs[0] && bs[0].clienteId && typeof Cadastro !== 'undefined' ? Cadastro.get(bs[0].clienteId) : null;
+  return String((o && o.bagagem) || (bs || []).map(x => x.bagagem).find(Boolean) || (c && (c.bagagem || (c.viagem && c.viagem.bagagem))) || (bs || []).map(x => x.malas).find(Boolean) || '').trim();
+}
+function malasGrava(bs, txt) {
+  const v = String(txt || '').trim(), vistos = new Set();
+  for (const x of bs || []) {
+    x.bagagem = v;
+    const o = x.orcamentoId && typeof Orc !== 'undefined' && Orc.get(x.orcamentoId);
+    if (o && !vistos.has(o.id)) { vistos.add(o.id); o.bagagem = v; Orc.salva(o); }
+    _opSaveBooking(x);
+  }
+}
+/* "2 malas", "duas malas grandes", "uma de bordo" — número em algarismo OU por extenso */
+const MALAS_NUM = /\d|\b(uma?|duas?|dois|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze)\b/i;
+const malasOk = (t) => MALAS_NUM.test(String(t || '')) && /mala|bagag|kg|volume|mochila|bordo|despach|carrinho/i.test(String(t || ''));
 function voucherFalta(bs) {
   const out = [];
   if (!bs || !bs.length) return out;
   const b = bs[0], c = b.clienteId && typeof Cadastro !== 'undefined' ? Cadastro.get(b.clienteId) : null;
   const orc = bs.map(x => x.orcamentoId && typeof Orc !== 'undefined' && Orc.get(x.orcamentoId)).find(Boolean) || null;
-  const bagagem = (orc && orc.bagagem) || (c && c.viagem && c.viagem.bagagem) || bs.map(x => x.malas).filter(Boolean)[0] || '';
+  const bagagem = malasDaViagem(bs);
   const pago = bs.some(x => (x.payments || []).some(p => +p.amount > 0 && p.conta !== (typeof CONTA_PRESTADOR !== 'undefined' ? CONTA_PRESTADOR : 'prestador')));
   const chegadas = bs.filter(x => typeof ehTransfer === 'function' && ehTransfer(x) && voucherTipoTransfer(x) === 'aeroporto');
   if (!pago) out.push('o comprovante do pagamento (print ou PDF) — registre o pagamento antes');
   if (!String(b.name || '').trim()) out.push('nome');
   if (!String(b.whats || (c && c.whats) || '').replace(/\D/g, '')) out.push('WhatsApp');
   if (chegadas.length) {
-    if (!/\d/.test(bagagem) || !/mala|bagag|kg|volume|mochila|bordo|despach/i.test(bagagem)) out.push('quantidade e tamanho das malas');
+    if (!malasOk(bagagem)) out.push('quantidade e tamanho das malas');
     for (const x of chegadas) {
       const quando = (x.date || '').slice(8, 10) + '/' + (x.date || '').slice(5, 7);
       if (!/\b(fco|cia)\b|fiumicino|ciampino|aeroport/i.test((x.origem || '') + ' ' + nomeDoServico(x))) out.push(`aeroporto da chegada (${quando})`);

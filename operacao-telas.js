@@ -1989,7 +1989,7 @@ function opDocVoucher(id) {
   const semValores = fora.has('valores'), soDia = !semValores && fora.has('sodia');
   const pMax = Math.max(...bs.map(x => +x.pax || 0));
   const pessoas = (orc && orc.paxNota) || (pMax ? pMax + ' pessoa' + (pMax > 1 ? 's' : '') : '');
-  const bagagem = (orc && orc.bagagem) || (c && (c.bagagem || (c.viagem && c.viagem.bagagem))) || [...new Set(bs.map(x => x.malas).filter(Boolean))].join(' · ');
+  const bagagem = malasDaViagem(bs);
   const contas = bs.map(vchContaDe), T = contas.reduce((a, k) => ({ total: a.total + k.total, sinal: a.sinal + k.sinal, dia: a.dia + k.dia }), { total: 0, sinal: 0, dia: 0 });
   const r2 = (n) => Math.round(n * 100) / 100;
   /* Doc 19–21/10 item 1: TODOS os blocos ficam à mão no "Editar este voucher" — os que o app escolheu
@@ -2044,11 +2044,17 @@ function opDocVoucher(id) {
     for (const x of bs) x.voucherMais = maisN;
     const pgN = ($('#vchPg') || {}).value || '';
     const bagN = (($('#vchBag') || {}).value || '').trim();
-    if (bagN !== bagagem) { if (orc) { orc.bagagem = bagN; Orc.salva(orc); } for (const x of bs) { x.malas = bagN; } }
+    if (bagN !== bagagem) malasGrava(bs, bagN);
     for (const x of bs) { x.voucherFora = f; x.voucherNota = n; x.voucherPg = pgN; _opSaveBooking(x); }
     for (const inp of $$('[data-vtr]')) { const x = bs.find(b => b.id === inp.dataset.vtr); if (!x) continue; const v = inp.value.trim(); if ((x[inp.dataset.campo] || '') !== v) { const d = {}; d[inp.dataset.campo] = v; Op.detalhes(x.id, d); } }
     toast('Voucher salvo'); opDocVoucher(id);
   };
+  /* Doc 25/10 item 2: "só o pagar no dia" não salvava — o botão ficava escondido no quadro. Agora salva ao marcar. */
+  const ckSo = $('[data-vblk="sodia"]'), ckVal = $('[data-vblk="valores"]');
+  if (vs && ckSo && ckVal) {
+    ckSo.onchange = () => { if (ckSo.checked) ckVal.checked = true; vs.click(); };
+    ckVal.onchange = () => { if (!ckVal.checked) ckSo.checked = false; vs.click(); };
+  }
   /* mandou: o lembrete "mandar o voucher" some sozinho (de todos os serviços da viagem) */
   const vw = $('#docVoucherWa');
   if (vw) vw.addEventListener('click', () => { for (const x of bs) { x.voucherEm = isoToday(); _opSaveBooking(x); } });
