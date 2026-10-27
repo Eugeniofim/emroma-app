@@ -25,9 +25,9 @@
    dona lê — nunca para o appstate público); conversas = o que ela mandou a cada cliente */
 /* iaMemoria = o que ela ensinou ao assistente (antes só no aparelho); arquivos = a ficha
    dos comprovantes/documentos (o arquivo em si fica no Drive) — v1.95 */
-const ITENS_COLS = ['equipe', 'disp', 'contas', 'orcamentos', 'fichas', 'tarefas', 'clientes', 'parceiros', 'pontos', 'pedidos', 'lembretesVistos', 'interesse', 'precos', 'conversas', 'iaMemoria', 'arquivos', 'iaDiario', 'iaUso', 'manualIA'];   /* iaUso = gasto da IA por dia + créditos que ela pôs (07/10) */
+const ITENS_COLS = ['equipe', 'disp', 'contas', 'orcamentos', 'fichas', 'tarefas', 'clientes', 'parceiros', 'pontos', 'pedidos', 'lembretesVistos', 'interesse', 'precos', 'conversas', 'iaMemoria', 'arquivos', 'iaDiario', 'iaUso', 'privado', 'manualIA'];   /* iaUso = gasto da IA por dia + créditos que ela pôs (07/10); privado = os códigos dos links do kit da viagem (27/10) */
 /* estas sao "dicionarios" no DB (chave -> valor); as outras sao listas com id */
-const ITENS_DIC = ['fichas', 'lembretesVistos', 'interesse', 'conversas'];
+const ITENS_DIC = ['fichas', 'lembretesVistos', 'interesse', 'conversas', 'privado'];
 const IT_SOMBRA = 'ingrid_sombra_v1', IT_FILA = 'ingrid_fila_v1', IT_MARCA = 'ingrid_marca_v1';
 /* a chave antiga do "em dia" (ate 18/10): nao vale mais nada, so e apagada */
 const IT_EMDIA_VELHO = 'ingrid_emdia_v1';

@@ -2826,6 +2826,7 @@ function admSettings() {
     if (v && !/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(v)) return toast(t('admAvisoBad'));
     DB.settings.admEmail = v;
     DB.settings.avisarClientes = $('#avCli').checked;
+    DB.settings.avisoClientesEscolhido = true;   /* 27/10: a escolha dela vale no servidor (e-mail ao cliente) */
     const pega = (id) => $('#' + id).value.trim();
     DB.settings.emailReciboIntro = { pt: pega('reciboIntroPt'), en: pega('reciboIntroEn') };
     DB.settings.emailReciboPS    = { pt: pega('reciboPsPt'),    en: pega('reciboPsEn') };

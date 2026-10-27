@@ -1954,6 +1954,8 @@ function pacoteBackup() {
     lixeira: (typeof Limpeza !== 'undefined' && Limpeza.lixeira) ? Limpeza.lixeira() : [],
     /* o manual operacional colado pela Ingrid (o assistente consulta por assunto) */
     manualIA: DB.manualIA || [],
+    /* os códigos dos links curtos do kit da viagem (27/10): sem eles, o link já mandado ao cliente para de se atualizar */
+    privado: DB.privado || {},
   };
 }
 function resumoBackup(p) {
@@ -1985,6 +1987,7 @@ function restauraBackup(txt) {
     manualIA: Array.isArray(p.manualIA) ? p.manualIA : ((DB && DB.manualIA) || []),
     iaMemoria: Array.isArray(p.iaMemoria) ? p.iaMemoria : ((DB && DB.iaMemoria) || []),
     iaUso: Array.isArray(p.iaUso) ? p.iaUso : ((DB && DB.iaUso) || []),
+    privado: (p.privado && typeof p.privado === 'object') ? p.privado : ((DB && DB.privado) || {}),
   });
   novo.cadastroFeito = Array.isArray(p.clientes) ? 1 : 0; novo.parceirosSeed = 1; novo.pontosSeed = 1;
   novo.settings = fillSettings(p.configuracoes || {});

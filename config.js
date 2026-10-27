@@ -29,6 +29,11 @@ var APP_CONFIG = {
   /* O app mudou de endereço (03/10/2026): quando isto tiver o endereço novo, o site antigo
      avisa e leva pra lá (depois de subir tudo que estava pendente). Vazio = desligado. */
   novoEndereco: 'https://app.emroma.com',
+  /* E-MAIL AO CLIENTE (27/10/2026): o recibo e a confirmação saem pelo cofre do estúdio
+     (PASSOS-EMAIL-INGRID.md). Enquanto false, o app não liga sozinho o "avisar clientes"
+     (senão o botão "Avisar cliente" prometeria um e-mail que ainda não sai). Depois dos
+     passos, troca para true e publica. */
+  avisosEmail: false,
 
   guia: {
     nome: 'Ingrid',
