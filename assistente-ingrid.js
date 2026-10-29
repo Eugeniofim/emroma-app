@@ -2111,9 +2111,18 @@ async function ingPede(vai) {
 }
 /* com CHAVE própria (o "Gasto aqui"): também o modelo mais inteligente. Se a chave não tiver
    acesso a ele, volta sozinho para o modelo de antes e lembra. */
-const ING_MODELO_CHAVE = 'claude-opus-5-5', ING_SEM_PRO = 'ingrid_ia_sem_pro';
+/* 29/10 (a Ingrid gastava muito em dólar): o dia a dia vai no Haiku 5.5 (≈ 1/40 do Opus).
+   O Sonnet 5.5 só entra no pedido pesado: comprovante/PDF/foto para ler, ou texto comprido. */
+const ING_MODELO_CHAVE = 'claude-sonnet-5-5', ING_MODELO_DIA = 'claude-haiku-5-5', ING_SEM_PRO = 'ingrid_ia_sem_pro';
+function ingPedidoPesado(mensagens) {
+  const u = [...(mensagens || [])].reverse().find(m => m.role === 'user' && !(Array.isArray(m.content) && m.content.some(b => b.type === 'tool_result')));
+  if (!u) return false;
+  if (Array.isArray(u.content) && u.content.some(b => b.type === 'image' || b.type === 'document')) return true;
+  const txt = typeof u.content === 'string' ? u.content : (u.content || []).map(b => b.text || '').join(' ');
+  return txt.length > 1200;
+}
 async function ingChamarChave(mensagens) {
-  let modelo = ING_MODELO_CHAVE; try { if (localStorage.getItem(ING_SEM_PRO) === '1') modelo = IA_MODELO; } catch (e) {}
+  let modelo = ingPedidoPesado(mensagens) ? ING_MODELO_CHAVE : ING_MODELO_DIA; try { if (localStorage.getItem(ING_SEM_PRO) === '1') modelo = IA_MODELO; } catch (e) {}
   const vai = (m, comWeb) => () => iaFetch('https://api.anthropic.com/v1/messages', { method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': iaChave(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
     body: JSON.stringify({ model: m, max_tokens: 8000, system: iaSistema(), tools: ingFerramentas(comWeb), messages: ingComCache(ingSemPensamento(mensagensParaEnvio(mensagens))) }) });
@@ -2125,7 +2134,7 @@ async function ingChamarChave(mensagens) {
   }
   if (!r.ok) throw new Error(iaTraduzErro(r.status, corpo));
   /* o "Gasto aqui" na conta do modelo usado (US$ por milhão de tokens; Opus ≈ 5 entrada / 25 saída) */
-  if (modelo === ING_MODELO_CHAVE) { IA_PRECO.in = 5; IA_PRECO.out = 25; } else { IA_PRECO.in = 1; IA_PRECO.out = 5; }
+  { const pr = ING_PRECOS[modelo] || [1, 5]; IA_PRECO.in = pr[0]; IA_PRECO.out = pr[1]; }
   iaSomaGasto(corpo.usage);
   return ingCortado(corpo);
 }
@@ -2157,7 +2166,7 @@ iaChamar = async function (mensagens) {
    O número oficial continua no painel da Anthropic. */
 const ING_PRECOS = {   /* US$ por milhão de tokens: entrada, saída, leitura do cache (gravar cache = 1,25× a entrada) */
   'claude-fable-5-1': [10, 50, 0.25], 'claude-fable-5': [10, 50, 1], 'claude-opus-5-5': [4, 20, 0.20], 'claude-opus-5': [5, 25, 0.5],
-  'claude-sonnet-5-5': [2, 10, 0.20], 'claude-sonnet-5': [2, 10, 0.2], 'claude-haiku-4-5': [1, 5, 0.1] };
+  'claude-sonnet-5-5': [2, 10, 0.20], 'claude-sonnet-5': [2, 10, 0.2], 'claude-haiku-4-5': [1, 5, 0.1], 'claude-haiku-5-5': [0.10, 0.50, 0.01] };
 function ingCusto(modelo, u) {
   if (!u) return 0;
   const k = Object.keys(ING_PRECOS).find(m => String(modelo || '').startsWith(m)) || 'claude-opus-5-5', [pi, po, pr] = ING_PRECOS[k];
