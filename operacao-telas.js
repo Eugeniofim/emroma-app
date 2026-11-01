@@ -283,7 +283,12 @@ function mdLiga(dia) {
   $$('[data-mes]').forEach(b => b.onclick = () => { const n = +b.dataset.mes; if (!n) { admHoje._m = isoToday().slice(0, 7); return go('/adm/today'); }
     const [Y, M] = (admHoje._m || dia.slice(0, 7)).split('-').map(Number), k = Y * 12 + (M - 1) + n; admHoje._m = `${Math.floor(k / 12)}-${String(k % 12 + 1).padStart(2, '0')}`; admHoje(dia); });
   const add = $('#mdTfAdd'); if (add) add.onclick = () => { const v = ($('#mdTf').value || '').trim(); if (!v) return $('#mdTf').focus(); const p = lerPrazo(v, isoToday());
-    Tarefas.cria({ texto: v, prazo: p.data || '', hora: p.hora || '', repete: p.repete || '' }); toast('Tarefa anotada'); admHoje(dia); };
+    /* 01/11 (Ingrid: "não dá para cadastrar tarefas"): sem data ela sumia — o Meu dia só mostra o dia.
+       Sem data = o dia que está na tela; o aviso diz para quando ficou. */
+    const prazo = p.data || dia || isoToday();
+    Tarefas.cria({ texto: v, prazo, hora: p.hora || '', repete: p.repete || '' });
+    toast(prazo === dia ? 'Tarefa anotada ✓' : 'Tarefa anotada para ' + new Date(prazo + 'T12:00:00').toLocaleDateString(locale(), { weekday: 'short', day: '2-digit', month: '2-digit' }) + ' ✓');
+    admHoje(dia); };
   const inp = $('#mdTf'); if (inp) inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); add && add.click(); } };
 }
 /* relógios: Itália, Brasil e o do aparelho (áudio da Ingrid 23/10 — ela viaja por vários fusos) */

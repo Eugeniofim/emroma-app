@@ -974,3 +974,5 @@ details.orc-links summary{cursor:pointer;color:var(--ink-2);font-size:var(--fs-3
   .ibApp>*{min-width:0}
   .stage,.stage>*{min-width:0}
 }
+/* 01/11: no celular o campo de nova tarefa ficava espremido */
+@media(max-width:600px){.md-novatf{flex-wrap:wrap}.md-novatf .fld{flex:1 1 100%}.md-novatf .cta{width:100%}}
