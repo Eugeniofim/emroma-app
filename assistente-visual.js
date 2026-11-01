@@ -260,5 +260,32 @@ body.ia-dock #iaGaveta.iav{background:var(--v-bg)!important}
 #iaGaveta.iav #iaFila .iaFilaIt button{background:var(--v-s2);color:var(--v-tx2)}
 #iaGaveta.iav #iaFila small{color:var(--v-tx3)}
 `;
-  const st = document.createElement('style'); st.id = 'iavgCss'; st.textContent = css; document.head.appendChild(st);
+  /* 01/11 (Eugênio: "o assistente tá feio"): o app da Ingrid é CLARO (marfim + vinho) e a gaveta
+     escura destoava. No tema claro, a gaveta acompanha o app: marfim, cartões brancos, vinho nos
+     destaques, orbe menor. No tema escuro do aparelho continua a gaveta vinho escura de antes. */
+  const CLARO = `--v-bg:#FBF8F3;--v-s1:#FFFFFF;--v-s2:#F2EDE4;--v-line:#E8DED8;--v-tx:#1E1316;--v-tx2:#5E4C51;--v-tx3:#8C7B80;--v-sky:#7A1E2E;--v-lov:#7A1E2E;`;
+  const claro = `
+#iaGaveta.iav{${CLARO}box-shadow:-12px 0 40px -18px rgba(60,20,30,.25)}
+#iaGaveta.iav .iaB.assistant{box-shadow:0 1px 2px rgba(60,20,30,.06)}
+#iaGaveta.iav .iaB.assistant::before{content:"✦";color:#fff;font-size:13px}
+#iaGaveta.iav .iaB.user{color:#fff!important}
+#iaGaveta.iav .iaB.user a{color:#fff}
+#iaGaveta.iav .iaB b{color:inherit}
+#iaGaveta.iav .iaB.erro{background:#FCECEE!important;color:#8A1C2B!important;border-color:#F2C6CD}
+#iaGaveta.iav #iaEnviar,#iaGaveta.iav .iaCard .bts .sim{color:#fff!important}
+#iaGaveta.iav .iaCard{border-width:1px!important;box-shadow:0 6px 20px -12px rgba(122,30,46,.35)}
+#iaGaveta.iav .iavIco.on{background:#F3E3E6}
+#iaGaveta.iav #iaForm{box-shadow:0 4px 18px -10px rgba(60,20,30,.25)}
+#iaGaveta.iav #iaForm:focus-within{border-color:#B9707D!important;box-shadow:0 0 0 4px rgba(122,30,46,.10)}
+#iaGaveta.iav.iav-vazio .iaBarra button,#iaGaveta.iav.iav-vazio .iaBarra a{box-shadow:0 1px 2px rgba(60,20,30,.05);display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;text-align:left!important;min-height:52px;padding:10px 14px!important;font-weight:600}
+#iaGaveta.iav .iaBarra button:hover{background:#FBF1F3!important}
+#iavMenu #iaPe input[type=checkbox]{accent-color:#7A1E2E}
+.iavOrbeGrande{width:96px;height:96px}
+.iavHero h2{font-size:26px}`;
+  const css2 = `@media (prefers-color-scheme: light){${claro.replace(/\n#/g, '\n:root:not([data-theme="dark"]) #').replace(/\n\./g, '\n:root:not([data-theme="dark"]) .')}}
+${claro.replace(/\n#/g, '\n:root[data-theme="light"] #').replace(/\n\./g, '\n:root[data-theme="light"] .')}`;
+  const st = document.createElement('style'); st.id = 'iavgCss'; st.textContent = css + css2; document.head.appendChild(st);
+  /* o orbe mistura o halo com a cor do fundo: no claro, fundo marfim */
+  window.iavClaro = () => { const t = document.documentElement.dataset.theme; return t === 'light' || (t !== 'dark' && !matchMedia('(prefers-color-scheme: dark)').matches); };
+  if (window.iavClaro()) Orbe._fundo = '#FBF8F3'.replace('#', '').match(/../g).map(x => parseInt(x, 16) / 255);
 })();

@@ -1289,7 +1289,9 @@ iaBolha = function (tipo, texto, antesDe, semCopiar, foto) {
   /* o aviso interno dos anexos (⟦…⟧) e para a IA, nao para o balao dela */
   if (tipo === 'user' && typeof texto === 'string') texto = texto.replace(/\s*⟦[\s\S]*?⟧/g, '');
   if (tipo === 'assistant' && typeof texto === 'string') texto = ingSemPerguntaRepetida(texto);
-  if (tipo === 'assistant' && typeof texto === 'string') { const sus = ingDinheiroSuspeito(texto); if (sus.length) texto += `\n\n⚠️ Valor não confirmado pelo app (${sus.join(', ')}). Confira em "contas do cliente" antes de usar.`; }
+  /* 01/11: só confere o que a IA escreveu numa conversa — a saudação é o próprio app que monta
+     (o "3 clientes devem € 1.220" vinha com "⚠️ valor não confirmado" à toa) */
+  if (tipo === 'assistant' && typeof texto === 'string' && iaOcupado) { const sus = ingDinheiroSuspeito(texto); if (sus.length) texto += `\n\n⚠️ Valor não confirmado pelo app (${sus.join(', ')}). Confira em "contas do cliente" antes de usar.`; }
   const el = _ingBolha(tipo, texto, antesDe, semCopiar, foto);
   if (el.querySelectorAll) el.querySelectorAll('img[src^="data:application/pdf"]').forEach(im => { const sp = document.createElement('span'); sp.className = 'ia-pdf'; sp.textContent = '📄 PDF'; im.replaceWith(sp); });
   if (tipo === 'assistant' && ingVozEspera) ingFalar(texto);
