@@ -403,7 +403,7 @@ ROTAS_EXTRA['kt'] = (partes) => abrePublico(partes, (d) => kitPaginaCliente(d, l
 async function admKit(chave) {
   kitCss();
   /* abriu direto aqui (sem passar por outra aba): a sincronia por linha liga do mesmo jeito (os códigos dos kits moram nela) */
-  if (typeof itLigar === 'function') itLigar(() => { if (!(typeof isBusyEditing === 'function' && isBusyEditing())) route(); });
+  if (typeof itLigar === 'function') itLigar(() => { if (typeof redesenhaSuave === 'function') redesenhaSuave(); else if (!(typeof isBusyEditing === 'function' && isBusyEditing())) route(); });
   const d = await kitDados(chave);
   if (!d) { toast('Esse cliente ainda não tem reserva confirmada'); go(Kit._volta || '/adm/clients'); return; }
   const bs = kitReservas(chave), c = bs[0].clienteId && typeof Cadastro !== 'undefined' ? Cadastro.get(bs[0].clienteId) : null;

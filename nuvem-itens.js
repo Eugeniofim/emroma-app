@@ -216,8 +216,15 @@ if (typeof addEventListener === 'function') addEventListener('storage', (e) => {
     const novo = JSON.parse(e.newValue); if (!novo || !novo.tours) return;
     DB = novo; if (typeof fillSettings === 'function') DB.settings = fillSettings(DB.settings);
     itConhecer();
-    const ae = document.activeElement, digitando = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
-    if (!digitando && typeof route === 'function') route();
+    /* 30/10/2026: era route() direto — abrir o site em OUTRA aba (ou o app instalado junto com o
+       navegador) jogava esta para o topo a cada gravação da outra ("sobe pra cima toda hora").
+       Agora: o redesenho suave do app.js — só se o que aparece mudou, na mesma altura, devolve o
+       que foi digitado e nunca redesenha por cima de quem está digitando. */
+    if (typeof redesenhaSuave === 'function') redesenhaSuave();
+    else {
+      const ae = document.activeElement, digitando = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
+      if (!digitando && typeof route === 'function') route();
+    }
   } catch (err) {}
 });
 function itLigar(onChange) {
