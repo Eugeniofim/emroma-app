@@ -19,7 +19,13 @@
 const L = (pt, en) => (LANG === 'en' ? en : pt);
 const OP_ICO = { transfer: '🚐', walk: '🏛️', day: '🚗', papal: '⛪', conexao: '🚢', trem: '🚆' };
 function opNomeServ(b) { if (b.servicoTxt) return b.servicoTxt; const x = Tours.get(b.tourId); return x ? (x.name[LANG] || x.name.pt) : '?'; }
-function opNum(n) { return String(n || '').replace(/\D/g, ''); }
+function opNum(n) {
+  /* 15/11: "abre o WhatsApp mas não manda nada" — número com 00 na frente ou celular italiano sem o +39 abria conversa errada */
+  let d = String(n || '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (/^3\d{8,9}$/.test(d)) d = '39' + d;
+  return d;
+}
 function opCurta(iso) { return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
 function opFicha(b) { return '#/adm/clients/' + encodeURIComponent(b.clienteId ? 'c:' + b.clienteId : chaveCliente(b)); }
 function opPapel(b) {
@@ -365,8 +371,7 @@ function admHoje(arg) {
     </div>
     ${dia === hoje && (semPres.length || novos) ? `<div class="op-pend">
       ${novos ? `<a class="alert warn" href="#/adm/consulta">🧾 ${novos} ${novos > 1 ? 'pedidos esperando orçamento' : 'pedido esperando orçamento'} →</a>` : ''}
-      ${(() => { const n = transfersDe(isoToday(), addDays(isoToday(), 7), 'roma').filter(b => !b.ncc).length; return n ? `<a class="alert warn" href="#/adm/transfer">🚐 ${n} ${n > 1 ? 'transfers' : 'transfer'} dos próximos 7 dias ainda não ${n > 1 ? 'pedidos' : 'pedido'} na ${esc(nccConfig().nome)} →</a>` : ''; })()}
-      ${semPres.length ? `<a class="alert warn" href="#/adm/guias">👤 ${semPres.length} ${semPres.length > 1 ? 'serviços' : 'serviço'} sem guia/motorista nos próximos 3 dias →</a>` : ''}
+            ${semPres.length ? `<a class="alert warn" href="#/adm/guias">👤 ${semPres.length} ${semPres.length > 1 ? 'serviços' : 'serviço'} sem guia/motorista nos próximos 3 dias →</a>` : ''}
     </div>` : ''}
     <div class="md-grade">
       <div class="md-esq">
@@ -449,7 +454,7 @@ function admHoje(arg) {
    GUIAS — bater a agenda delas com os passeios
 ===================================================== */
 function admGuias(arg) {
-  const S = admGuias._s = admGuias._s || { data: addDays(isoToday(), 1), turno: 'manha', cidade: 'Roma', tipo: 'guia', servico: '', sem: isoToday(), ed: '' };
+  const S = admGuias._s = admGuias._s || { data: '', turno: 'manha', cidade: 'Roma', tipo: 'guia', servico: '', sem: isoToday(), ed: '', ordem: 'pref' };   /* 15/11: o dia começa em branco */
   if (arg && arg.startsWith('servico:')) {
     const b = Bookings.get(arg.slice(8));
     if (b) {
@@ -460,10 +465,24 @@ function admGuias(arg) {
     }
     history.replaceState(null, '', '#/adm/guias');
   }
-  const doDia = Op.doDia(S.data);
+  const doDia = S.data ? Op.doDia(S.data) : [];
   if (S.servico && !doDia.some(b => b.id === S.servico)) S.servico = '';
   const serv = S.servico ? Bookings.get(S.servico) : null;
-  const r = Disp.quem({ data: S.data, turno: S.turno, cidade: S.cidade, tipo: S.tipo });
+  /* 15/11: UMA lista (antes eram 3 + a de preferência), na ordem que ela escolher */
+  const alfa = (a, b) => a.nome.localeCompare(b.nome, 'pt', { sensitivity: 'base' });
+  const gente = Equipe.all(S.tipo).filter(p => Equipe.atende(p, S.cidade));
+  if (S.ordem === 'alfa') gente.sort(alfa);
+  const turnosQ = S.turno === 'dia' ? ['manha', 'tarde'] : [S.turno];
+  const situacao = (p) => {
+    if (!S.data) return { p, estado: '' };
+    const es = turnosQ.map(tu => Disp.estado(p.id, S.data, tu));
+    const oc = es.find(e => e.estado === 'ocupada');
+    if (oc) return { p, ...oc };
+    if (es.every(e => e.estado === 'livre')) return { p, estado: 'livre', nota: es.map(e => e.nota).filter(Boolean).join(' · ') };
+    return { p, estado: '' };
+  };
+  const lista = gente.map(situacao);
+  const r = { semResposta: lista.filter(it => !it.estado) };
   const cidades = Equipe.cidades();
   const turnoTxt = S.turno === 'manha' ? 'de manhã' : S.turno === 'tarde' ? 'à tarde' : S.turno === 'noite' ? 'à noite' : 'o dia inteiro';
   const msgPara = (p) => serv
@@ -477,16 +496,18 @@ function admGuias(arg) {
       : '<span class="pill n">não perguntei</span>';
     const podeEscalar = serv && it.estado !== 'ocupada' && serv.prestadorId !== p.id;
     return `<div class="gl-row ${it.estado}">
-      <span class="gl-pref">${i}</span>
-      <div class="gl-nome"><b>${esc(p.nome)}</b><small>${esc((p.cidades || []).join(', '))}${p.idiomas ? ' · ' + esc(p.idiomas) : ''}</small></div>
-      ${pill}
+      <span class="gl-pref">${S.ordem === 'pref' ? i : ''}</span>
+      <div class="gl-nome"><b>${esc(p.nome)}</b><small>${esc((p.cidades || []).join(', '))}${p.idiomas ? ' · ' + esc(p.idiomas) : ''}${p.whats ? ' · ' + esc(p.whats) : ''}${p.obs ? ' · ' + esc(p.obs) : ''}</small></div>
+      ${S.data ? pill : ''}
       <div class="tacts">
         ${p.whats ? `<a class="mini cta-ish" target="_blank" rel="noopener" data-pergunta="${esc(p.id)}" href="${waLink(msgPara(p), opNum(p.whats))}">💬 Perguntar</a>` : ''}
-        ${it.servico ? '' : `<button class="mini" data-mk="${esc(p.id)}|livre">Livre</button>
+        ${!S.data || it.servico ? '' : `<button class="mini" data-mk="${esc(p.id)}|livre">Livre</button>
         <button class="mini" data-mk="${esc(p.id)}|ocupada">Ocupada</button>
         ${it.estado ? `<button class="mini ghost" data-mk="${esc(p.id)}|">Limpar</button>` : ''}`}
         ${podeEscalar ? `<button class="mini strong" data-esc="${esc(p.id)}">Escalar</button>` : ''}
         ${serv && serv.prestadorId === p.id ? '<span class="pill ok">escalada neste serviço</span>' : ''}
+        ${S.ordem === 'pref' ? `<button class="mini ghost" data-mv="${esc(p.id)}|-1" aria-label="subir na preferência">↑</button><button class="mini ghost" data-mv="${esc(p.id)}|1" aria-label="descer na preferência">↓</button>` : ''}
+        <button class="mini ghost" data-ed="${esc(p.id)}">editar</button><button class="mini ghost danger" data-rm="${esc(p.id)}">remover</button>
       </div>
     </div>`;
   };
@@ -495,12 +516,11 @@ function admGuias(arg) {
   /* a semana: gente x dias x turnos, como a planilha dela */
   const dias7 = Array.from({ length: 7 }, (_, i) => addDays(S.sem, i));
   const tts = ['manha', 'tarde', 'noite'];
-  const gente = Equipe.all(S.tipo).filter(p => Equipe.atende(p, S.cidade));
   const WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
   const grade = `<div class="gsem-wrap"><table class="gsem"><thead>
       <tr><th></th>${dias7.map(d => `<th colspan="3" class="${d === S.data ? 'on' : ''}">${WD[new Date(d + 'T12:00:00').getDay()]} ${opCurta(d)}</th>`).join('')}</tr>
       <tr><th></th>${dias7.map(() => tts.map(tu => `<th class="tu">${tu === 'manha' ? 'M' : tu === 'tarde' ? 'T' : 'N'}</th>`).join('')).join('')}</tr></thead>
-    <tbody>${gente.map(p => `<tr><th class="gnome">${esc(opPrimeiro(p.nome))}</th>${dias7.map(d => tts.map(tu => {
+    <tbody>${gente.map(p => `<tr><th class="gnome">${esc(p.nome)}</th>${dias7.map(d => tts.map(tu => {
       const e = Disp.estado(p.id, d, tu);
       const tit = e.servico ? opNomeServ(e.servico) + ' ' + e.servico.time + ' · ' + e.servico.name : (e.nota || '');
       return `<td class="gc ${e.estado} ${e.servico ? 'serv' : ''}" data-gc="${esc(p.id)}|${d}|${tu}" title="${esc(tit)}">${e.estado === 'livre' ? '✓' : e.estado === 'ocupada' ? (e.servico ? '●' : '✕') : '·'}</td>`;
@@ -529,11 +549,15 @@ function admGuias(arg) {
         <a class="mini cta-ish" target="_blank" rel="noopener" href="${waLink(opMsgPrestador(serv), opNum((Equipe.get(serv.prestadorId) || {}).whats))}">💬 mandar o serviço</a>
         <button class="mini ghost" data-desescala="1">tirar</button></div>` : ''}
 
-      <div class="gl-grupo"><span class="op-lbl">Livres · por preferência</span>${r.livres.length ? ordem(r.livres, 0) : '<p class="why">Ninguém confirmou ainda.</p>'}</div>
-      <div class="gl-grupo"><span class="op-lbl">Sem resposta</span>${r.semResposta.length ? ordem(r.semResposta, r.livres.length) : '<p class="why">—</p>'}
-        ${r.semResposta.filter(it => it.p.whats).length > 1 ? `<button class="mini" id="gqTodas">💬 Perguntar a todas de uma vez (${r.semResposta.filter(it => it.p.whats).length})</button>` : ''}
+      <div class="chips" style="margin:10px 0 0">
+        <button class="chip ${S.ordem === 'pref' ? 'on' : ''}" data-ord="pref">Por preferência</button>
+        <button class="chip ${S.ordem === 'alfa' ? 'on' : ''}" data-ord="alfa">A → Z</button>
+        <button class="mini" id="gqBaixa" style="margin-left:auto">⬇️ Baixar a agenda (planilha)</button></div>
+      ${S.data ? '' : '<p class="why">Escolha o dia acima para ver quem está livre. Sem dia, a lista mostra só o cadastro.</p>'}
+      <p class="why">O 💬 abre o WhatsApp com a mensagem já escrita — falta só você tocar em enviar (o WhatsApp não deixa mandar sozinho).</p>
+      <div class="gl-grupo">${lista.length ? ordem(lista, 0) : '<p class="why">Ninguém cadastrado ' + (S.cidade ? 'em ' + esc(S.cidade) : '') + '.</p>'}
+        ${S.data && r.semResposta.filter(it => it.p.whats).length > 1 ? `<button class="mini" id="gqTodas">💬 Perguntar a quem não respondeu (${r.semResposta.filter(it => it.p.whats).length})</button>` : ''}
         <div id="gqLote"></div></div>
-      <div class="gl-grupo"><span class="op-lbl">Ocupadas</span>${r.ocupadas.length ? ordem(r.ocupadas, r.livres.length + r.semResposta.length) : '<p class="why">—</p>'}</div>
     </section>
 
     <section class="card">
@@ -564,19 +588,28 @@ function admGuias(arg) {
       </div>
       <label class="fld">Observação<input id="geObs" value="${esc(ed ? ed.obs : '')}" placeholder="ex.: ótima com crianças, não faz Vaticano"></label>
       <div class="btnrow"><button class="cta sm" id="geSalva">${ed ? 'Salvar' : 'Cadastrar'}</button>${ed ? '<button class="mini" id="geCancela">cancelar</button>' : ''}</div>
-      <div class="rulesep"></div>
-      <span class="op-lbl">Ordem de preferência — ${S.tipo === 'motorista' ? 'motoristas' : 'guias'}</span>
-      ${Equipe.all(S.tipo).map((p, i) => `<div class="gl-row">
-        <span class="gl-pref">${i + 1}</span>
-        <div class="gl-nome"><b>${esc(p.nome)}</b><small>${esc((p.cidades || []).join(', '))}${p.whats ? ' · ' + esc(p.whats) : ''}${p.obs ? ' · ' + esc(p.obs) : ''}</small></div>
-        <div class="tacts"><button class="mini" data-mv="${esc(p.id)}|-1" aria-label="subir">↑</button><button class="mini" data-mv="${esc(p.id)}|1" aria-label="descer">↓</button>
-          <button class="mini" data-ed="${esc(p.id)}">editar</button><button class="mini danger" data-rm="${esc(p.id)}">remover</button></div>
-      </div>`).join('') || '<p class="why">Ninguém cadastrado ainda.</p>'}
     </section>`);
 
   const re = () => admGuias();
   $$('[data-tipo]').forEach(b => b.onclick = () => { S.tipo = b.dataset.tipo; S.servico = ''; re(); });
-  $('#gqData').onchange = (e) => { S.data = e.target.value || S.data; S.servico = ''; re(); };
+  $('#gqData').onchange = (e) => { S.data = e.target.value || ''; S.servico = ''; re(); };
+  $$('[data-ord]').forEach(b => b.onclick = () => { S.ordem = b.dataset.ord; re(); });
+  /* 15/11: cópia de segurança da agenda das guias, numa planilha */
+  $('#gqBaixa').onclick = () => {
+    const TN = { manha: 'manhã', tarde: 'tarde', noite: 'noite' };
+    const linhas = [['Tipo', 'Nome', 'WhatsApp', 'Cidades', 'Data', 'Turno', 'Situação', 'Até / nota', 'Serviço']];
+    for (const p of Equipe.all().slice().sort(alfa)) {
+      const reg = [];
+      for (const d of (DB.disp || []).filter(x => x.pessoaId === p.id)) reg.push([d.data, d.turno, d.estado, d.nota || '', '']);
+      for (const bk of DB.bookings.filter(x => x.prestadorId === p.id && x.status !== 'cancelled'))
+        for (const tu of turnosDoServico(bk)) reg.push([bk.date, tu, 'ocupada', bk.time || '', opNomeServ(bk) + ' · ' + bk.name]);
+      reg.sort((x, y) => (x[0] + x[1]).localeCompare(y[0] + y[1]));
+      if (!reg.length) linhas.push([p.tipo, p.nome, p.whats, (p.cidades || []).join(', '), '', '', '', '', '']);
+      for (const x of reg) linhas.push([p.tipo, p.nome, p.whats, (p.cidades || []).join(', '), String(x[0]).split('-').reverse().join('/'), TN[x[1]] || x[1], x[2], x[3], x[4]]);
+    }
+    opBaixa('agenda-guias-' + isoToday() + '.csv', linhas);
+    toast('Agenda baixada — abre no Excel ou no Google Planilhas');
+  };
   $('#gqTurno').onchange = (e) => { S.turno = e.target.value; re(); };
   $('#gqCid').onchange = (e) => { S.cidade = e.target.value; re(); };
   $('#gqServ').onchange = (e) => {

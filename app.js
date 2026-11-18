@@ -1527,10 +1527,12 @@ function renderBook() {
    chegou pedindo orcamento, quem faz, e so depois o resto. */
 /* O menu em grupos (como o TI ARTES): cada grupo tem um título e as abas.
    A Planilha (o CRM dela, a planilha mais importante) fica SEMPRE no menu. */
+/* 15/11 (pedido dela 03/11 e 15/11): Pipeline e Transfer saíram do menu — o ChatGPT dela preenche o site de transfer.
+   As telas continuam existindo (links antigos abrem), só não aparecem no menu. */
 const ADM_GROUPS = [
   { h: 'O dia a dia',           tabs: [['today', 'admToday'], ['conversas', 'admConversas']] },   /* Agenda e Tarefas agora moram no Meu dia (Doc 19–21/10) */
-  { h: 'Orçamentos e clientes', tabs: [['planilha', 'admPlanilha'], ['pipeline', 'admPipeline'], ['consulta', 'admConsulta'], ['clients', 'admClients'], ['bookings', 'admBookings']] },
-  { h: 'Em Roma',               tabs: [['guias', 'admGuias'], ['transfer', 'admTransfer'], ['tours', 'admTours'], ['precos', 'admPrecos'], ['voucher', 'admVoucher']] },
+  { h: 'Orçamentos e clientes', tabs: [['planilha', 'admPlanilha'], ['consulta', 'admConsulta'], ['clients', 'admClients'], ['bookings', 'admBookings']] },
+  { h: 'Em Roma',               tabs: [['guias', 'admGuias'], ['tours', 'admTours'], ['precos', 'admPrecos'], ['voucher', 'admVoucher']] },
   { h: 'Dinheiro',              tabs: [['money', 'admMoney'], ['reports', 'admReports'], ['coupons', 'admCoupons']] },
   { h: 'O app',                 tabs: [['look', 'temaTit'], ['settings', 'admSettings']] },
 ];

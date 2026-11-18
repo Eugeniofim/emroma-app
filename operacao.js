@@ -1287,7 +1287,10 @@ function voucherViagem(b) {
   if (!b) return [];
   const dig = (w) => String(w || '').replace(/\D/g, '');
   const mesmo = (x) => (b.clienteId && x.clienteId === b.clienteId) || (dig(b.whats).length >= 6 && dig(x.whats) === dig(b.whats)) || (_nomeN(x.name) && _nomeN(x.name) === _nomeN(b.name));
-  return (DB.bookings || []).filter(x => x.status !== 'cancelled' && (x.id === b.id || (mesmo(x) && Math.abs(_dias(b.date, x.date)) <= 30)))
+  /* 15/11: o cliente fez um SEGUNDO pedido e o voucher juntava o serviço já feito com o novo (malas e pessoas
+     misturadas). Agora o voucher é do PEDIDO: reserva de OUTRO orçamento não entra mais. */
+  const doPedido = (x) => !(b.orcamentoId && x.orcamentoId && x.orcamentoId !== b.orcamentoId);   /* serviço lançado à mão (sem orçamento) continua junto */
+  return (DB.bookings || []).filter(x => x.status !== 'cancelled' && (x.id === b.id || (doPedido(x) && mesmo(x) && Math.abs(_dias(b.date, x.date)) <= 30)))
     .sort((a, c) => (a.date + (a.time || '')).localeCompare(c.date + (c.time || '')));
 }
 /* os blocos da viagem inteira, SEM repetir: um "passeios" mesmo com 3 passeios;
@@ -2680,7 +2683,7 @@ function crmLinhas(hoje) {
       veio: VEIO_CURTO[veioPor] || '', veioPor, indicou: quem(veioPor, par, b.indicou || (c && c.indicadoNome) || ''),
       whats: b.whats || '', nome: b.name, nomePlan: entre(b.name, veioPor), arquivo: b.arquivo || '',
       dataServ: b.date, hora: b.time, pax: b.pax, servico: nomeDoServico(b) + (b.voo ? ' · ' + b.voo : ''), obs: b.obsOp || '',
-      clientePaga: +b.total || 0, ingridPaga: +b.custo || 0, cidade: b.destino || b.origem || '', parceiro: par && par.tipo === 'parceiro' ? par.nome : (b.parceiroTxt || ''),
+      clientePaga: +b.total || 0, ingridPaga: Op.restoPara(b) === 'ingrid' ? (+b.custo || 0) : 0,   /* 15/11: só quando a EmRoma paga o parceiro (cliente paga no dia = Ingrid não paga nada) */ cidade: b.destino || b.origem || '', parceiro: par && par.tipo === 'parceiro' ? par.nome : (b.parceiroTxt || ''),
       /* Total e Sinal sao do PEDIDO (como na planilha dela): o sinal e o que o pedido inteiro ja pagou a ela */
       totalPedido: irmas.reduce((s2, x) => s2 + (+x.total || 0), 0),
       sinal: Math.round(irmas.reduce((s2, x) => s2 + (x.payments || []).filter(p => p.conta !== CONTA_PRESTADOR).reduce((a, p) => a + p.amount, 0), 0) * 100) / 100,
@@ -2797,7 +2800,7 @@ function crmEdita(ref, campo, valor, hoje) {
     case 'servico': b.servicoTxt = v; break;
     case 'obs': b.obsOp = v; break;
     case 'clientePaga': b.total = num(); break;
-    case 'ingridPaga': b.custo = num(); break;
+    case 'ingridPaga': b.custo = num(); if (b.custo > 0) b.restoPara = 'ingrid'; break;   /* digitou que a EmRoma paga = é ela quem paga o parceiro */
     case 'cidade': b.destino = v; break;
     case 'parceiro': b.parceiroTxt = v; break;
     case 'comVendor': b.comVendor = num(); break;
